@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iPhone Twins - Panel de Control</title>
+    <!-- Enlace a la hoja de estilos CSS externa -->
+    <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+    <div id="global-feedback"></div>
+
+    <div class="logo-container">
+        <img src="./Diseño sin título (26).png" alt="Logo iPhone Twins" class="logo-animado">
+    </div>
+
+    <div id="login-container" class="container container-sm"></div>
+
+    <div id="app-container" class="container hidden">
+        <div class="top-right-controls">
+            <div class="dropdown">
+                <button id="btn-export" class="icon-btn" style="background-color: #8e44ad;" title="Exportar a Excel">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                </button>
+                <div id="export-menu" class="dropdown-menu">
+                    <button class="dropdown-item spinner-btn" id="export-stock-btn"><span class="btn-text">Exportar Stock</span><div class="spinner"></div></button>
+                    <button class="dropdown-item spinner-btn" id="export-sales-btn"><span class="btn-text">Exportar Ventas</span><div class="spinner"></div></button>
+                </div>
+            </div>
+            <button id="logout-button" class="icon-btn">Cerrar Sesión</button>
+        </div>
+        <div class="nav-tabs">
+            <div id="tab-dashboard" class="nav-tab active">Dashboard</div>
+            <div id="tab-management" class="nav-tab">Gestión de IMEI</div>
+        </div>
+        <div id="dashboard-view">
+            <div class="dashboard-controls">
+                <button id="btn-show-stock" class="control-btn active">Ver Stock</button>
+                <button id="btn-show-sales" class="control-btn">Ver Ventas</button>
+                <button id="btn-show-canje" class="control-btn">Pendientes de Carga<span id="canje-badge" class="notification-badge hidden"></span></button>
+            </div>
+            <div id="stock-section">
+                <h2>Stock Actual</h2>
+                <div class="filters-container">
+                    <div class="filter-group"><label for="filter-stock-model">Modelo</label><select id="filter-stock-model"></select></div>
+                    <div class="filter-group"><label for="filter-stock-color">Color</label><select id="filter-stock-color"></select></div>
+                    <div class="filter-group"><label for="filter-stock-gb">Almacenamiento</label><select id="filter-stock-gb"></select></div>
+                    <div class="filter-group"><label for="filter-stock-bat-min">Batería Mín %</label><input type="number" id="filter-stock-bat-min" placeholder="Ej: 80"></div>
+                    <div class="filter-group"><label for="filter-stock-bat-max">Batería Máx %</label><input type="number" id="filter-stock-bat-max" placeholder="Ej: 100"></div>
+                    <div class="filter-group"><button id="btn-apply-stock-filters">Filtrar Stock</button></div>
+                </div>
+                <div id="stock-table-container" class="table-container"></div>
+            </div>
+            <div id="sales-section" class="hidden">
+                 <h2>Historial de Ventas</h2>
+                <div class="filters-container">
+                    <div class="filter-group"><label for="filter-sales-vendedor">Vendedor</label><select id="filter-sales-vendedor"></select></div>
+                    <div class="filter-group"><label for="filter-sales-start-date">Fecha Desde</label><input type="date" id="filter-sales-start-date"></div>
+                    <div class="filter-group"><label for="filter-sales-end-date">Fecha Hasta</label><input type="date" id="filter-sales-end-date"></div>
+                    <div class="filter-group"><button id="btn-apply-sales-filters">Filtrar Ventas</button></div>
+                </div>
+                <div id="sales-table-container" class="table-container"></div>
+            </div>
+            <div id="canje-section" class="hidden">
+                 <h2>Equipos Pendientes de Carga (Plan Canje)</h2>
+                 <div id="canje-table-container" class="table-container"></div>
+            </div>
+        </div>
+        <div id="management-view" class="container-sm hidden" style="margin: auto;">
+             <button id="btn-scan">Escanear IMEI</button>
+            <div id="scanner-container" class="hidden"></div>
+            <div id="feedback-message" class="hidden"></div>
+            <form id="product-form" class="hidden">
+                 <div class="form-group"><label for="imei-form">IMEI Escaneado</label><input type="text" id="imei-form" name="imei" readonly required></div>
+                 <div class="form-group"><label for="modelo-form">Modelo</label><select id="modelo-form" name="modelo" required></select></div>
+                 <div class="form-group"><label for="bateria">Condición de Batería (%)</label><input type="number" id="bateria" name="bateria" placeholder="Ej: 89" min="1" max="100" required></div>
+                 <div class="form-group"><label for="color-form">Color</label><select id="color-form" name="color" required></select></div>
+                 <div class="form-group"><label for="almacenamiento-form">Almacenamiento</label><select id="almacenamiento-form" name="almacenamiento" required></select></div>
+                 <div class="form-group"><label for="detalles-form">Detalles Estéticos</label><select id="detalles-form" name="detalles" required></select></div>
+                 <button type="submit" class="spinner-btn"><span class="btn-text">Guardar Producto</span><div class="spinner"></div></button>
+            </form>
+        </div>
+        <div id="prompt-container"></div>
+    </div>
+
+    <!-- SCRIPTS -->
+    <script src="https://unpkg.com/html5-qrcode/html5-qrcode.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    
+    <!-- Enlace al archivo JavaScript externo -->
+    <script src="./script.js"></script>
+</body>
+</html>
