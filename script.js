@@ -41,6 +41,7 @@ function initApp() {
         almacenamientoFormSelect: document.getElementById('almacenamiento-form'), detallesFormSelect: document.getElementById('detalles-form'),
         feedbackMessage: document.getElementById('feedback-message'), promptContainer: document.getElementById('prompt-container'),
         globalFeedback: document.getElementById('global-feedback'), canjeBadge: document.getElementById('canje-badge'),
+        managementTitle: document.getElementById('management-title'), productFormSubmitBtn: document.getElementById('product-form-submit-btn'),
         btnExport: document.getElementById('btn-export'), exportMenu: document.getElementById('export-menu'),
         exportStockBtn: document.getElementById('export-stock-btn'), exportSalesBtn: document.getElementById('export-sales-btn')
     });
@@ -152,17 +153,42 @@ async function loadStock() {
         query = query.orderBy('modelo');
         const querySnapshot = await query.get();
         if (querySnapshot.empty) { s.stockTableContainer.innerHTML = `<p class="dashboard-loader">No se encontraron productos con esos filtros.</p>`; return; }
-        let tableHTML = `<table><thead><tr><th>Modelo</th><th>Color</th><th>GB</th><th>Batería</th><th>IMEI</th><th>Detalles</th><th>Acción</th></tr></thead><tbody>`;
+        
+        let tableHTML = `<table><thead><tr><th>Modelo</th><th>Color</th><th>GB</th><th>Batería</th><th>IMEI</th><th>Detalles</th><th>Acciones</th></tr></thead><tbody>`;
         querySnapshot.forEach(doc => {
             const item = doc.data();
-            const itemJSON = JSON.stringify(item).replace(/"/g, '"');
-            tableHTML += `<tr data-imei="${item.imei}" data-item='${itemJSON}'><td>${item.modelo || ''}</td><td>${item.color || ''}</td><td>${item.almacenamiento || ''}</td><td>${item.bateria || ''}%</td><td>${item.imei || ''}</td><td>${item.detalles_esteticos || ''}</td><td><button class="delete-btn btn-delete-stock"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button></td></tr>`;
+            const itemJSON = JSON.stringify(item).replace(/'/g, "'");
+            tableHTML += `<tr data-item='${itemJSON}'>
+                <td>${item.modelo || ''}</td>
+                <td>${item.color || ''}</td>
+                <td>${item.almacenamiento || ''}</td>
+                <td>${item.bateria || ''}%</td>
+                <td>${item.imei || ''}</td>
+                <td>${item.detalles_esteticos || ''}</td>
+                <td class="actions-cell">
+                    <button class="edit-btn btn-edit-stock" title="Editar Producto">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                    </button>
+                    <button class="delete-btn btn-delete-stock" title="Eliminar Producto">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                    </button>
+                </td>
+            </tr>`;
         });
         s.stockTableContainer.innerHTML = tableHTML + `</tbody></table>`;
+        
+        document.querySelectorAll('.btn-edit-stock').forEach(button => {
+            button.addEventListener('click', e => {
+                const row = e.target.closest('tr');
+                const item = JSON.parse(row.dataset.item.replace(/'/g, "'"));
+                promptToEditStock(item);
+            });
+        });
+
         document.querySelectorAll('.btn-delete-stock').forEach(button => {
             button.addEventListener('click', e => {
                 const row = e.target.closest('tr');
-                const item = JSON.parse(row.dataset.item.replace(/"/g, '"'));
+                const item = JSON.parse(row.dataset.item.replace(/'/g, "'"));
                 const message = `Producto: ${item.modelo} ${item.color}\nIMEI: ${item.imei}\n\nEsta acción eliminará el producto del stock permanentemente.`;
                 showConfirmationModal('¿Seguro que quieres eliminar este producto?', message, () => {
                     deleteStockItem(item.imei, item);
@@ -171,6 +197,30 @@ async function loadStock() {
         });
     } catch (error) { handleDBError(error, s.stockTableContainer, "stock"); }
 }
+
+function promptToEditStock(item) {
+    switchTab(false);
+    
+    s.btnScan.classList.add('hidden');
+    s.scannerContainer.classList.add('hidden');
+    s.feedbackMessage.classList.add('hidden');
+    
+    s.managementTitle.textContent = "Editar Producto";
+    s.productFormSubmitBtn.querySelector('.btn-text').textContent = "Actualizar Producto";
+    
+    s.productForm.reset();
+    s.imeiInput.value = item.imei;
+    s.modeloFormSelect.value = item.modelo;
+    document.getElementById('bateria').value = item.bateria;
+    s.colorFormSelect.value = item.color;
+    s.almacenamientoFormSelect.value = item.almacenamiento;
+    s.detallesFormSelect.value = item.detalles_esteticos;
+    
+    s.productForm.dataset.mode = 'update';
+    
+    s.productForm.classList.remove('hidden');
+}
+
 async function deleteStockItem(imei, item) {
     try {
         await db.runTransaction(async t => {
@@ -259,28 +309,125 @@ async function loadSales() {
         }
         const querySnapshot = await query.limit(100).get();
         if (querySnapshot.empty) { s.salesTableContainer.innerHTML = `<p class="dashboard-loader">No se encontraron ventas con esos filtros.</p>`; return; }
-        let tableHTML = `<table><thead><tr><th>Fecha</th><th>Producto</th><th>Vendedor</th><th>Precio (USD)</th><th>Pago</th><th>Detalles Pago</th><th>Acción</th></tr></thead><tbody>`;
+        
+        let tableHTML = `<table><thead><tr><th>Fecha</th><th>Producto</th><th>Vendedor</th><th>Precio (USD)</th><th>Pago</th><th>Detalles Pago</th><th>Acciones</th></tr></thead><tbody>`;
         querySnapshot.forEach(doc => {
             const venta = doc.data();
             const fecha = venta.fecha_venta ? new Date(venta.fecha_venta.seconds * 1000).toLocaleString('es-AR') : 'N/A';
             const productoInfo = `${venta.producto.modelo || ''} ${venta.producto.color || ''}`;
             let pagoDetalle = venta.metodo_pago === 'pesos' ? `ARS ${venta.monto_pesos || ''} (T/C ${venta.cotizacion_dolar || ''})` : '-';
-            const productoJSON = JSON.stringify(venta.producto).replace(/"/g, '"');
-            tableHTML += `<tr data-sale-id="${doc.id}" data-imei="${venta.imei_vendido}" data-canje-id="${venta.id_canje_pendiente || ''}" data-producto='${productoJSON}'><td>${fecha}</td><td>${productoInfo}</td><td>${venta.vendedor}</td><td>$${venta.precio_venta_usd}</td><td>${venta.metodo_pago}</td><td>${pagoDetalle}</td><td><button class="delete-btn btn-delete-sale"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button></td></tr>`;
+            const ventaJSON = JSON.stringify(venta).replace(/'/g, "'");
+
+            tableHTML += `<tr data-sale-id="${doc.id}" data-sale-item='${ventaJSON}'>
+                <td>${fecha}</td>
+                <td>${productoInfo}</td>
+                <td>${venta.vendedor}</td>
+                <td>$${venta.precio_venta_usd}</td>
+                <td>${venta.metodo_pago}</td>
+                <td>${pagoDetalle}</td>
+                <td class="actions-cell">
+                    <button class="edit-btn btn-edit-sale" title="Editar Venta">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                    </button>
+                    <button class="delete-btn btn-delete-sale" title="Eliminar Venta">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                    </button>
+                </td>
+            </tr>`;
         });
         s.salesTableContainer.innerHTML = tableHTML + `</tbody></table>`;
+        
+        document.querySelectorAll('.btn-edit-sale').forEach(button => {
+            button.addEventListener('click', e => {
+                const row = e.target.closest('tr');
+                const saleItem = JSON.parse(row.dataset.saleItem.replace(/'/g, "'"));
+                const saleId = row.dataset.saleId;
+                promptToEditSale(saleItem, saleId);
+            });
+        });
+
         document.querySelectorAll('.btn-delete-sale').forEach(button => {
             button.addEventListener('click', e => {
                 const row = e.target.closest('tr');
-                const producto = JSON.parse(row.dataset.producto.replace(/"/g, '"'));
-                const message = `Producto: ${producto.modelo}\nIMEI: ${row.dataset.imei}\n\nEsta acción NO devolverá el equipo al stock y la eliminará permanentemente.`;
+                const saleItem = JSON.parse(row.dataset.saleItem.replace(/'/g, "'"));
+                const saleId = row.dataset.saleId;
+                const message = `Producto: ${saleItem.producto.modelo}\nIMEI: ${saleItem.imei_vendido}\n\nEsta acción NO devolverá el equipo al stock y la eliminará permanentemente.`;
                 showConfirmationModal('¿Seguro que quieres eliminar esta venta?', message, () => {
-                    deleteSale(row.dataset.saleId, row.dataset.imei, row.dataset.canjeId);
+                    deleteSale(saleId, saleItem.imei_vendido, saleItem.id_canje_pendiente);
                 });
             });
         });
     } catch (error) { handleDBError(error, s.salesTableContainer, "ventas"); }
 }
+
+function promptToEditSale(sale, saleId) {
+    const vendedoresOptions = vendedores.map(v => `<option value="${v}">${v}</option>`).join('');
+    
+    s.promptContainer.innerHTML = `<div class="container container-sm" style="margin:auto;"><div class="prompt-box"><h3>Editar Venta</h3><form id="edit-sale-form"><div class="details-box"><div class="detail-item"><span>Producto:</span> <strong>${sale.producto.modelo || ''}</strong></div><div class="detail-item"><span>IMEI:</span> <strong>${sale.imei_vendido}</strong></div></div><div class="form-group"><label for="precioVenta">Precio de Venta (USD)</label><input type="number" id="precioVenta" name="precioVenta" required placeholder="Ej: 850" value="${sale.precio_venta_usd || ''}"></div><div class="form-group"><label for="metodoPago">Método de Pago</label><select id="metodoPago" name="metodoPago" required><option value="dolares">Dólares</option><option value="pesos">Pesos</option></select></div><div id="pesos-fields" class="hidden"><div class="form-group"><label>Detalles Pago en Pesos</label><input type="number" name="montoPesos" placeholder="Monto en ARS" value="${sale.monto_pesos || ''}"><input type="number" name="cotizacionDolar" placeholder="Cotización Dólar" value="${sale.cotizacion_dolar || ''}"></div></div><div class="form-group"><label for="vendedor">Vendedor</label><select name="vendedor" required>${vendedoresOptions}</select></div><div class="prompt-buttons"><button type="submit" class="prompt-button confirm spinner-btn"><span class="btn-text">Actualizar Venta</span><div class="spinner"></div></button><button type="button" id="btn-cancel-edit-sale" class="prompt-button cancel">Cancelar</button></div></form></div></div>`;
+    
+    const form = document.getElementById('edit-sale-form');
+    const metodoPagoSelect = form.querySelector('#metodoPago');
+    const pesosFields = form.querySelector('#pesos-fields');
+
+    // Pre-seleccionar valores
+    metodoPagoSelect.value = sale.metodo_pago;
+    form.vendedor.value = sale.vendedor;
+
+    // Mostrar/ocultar campos de pesos según el método de pago pre-seleccionado
+    pesosFields.classList.toggle('hidden', sale.metodo_pago !== 'pesos');
+    
+    // Añadir event listeners para el formulario de edición
+    metodoPagoSelect.addEventListener('change', (e) => {
+        pesosFields.classList.toggle('hidden', e.target.value !== 'pesos');
+    });
+    
+    form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        updateSale(saleId, form.querySelector('button[type="submit"]'));
+    });
+    
+    document.getElementById('btn-cancel-edit-sale').onclick = () => {
+        s.promptContainer.innerHTML = '';
+    };
+}
+
+async function updateSale(saleId, btn) {
+    toggleSpinner(btn, true);
+    const form = btn.form;
+    const formData = new FormData(form);
+
+    const saleUpdateData = {
+        precio_venta_usd: parseFloat(formData.get('precioVenta')),
+        metodo_pago: formData.get('metodoPago'),
+        vendedor: formData.get('vendedor'),
+    };
+
+    if (saleUpdateData.metodo_pago === 'pesos') {
+        Object.assign(saleUpdateData, {
+            monto_pesos: parseFloat(formData.get('montoPesos')),
+            cotizacion_dolar: parseFloat(formData.get('cotizacionDolar'))
+        });
+    } else {
+        // Si se cambia de pesos a dólares, eliminamos los campos de pesos
+        Object.assign(saleUpdateData, {
+            monto_pesos: firebase.firestore.FieldValue.delete(),
+            cotizacion_dolar: firebase.firestore.FieldValue.delete()
+        });
+    }
+
+    try {
+        await db.collection("ventas").doc(saleId).update(saleUpdateData);
+        showGlobalFeedback("Venta actualizada con éxito", "success");
+        s.promptContainer.innerHTML = '';
+        loadSales(); // Recargar la tabla de ventas
+    } catch (error) {
+        console.error("Error al actualizar la venta:", error);
+        showGlobalFeedback("Error al actualizar la venta", "error");
+    } finally {
+        toggleSpinner(btn, false);
+    }
+}
+
 async function deleteSale(saleId, imei, canjeId) {
     try {
         await db.runTransaction(async t => {
@@ -415,31 +562,83 @@ async function registerSale(imei, productDetails, btn) {
     } catch (error) { console.error("Error al registrar la venta:", error); alert("Error al procesar la venta. Revisa la consola."); } 
     finally { toggleSpinner(btn, false); }
 }
+
 async function handleProductFormSubmit(e) {
     e.preventDefault();
     const btn = e.target.querySelector('button');
+    const form = e.target;
+    const mode = form.dataset.mode || 'create';
+
     toggleSpinner(btn, true);
-    const formData = new FormData(e.target);
+
+    const formData = new FormData(form);
     const imei = formData.get('imei');
-    const canjeId = e.target.dataset.canjeId;
-    const unitData = { imei: imei, modelo: formData.get('modelo'), color: formData.get('color'), bateria: parseInt(formData.get('bateria')), almacenamiento: formData.get('almacenamiento'), detalles_esteticos: formData.get('detalles'), estado: 'en_stock', fechaDeCarga: firebase.firestore.FieldValue.serverTimestamp() };
-    const productId = `${(unitData.modelo || '').toLowerCase().replace(/\s+/g, '-')}-${(unitData.color || '').toLowerCase().replace(/\s+/g, '-')}`;
+    
+    const unitData = {
+        imei: imei,
+        modelo: formData.get('modelo'),
+        color: formData.get('color'),
+        bateria: parseInt(formData.get('bateria')),
+        almacenamiento: formData.get('almacenamiento'),
+        detalles_esteticos: formData.get('detalles'),
+        estado: 'en_stock'
+    };
+    
+    if (mode === 'create') {
+        unitData.fechaDeCarga = firebase.firestore.FieldValue.serverTimestamp();
+    }
+
     try {
-        await db.runTransaction(async (t) => {
-            const individualStockRef = db.collection("stock_individual").doc(imei);
-            const displayProductRef = db.collection("productos_display").doc(productId);
-            const [existingImei, displayDoc] = await Promise.all([t.get(individualStockRef), t.get(displayProductRef)]);
-            if (existingImei.exists && existingImei.data().estado === 'en_stock') throw new Error(`El IMEI ${imei} ya está en stock.`);
-            t.set(individualStockRef, unitData);
-            if (!displayDoc.exists) { t.set(displayProductRef, { nombre: unitData.modelo, color: unitData.color, stock_total: 1, opciones_disponibles: [{ imei: unitData.imei, gb: unitData.almacenamiento, bateria: unitData.bateria }] });
-            } else { t.update(displayProductRef, { stock_total: firebase.firestore.FieldValue.increment(1), opciones_disponibles: firebase.firestore.FieldValue.arrayUnion({ imei: unitData.imei, gb: unitData.almacenamiento, bateria: unitData.bateria }) }); }
-            if (canjeId) { t.update(db.collection("plan_canje_pendientes").doc(canjeId), { estado: 'cargado_en_stock', imei_asignado: imei }); }
-        });
-        showFeedback(`¡Éxito! ${unitData.modelo} añadido al stock.`, "success");
-        setTimeout(() => { resetManagementView(); if(canjeId) switchDashboardView('canje'); else switchDashboardView('stock'); switchTab(true); delete e.target.dataset.canjeId; }, 1500);
-    } catch (error) { showFeedback(error.message || "Error al guardar.", "error"); }
-    finally { toggleSpinner(btn, false); }
+        if (mode === 'create') {
+            const canjeId = form.dataset.canjeId;
+            const productId = `${(unitData.modelo || '').toLowerCase().replace(/\s+/g, '-')}-${(unitData.color || '').toLowerCase().replace(/\s+/g, '-')}`;
+
+            await db.runTransaction(async (t) => {
+                const individualStockRef = db.collection("stock_individual").doc(imei);
+                const displayProductRef = db.collection("productos_display").doc(productId);
+                
+                const [existingImei, displayDoc] = await Promise.all([
+                    t.get(individualStockRef),
+                    t.get(displayProductRef)
+                ]);
+
+                if (existingImei.exists && existingImei.data().estado === 'en_stock') {
+                    throw new Error(`El IMEI ${imei} ya está en stock.`);
+                }
+                
+                t.set(individualStockRef, unitData);
+                
+                if (!displayDoc.exists) {
+                    t.set(displayProductRef, { nombre: unitData.modelo, color: unitData.color, stock_total: 1, opciones_disponibles: [{ imei: unitData.imei, gb: unitData.almacenamiento, bateria: unitData.bateria }] });
+                } else {
+                    t.update(displayProductRef, { stock_total: firebase.firestore.FieldValue.increment(1), opciones_disponibles: firebase.firestore.FieldValue.arrayUnion({ imei: unitData.imei, gb: unitData.almacenamiento, bateria: unitData.bateria }) });
+                }
+                
+                if (canjeId) {
+                    t.update(db.collection("plan_canje_pendientes").doc(canjeId), { estado: 'cargado_en_stock', imei_asignado: imei });
+                }
+            });
+            showFeedback(`¡Éxito! ${unitData.modelo} añadido al stock.`, "success");
+        } else { // mode === 'update'
+            const stockRef = db.collection("stock_individual").doc(imei);
+            await stockRef.update(unitData);
+            showGlobalFeedback("¡Producto actualizado con éxito!", "success");
+        }
+
+        setTimeout(() => {
+            resetManagementView();
+            switchTab(true);
+            loadStock();
+        }, 1500);
+
+    } catch (error) {
+        showFeedback(error.message || `Error al ${mode === 'create' ? 'guardar' : 'actualizar'}.`, "error");
+    } finally {
+        toggleSpinner(btn, false);
+        delete form.dataset.mode;
+    }
 }
+
 function resetManagementView() {
      s.promptContainer.innerHTML = ''; 
      s.productForm.reset();
@@ -447,6 +646,11 @@ function resetManagementView() {
      s.btnScan.classList.remove('hidden');
      s.scannerContainer.classList.add('hidden');
      s.feedbackMessage.classList.add('hidden');
+     
+     s.managementTitle.textContent = "Gestión de IMEI";
+     s.productFormSubmitBtn.querySelector('.btn-text').textContent = "Guardar Producto";
+     delete s.productForm.dataset.mode;
+     delete s.productForm.dataset.canjeId;
 }
 function showFeedback(message, type = 'info') {
     s.feedbackMessage.textContent = message;

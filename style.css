@@ -27,17 +27,17 @@ body {
     color: var(--text-light); 
     display: flex; 
     flex-direction: column; 
-    justify-content: flex-start; /* Cambiado para mejor ajuste en móvil */
+    justify-content: flex-start;
     align-items: center; 
     min-height: 100vh; 
-    padding: 1rem; /* Padding reducido para móviles */
+    padding: 1rem;
 }
 .logo-container { 
     margin-bottom: 1.5rem; 
     margin-top: 1rem;
 }
 .logo-animado { 
-    max-width: 120px; /* Logo más pequeño */
+    max-width: 120px;
     animation: pulsar 3s ease-in-out infinite; 
 }
 @keyframes pulsar { 
@@ -46,7 +46,7 @@ body {
 }
 .container { 
     width: 100%; 
-    max-width: 95vw; /* Aumentado para aprovechar más pantalla */
+    max-width: 95vw;
     background-color: var(--container-dark); 
     padding: 2rem; 
     border-radius: var(--border-radius); 
@@ -69,12 +69,12 @@ h2 { font-size: 1.5rem; }
 }
 
 .top-right-controls { 
-      position: absolute; 
+    position: absolute; 
     top: 1rem; 
     right: 1rem; 
     display: flex; 
     gap: 0.5rem; 
-    z-index: 10;  
+    z-index: 10; 
 }
 .icon-btn { 
     padding: 0.5rem 0.75rem; 
@@ -88,7 +88,7 @@ h2 { font-size: 1.5rem; }
     color: white; 
 }
 #btn-export { 
-    background-color: #2F184F; 
+    background-color: #2f184f;
     color: white; 
 }
 .icon-btn svg { 
@@ -185,18 +185,18 @@ h2 { font-size: 1.5rem; }
 }
 .confirmation-modal-box .prompt-buttons { 
     display: flex; 
-    flex-direction: column; /* Botones apilados en móvil */
+    flex-direction: column;
     gap: 0.75rem; 
 }
 .nav-tabs { 
-     display: flex; 
+    display: flex; 
     border-bottom: 1px solid var(--border-dark); 
     margin-bottom: 1.5rem; 
-    margin-top: 50px; /* <<< AÑADE ESTA LÍNEA */
+    margin-top: 50px;
 }
 .nav-tab { 
-    flex: 1; /* Ocupan el mismo espacio */
-    text-align: center; /* Centrado */
+    flex: 1;
+    text-align: center;
     padding: 0.8rem 0.5rem; 
     cursor: pointer; 
     border-bottom: 3px solid transparent; 
@@ -303,7 +303,7 @@ button.spinner-btn.loading .spinner {
     background-color: var(--error-bg); 
 }
 .dashboard-controls { 
-    display: grid; /* Cambiado a grid para mejor control */
+    display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 0.75rem; 
     margin-bottom: 1.5rem; 
@@ -311,11 +311,11 @@ button.spinner-btn.loading .spinner {
 .control-btn { 
     position: relative; 
     padding: 0.75rem 1rem; 
-    font-size: 0.8rem; /* Texto más pequeño en botones */
+    font-size: 0.8rem;
     width: 100%; 
     background-color: #333; 
     color: var(--text-light);
-    white-space: nowrap; /* Evita que el texto se parta */
+    white-space: nowrap;
 }
 .control-btn.active { 
     background-color: var(--brand-yellow); 
@@ -343,15 +343,15 @@ button.spinner-btn.loading .spinner {
     border-radius: var(--border-radius); 
     margin-bottom: 1.5rem; 
     display: flex; 
-    flex-direction: column; /* Filtros apilados */
+    flex-direction: column;
     gap: 1rem; 
 }
 .filter-group { 
     flex: 1; 
-    min-width: unset; /* Reseteamos el min-width */
+    min-width: unset;
 }
 .filters-container button { 
-    width: 100%; /* Botón de filtrar al 100% */
+    width: 100%;
     padding: 0.8rem 1.5rem; 
     font-size: 0.9rem; 
     background-color: var(--brand-yellow); 
@@ -398,17 +398,14 @@ tr:hover {
     gap: 10px; 
     margin-bottom: 1.5rem; 
 }
-.checkbox-group label { 
+.checkbox-group label {
     margin-bottom: 0;
-    line-height: 1; /* Alinea el texto verticalmente */
+    line-height: 1; 
 }
-
-/* AÑADE esta nueva regla */
 .checkbox-group input[type="checkbox"] {
-    width: auto;      /* Anula el "width: 100%" general */
-    flex-shrink: 0;   /* Evita que el checkbox se encoja */
+    width: auto;
+    flex-shrink: 0;
 }
-
 #plan-canje-fields { 
     border-top: 1px solid var(--border-dark); 
     margin-top: 1.5rem; 
@@ -424,9 +421,9 @@ tr:hover {
 }
 .detail-item { 
     display: flex;
-    flex-direction: column; /* <<< LA MAGIA PARA ARREGLAR "VENDIENDO: IPHONE..." */
-    align-items: flex-start; /* Alinea a la izquierda */
-    gap: 4px; /* Pequeño espacio entre label y valor */
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
     padding: 10px 0; 
     border-bottom: 1px solid #3a3a3c; 
 }
@@ -443,7 +440,7 @@ tr:hover {
 }
 .prompt-buttons { 
     display: flex; 
-    flex-direction: column; /* Apilar botones */
+    flex-direction: column;
     gap: 10px; 
     margin-top: 1.5rem; 
 }
@@ -475,16 +472,33 @@ tr:hover {
 .delete-btn svg { 
     stroke: white; 
 }
-
-
-/* ======================================================= */
-/* === ESTILOS RESPONSIVE ADICIONALES PARA ESCRITORIO ==== */
-/* ======================================================= */
+td.actions-cell {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.edit-btn {
+    background-color: #2f184f;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    min-width: 32px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.edit-btn svg {
+    stroke: white;
+    width: 14px;
+    height: 14px;
+}
 
 @media (min-width: 768px) {
     body {
         padding: 1.5rem;
-        justify-content: center; /* Volver a centrar en pantallas grandes */
+        justify-content: center;
     }
     .container {
         padding: 2.5rem;
@@ -494,7 +508,7 @@ tr:hover {
         max-width: 150px; 
     }
     .dashboard-controls { 
-        display: flex; /* Volvemos a flex en escritorio */
+        display: flex;
         flex-wrap: wrap; 
         gap: 1rem;
     }
@@ -503,26 +517,26 @@ tr:hover {
         font-size: 1rem;
     }
     .filters-container {
-        flex-direction: row; /* Filtros en fila en escritorio */
+        flex-direction: row;
         align-items: flex-end;
         padding: 1.5rem;
         gap: 1.5rem;
     }
     .filters-container button {
-        width: auto; /* Botón de filtro con ancho automático */
+        width: auto;
     }
     .filter-group { 
         min-width: 150px; 
     }
     .prompt-buttons,
     .confirmation-modal-box .prompt-buttons {
-        flex-direction: row; /* Botones en fila en escritorio */
+        flex-direction: row;
     }
     .nav-tab {
         flex: initial;
     }
     .detail-item {
-        flex-direction: row; /* Label y valor en la misma línea en escritorio */
+        flex-direction: row;
         align-items: center;
         justify-content: space-between;
     }
