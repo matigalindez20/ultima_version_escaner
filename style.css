@@ -88,7 +88,7 @@ h2 { font-size: 1.5rem; }
     color: white; 
 }
 #btn-export { 
-    background-color: #8e44ad; 
+    background-color: #2F184F; 
     color: white; 
 }
 .icon-btn svg { 
@@ -399,8 +399,16 @@ tr:hover {
     margin-bottom: 1.5rem; 
 }
 .checkbox-group label { 
-    margin-bottom: 0; 
+    margin-bottom: 0;
+    line-height: 1; /* Alinea el texto verticalmente */
 }
+
+/* AÑADE esta nueva regla */
+.checkbox-group input[type="checkbox"] {
+    width: auto;      /* Anula el "width: 100%" general */
+    flex-shrink: 0;   /* Evita que el checkbox se encoja */
+}
+
 #plan-canje-fields { 
     border-top: 1px solid var(--border-dark); 
     margin-top: 1.5rem; 
