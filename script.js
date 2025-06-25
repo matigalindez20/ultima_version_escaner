@@ -11,7 +11,7 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
 
-const vendedores = ["HASHA VIVELIN", "POIO", "VICTOR","MAILO","JUANCHO","MARCIANO"];
+const vendedores = ["Agustin", "Joaquín", "Vendedor C"]; // Nombres actualizados como ejemplo
 const colores = ["Negro espacial", "Plata", "Dorado", "Púrpura oscuro", "Rojo (Product RED)", "Azul", "Verde", "Blanco estelar", "Medianoche", "Titanio Natural", "Titanio Azul", "Otro"];
 const almacenamientos = ["64GB", "128GB", "256GB", "512GB", "1TB"];
 const detallesEsteticos = ["Como Nuevo (Sin detalles)", "Excelente (Mínimos detalles)", "Bueno (Detalles de uso visibles)", "Regular (Marcas o rayones notorios)"];
@@ -245,22 +245,17 @@ function switchDashboardView(viewName) {
     else if (viewName === 'commissions') loadCommissions();
 }
 
-// ===== LÓGICA CORREGIDA PARA COMISIONES =====
 async function loadCommissions() {
     s.commissionsResultsContainer.innerHTML = `<p class="dashboard-loader">Cargando comisiones...</p>`;
     toggleSpinner(s.btnApplyCommissionsFilters, true);
     
     try {
-        // La consulta base SIEMPRE filtra por comisiones > 0.
         let query = db.collection("ventas").where("comision_vendedor_usd", ">", 0);
 
-        // Se puede añadir un filtro de igualdad (vendedor) sin problemas.
         if (s.filterCommissionsVendedor.value) {
             query = query.where('vendedor', '==', s.filterCommissionsVendedor.value);
         }
         
-        // El primer orderBy DEBE ser en el campo de la desigualdad.
-        // El segundo orderBy es opcional y funciona como un desglose secundario.
         query = query.orderBy("comision_vendedor_usd", "desc").orderBy("fecha_venta", "desc");
         
         const querySnapshot = await query.get();
@@ -269,7 +264,6 @@ async function loadCommissions() {
             return { id: doc.id, ...doc.data() };
         });
 
-        // Los filtros de fecha (que son desigualdades) los aplicamos en el cliente.
         const startDate = s.filterCommissionsStartDate.value;
         const endDate = s.filterCommissionsEndDate.value;
 
@@ -456,6 +450,7 @@ async function loadGastos() {
     }
 }
 
+// ===== FUNCIÓN DE GRÁFICO CORREGIDA =====
 function renderGastosChart(gastos, gastosPorCategoria) {
     if (gastosChart) {
         gastosChart.destroy();
@@ -464,35 +459,48 @@ function renderGastosChart(gastos, gastosPorCategoria) {
     const labels = Object.keys(gastosPorCategoria);
     const data = Object.values(gastosPorCategoria);
     const backgroundColors = labels.map(label => categoriaColores[label] || '#cccccc');
+
     const centerTextPlugin = {
         id: 'centerText',
         afterDraw: (chart) => {
+            if (chart.getDatasetMeta(0).data.length === 0) {
+                return;
+            }
+            const innerRadius = chart.getDatasetMeta(0).data[0].innerRadius;
+            const availableWidth = innerRadius * 2 * 0.9;
             const ctx = chart.ctx;
-            const { width, height } = chart;
-            ctx.restore();
-            const fontSize = (height / 150).toFixed(2);
-            ctx.font = `bold ${fontSize}em -apple-system, sans-serif`;
-            ctx.textBaseline = 'middle';
-            ctx.fillStyle = '#ffffff';
+            ctx.save();
+            const centerX = (chart.chartArea.left + chart.chartArea.right) / 2;
+            const centerY = (chart.chartArea.top + chart.chartArea.bottom) / 2;
+            
+            const getFittingFontSize = (text, maxWidth, isBold) => {
+                let fontSize = 30;
+                ctx.font = `${isBold ? 'bold' : '500'} ${fontSize}px -apple-system, sans-serif`;
+                while (ctx.measureText(text).width > maxWidth && fontSize > 8) {
+                    fontSize--;
+                    ctx.font = `${isBold ? 'bold' : '500'} ${fontSize}px -apple-system, sans-serif`;
+                }
+                return fontSize;
+            };
 
             const text1 = 'Total Gastado';
-            const text1X = Math.round((width - ctx.measureText(text1).width) / 2);
-            const text1Y = height / 2 - (fontSize * 10);
-            
-            ctx.font = `300 ${fontSize*0.8}em -apple-system, sans-serif`;
-            ctx.fillStyle = '#86868b';
-            ctx.fillText(text1, text1X, text1Y);
-            
-            ctx.font = `bold ${fontSize*1.5}em -apple-system, sans-serif`;
-            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#86868b'; // Corresponde a --text-muted
+            let fontSize1 = Math.min(getFittingFontSize(text1, availableWidth, false), 18);
+            ctx.font = `500 ${fontSize1}px -apple-system, sans-serif`;
+            ctx.fillText(text1, centerX, centerY - (fontSize1 * 1.1));
+
             const text2 = `$${totalGastos.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-            const text2X = Math.round((width - ctx.measureText(text2).width) / 2);
-            const text2Y = height / 2 + (fontSize * 10);
-            ctx.fillText(text2, text2X, text2Y);
+            ctx.fillStyle = '#ffffff'; // Corresponde a --text-light
+            let fontSize2 = Math.min(getFittingFontSize(text2, availableWidth, true), 48);
+            ctx.font = `bold ${fontSize2}px -apple-system, sans-serif`;
+            ctx.fillText(text2, centerX, centerY + (fontSize2 * 0.7));
             
-            ctx.save();
+            ctx.restore();
         }
     };
+
     gastosChart = new Chart(s.gastosChartCanvas, {
         type: 'doughnut',
         data: {
@@ -510,7 +518,7 @@ function renderGastosChart(gastos, gastosPorCategoria) {
             maintainAspectRatio: true,
             cutout: '70%',
             plugins: {
-                legend: { position: 'bottom', labels: { color: 'var(--text-light)', boxWidth: 15, padding: 20, } },
+                legend: { position: 'bottom', labels: { color: '#FFFFFF', boxWidth: 15, padding: 20, } },
                 tooltip: { enabled: false }
             }
         },
