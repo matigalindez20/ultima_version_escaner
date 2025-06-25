@@ -31,9 +31,11 @@
             <div id="tab-management" class="nav-tab">Gestión de IMEI</div>
         </div>
         <div id="dashboard-view">
+            <!-- ===== CONTROLES DEL DASHBOARD ACTUALIZADOS ===== -->
             <div class="dashboard-controls">
                 <button id="btn-show-stock" class="control-btn active">Ver Stock</button>
                 <button id="btn-show-sales" class="control-btn">Ver Ventas</button>
+                <button id="btn-show-commissions" class="control-btn">Ver Comisiones</button>
                 <button id="btn-show-gastos" class="control-btn">Ver Gastos</button>
                 <button id="btn-show-canje" class="control-btn">Pendientes de Carga<span id="canje-badge" class="notification-badge hidden"></span></button>
             </div>
@@ -56,8 +58,27 @@
                     <div class="filter-group"><label for="filter-sales-start-date">Fecha Desde</label><input type="date" id="filter-sales-start-date"></div>
                     <div class="filter-group"><label for="filter-sales-end-date">Fecha Hasta</label><input type="date" id="filter-sales-end-date"></div>
                     <div class="filter-group"><button id="btn-apply-sales-filters">Filtrar Ventas</button></div>
+                    <div class="filter-group">
+                        <button id="btn-hacer-caja" class="control-btn spinner-btn" style="background-color: var(--success-bg);">
+                            <span class="btn-text">Hacer Caja del Día</span>
+                             <div class="spinner"></div>
+                        </button>
+                    </div>
                 </div>
                 <div id="sales-table-container" class="table-container"></div>
+            </div>
+             <!-- ===== NUEVA SECCIÓN PARA COMISIONES ===== -->
+            <div id="commissions-section" class="hidden">
+                <h2>Reporte de Comisiones</h2>
+                <div class="filters-container">
+                    <div class="filter-group"><label for="filter-commissions-vendedor">Vendedor</label><select id="filter-commissions-vendedor"></select></div>
+                    <div class="filter-group"><label for="filter-commissions-start-date">Fecha Desde</label><input type="date" id="filter-commissions-start-date"></div>
+                    <div class="filter-group"><label for="filter-commissions-end-date">Fecha Hasta</label><input type="date" id="filter-commissions-end-date"></div>
+                    <div class="filter-group"><button id="btn-apply-commissions-filters">Filtrar Comisiones</button></div>
+                </div>
+                <div id="commissions-results-container">
+                    <!-- Los resultados de las comisiones se cargarán aquí -->
+                </div>
             </div>
             <div id="gastos-section" class="hidden">
                 <div class="gastos-header">
@@ -70,9 +91,7 @@
                     </div>
                     <div id="gastos-list-container">
                         <h3>Últimos Gastos Registrados</h3>
-                        <div id="gastos-list">
-                            <!-- Los gastos se cargarán aquí dinámicamente -->
-                        </div>
+                        <div id="gastos-list"></div>
                     </div>
                 </div>
             </div>

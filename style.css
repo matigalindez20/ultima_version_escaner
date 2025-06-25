@@ -305,7 +305,7 @@ button.spinner-btn.loading .spinner {
 }
 .dashboard-controls { 
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
     gap: 0.75rem; 
     margin-bottom: 1.5rem; 
 }
@@ -619,7 +619,7 @@ td.actions-cell {
     background-color: #252525;
     border-radius: 8px;
     margin-bottom: 0.75rem;
-    border-left: 5px solid; /* El color se asignará con JS */
+    border-left: 5px solid;
     gap: 1rem;
 }
 
@@ -696,6 +696,160 @@ td.actions-cell {
     align-items: center;
     z-index: 1500;
     padding: 1rem;
-    overflow-y: auto; /* Permite scroll si el formulario es muy largo */
+    overflow-y: auto;
     animation: fadeIn 0.3s;
+}
+
+/* ===== ESTILOS PARA EL REPORTE DE CAJA ===== */
+.caja-report-box {
+    width: 100%;
+    max-width: 550px;
+    padding: 2rem;
+}
+
+.caja-report-box h3 {
+    color: var(--brand-yellow);
+    margin-bottom: 0.5rem;
+}
+.caja-report-box .report-date {
+    color: var(--text-muted);
+    text-align: center;
+    margin-bottom: 2rem;
+    font-weight: 500;
+}
+
+.report-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--border-dark);
+    font-size: 1.1rem;
+}
+.report-item:last-of-type {
+    border-bottom: none;
+}
+
+.report-label {
+    color: var(--text-muted);
+}
+.report-value {
+    font-weight: bold;
+}
+.report-item.total {
+    border-top: 2px solid var(--brand-yellow);
+    margin-top: 1rem;
+    padding-top: 1rem;
+    font-size: 1.4rem;
+}
+.report-item.total .report-label {
+    color: var(--brand-yellow);
+}
+.report-item.total .report-value {
+    color: var(--success-bg);
+}
+.report-item.deduction .report-value {
+    color: var(--error-bg);
+    font-weight: bold;
+}
+.report-errors {
+    margin-top: 1.5rem;
+    padding: 1rem;
+    background-color: rgba(255, 165, 0, 0.1);
+    border: 1px solid orange;
+    border-radius: 8px;
+    font-size: 0.9rem;
+}
+.report-errors h4 {
+    color: orange;
+    margin-bottom: 0.5rem;
+}
+
+
+/* ===== NUEVOS ESTILOS PARA EL REPORTE DE COMISIONES ===== */
+
+#commissions-results-container {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+}
+
+.commission-vendor-card {
+    background-color: #252525;
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    border: 1px solid var(--border-dark);
+}
+
+.vendor-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 1rem;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid var(--border-dark);
+}
+
+.vendor-card-header h3 {
+    margin: 0;
+    font-size: 1.4rem;
+    color: var(--text-light);
+}
+
+.vendor-total-commission {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: var(--success-bg);
+}
+
+.commission-sales-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.commission-sale-item {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 1rem;
+    background-color: #2c2c2e;
+    border-radius: 8px;
+}
+
+.commission-sale-main {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.commission-sale-product {
+    font-weight: 600;
+}
+
+.commission-sale-amount {
+    font-weight: bold;
+    font-size: 1.1rem;
+    color: var(--brand-yellow);
+}
+
+.commission-sale-date {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    align-self: flex-start;
+}
+
+@media (min-width: 768px) {
+    #commissions-results-container {
+        grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    }
+    .commission-sale-item {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+    }
+     .commission-sale-date {
+        text-align: right;
+        align-self: center;
+    }
 }
