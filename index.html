@@ -4,18 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>iPhone Twins - Panel de Control</title>
-    <!-- Enlace a la hoja de estilos CSS externa -->
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div id="global-feedback"></div>
-
     <div class="logo-container">
         <img src="./Diseño sin título (26).png" alt="Logo iPhone Twins" class="logo-animado">
     </div>
-
     <div id="login-container" class="container container-sm"></div>
-
     <div id="app-container" class="container hidden">
         <div class="top-right-controls">
             <div class="dropdown">
@@ -37,6 +34,7 @@
             <div class="dashboard-controls">
                 <button id="btn-show-stock" class="control-btn active">Ver Stock</button>
                 <button id="btn-show-sales" class="control-btn">Ver Ventas</button>
+                <button id="btn-show-gastos" class="control-btn">Ver Gastos</button>
                 <button id="btn-show-canje" class="control-btn">Pendientes de Carga<span id="canje-badge" class="notification-badge hidden"></span></button>
             </div>
             <div id="stock-section">
@@ -61,6 +59,23 @@
                 </div>
                 <div id="sales-table-container" class="table-container"></div>
             </div>
+            <div id="gastos-section" class="hidden">
+                <div class="gastos-header">
+                    <h2>Resumen de Gastos</h2>
+                    <button id="btn-add-gasto" class="control-btn" style="background-color: var(--success-bg);">+ Registrar Gasto</button>
+                </div>
+                <div id="gastos-main-content">
+                    <div id="gastos-chart-container">
+                        <canvas id="gastos-chart"></canvas>
+                    </div>
+                    <div id="gastos-list-container">
+                        <h3>Últimos Gastos Registrados</h3>
+                        <div id="gastos-list">
+                            <!-- Los gastos se cargarán aquí dinámicamente -->
+                        </div>
+                    </div>
+                </div>
+            </div>
             <div id="canje-section" class="hidden">
                  <h2>Equipos Pendientes de Carga (Plan Canje)</h2>
                  <div id="canje-table-container" class="table-container"></div>
@@ -70,7 +85,6 @@
             <h2 id="management-title">Gestión de IMEI</h2>
             <div id="scan-options">
                 <button id="btn-scan">Escanear IMEI</button>
-                <!-- ▼▼▼ CAMBIO PRINCIPAL AQUÍ ▼▼▼ -->
                 <div class="manual-entry-link">
                     <a href="#" id="manual-entry-btn">O ingresar manualmente</a>
                 </div>
@@ -93,15 +107,11 @@
         </div>
         <div id="prompt-container"></div>
     </div>
-
-    <!-- SCRIPTS -->
     <script src="https://unpkg.com/html5-qrcode/html5-qrcode.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    
-    <!-- Enlace al archivo JavaScript externo -->
     <script src="script.js"></script>
 </body>
 </html>

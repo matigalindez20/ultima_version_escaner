@@ -17,9 +17,20 @@ const almacenamientos = ["64GB", "128GB", "256GB", "512GB", "1TB"];
 const detallesEsteticos = ["Como Nuevo (Sin detalles)", "Excelente (Mínimos detalles)", "Bueno (Detalles de uso visibles)", "Regular (Marcas o rayones notorios)"];
 const modelos = [ "iPhone 11", "iPhone 11 Pro", "iPhone 11 Pro Max", "iPhone 12 Mini", "iPhone 12", "iPhone 12 Pro", "iPhone 12 Pro Max", "iPhone 13 Mini", "iPhone 13", "iPhone 13 Pro", "iPhone 13 Pro Max", "iPhone 14", "iPhone 14 Plus", "iPhone 14 Pro", "iPhone 14 Pro Max", "iPhone 15", "iPhone 15 Plus", "iPhone 15 Pro", "iPhone 15 Pro Max", "iPhone 16", "iPhone 16 Plus", "iPhone 16 Pro", "iPhone 16 Pro Max",];
 const metodosDePago = ["Dólares", "Pesos (Efectivo)", "Pesos (Transferencia)"];
+const gastosCategorias = ["Comida", "Repuestos", "Alquiler", "Accesorios", "Otro"];
+const accesoriosSubcategorias = ["Fundas", "Fuentes", "Cables", "Templados", "Otro"];
+// Mapa de colores para el gráfico de gastos
+const categoriaColores = {
+    "Comida": "#3498db",
+    "Repuestos": "#e74c3c",
+    "Alquiler": "#9b59b6",
+    "Accesorios": "#f1c40f",
+    "Otro": "#95a5a6"
+};
 
 const s = {};
 let canjeContext = null;
+let gastosChart = null; // Variable para la instancia del gráfico
 
 document.addEventListener('DOMContentLoaded', initApp);
 
@@ -28,8 +39,8 @@ function initApp() {
         loginContainer: document.getElementById('login-container'), appContainer: document.getElementById('app-container'), logoutButton: document.getElementById('logout-button'),
         tabDashboard: document.getElementById('tab-dashboard'), tabManagement: document.getElementById('tab-management'),
         dashboardView: document.getElementById('dashboard-view'), managementView: document.getElementById('management-view'),
-        btnShowStock: document.getElementById('btn-show-stock'), btnShowSales: document.getElementById('btn-show-sales'), btnShowCanje: document.getElementById('btn-show-canje'),
-        stockSection: document.getElementById('stock-section'), salesSection: document.getElementById('sales-section'), canjeSection: document.getElementById('canje-section'),
+        btnShowStock: document.getElementById('btn-show-stock'), btnShowSales: document.getElementById('btn-show-sales'), btnShowGastos: document.getElementById('btn-show-gastos'), btnShowCanje: document.getElementById('btn-show-canje'),
+        stockSection: document.getElementById('stock-section'), salesSection: document.getElementById('sales-section'), gastosSection: document.getElementById('gastos-section'), canjeSection: document.getElementById('canje-section'),
         stockTableContainer: document.getElementById('stock-table-container'), salesTableContainer: document.getElementById('sales-table-container'), canjeTableContainer: document.getElementById('canje-table-container'),
         filterStockModel: document.getElementById('filter-stock-model'), filterStockColor: document.getElementById('filter-stock-color'),
         filterStockGb: document.getElementById('filter-stock-gb'), filterStockBatMin: document.getElementById('filter-stock-bat-min'),
@@ -45,7 +56,12 @@ function initApp() {
         managementTitle: document.getElementById('management-title'), productFormSubmitBtn: document.getElementById('product-form-submit-btn'),
         btnExport: document.getElementById('btn-export'), exportMenu: document.getElementById('export-menu'),
         exportStockBtn: document.getElementById('export-stock-btn'), exportSalesBtn: document.getElementById('export-sales-btn'),
-        scanOptions: document.getElementById('scan-options'), manualEntryBtn: document.getElementById('manual-entry-btn')
+        scanOptions: document.getElementById('scan-options'), manualEntryBtn: document.getElementById('manual-entry-btn'),
+        // Selectores para Gastos
+        btnAddGasto: document.getElementById('btn-add-gasto'),
+        gastosChartContainer: document.getElementById('gastos-chart-container'),
+        gastosChartCanvas: document.getElementById('gastos-chart'),
+        gastosList: document.getElementById('gastos-list')
     });
     
     populateAllSelects();
@@ -65,6 +81,7 @@ function addEventListeners() {
     s.tabManagement.addEventListener('click', () => switchTab(false));
     s.btnShowStock.addEventListener('click', () => switchDashboardView('stock'));
     s.btnShowSales.addEventListener('click', () => switchDashboardView('sales'));
+    s.btnShowGastos.addEventListener('click', () => switchDashboardView('gastos'));
     s.btnShowCanje.addEventListener('click', () => switchDashboardView('canje'));
     s.btnApplyStockFilters.addEventListener('click', loadStock);
     s.btnApplySalesFilters.addEventListener('click', loadSales);
@@ -75,6 +92,7 @@ function addEventListeners() {
     s.exportStockBtn.addEventListener('click', () => { exportToExcel('stock'); s.exportMenu.classList.remove('show'); });
     s.exportSalesBtn.addEventListener('click', () => { exportToExcel('sales'); s.exportMenu.classList.remove('show'); });
     document.addEventListener('click', (e) => { if (s.exportMenu && !s.btnExport.contains(e.target)) s.exportMenu.classList.remove('show'); });
+    s.btnAddGasto.addEventListener('click', promptToAddGasto);
 }
 function handleAuthStateChange(user) {
     if (user) {
@@ -132,7 +150,7 @@ function switchTab(isDashboard) {
     s.tabManagement.classList.toggle('active', !isDashboard);
 }
 function switchDashboardView(viewName) {
-    ['stock', 'sales', 'canje'].forEach(v => {
+    ['stock', 'sales', 'canje', 'gastos'].forEach(v => {
         const section = document.getElementById(`${v}-section`);
         const button = document.getElementById(`btn-show-${v}`);
         if (section) section.classList.toggle('hidden', v !== viewName);
@@ -142,7 +160,276 @@ function switchDashboardView(viewName) {
     if (viewName === 'stock') loadStock();
     else if (viewName === 'sales') loadSales();
     else if (viewName === 'canje') loadCanjes();
+    else if (viewName === 'gastos') loadGastos();
 }
+
+// ====================================================================
+// --- LÓGICA DE LA SECCIÓN DE GASTOS ---
+// ====================================================================
+
+async function loadGastos() {
+    s.gastosList.innerHTML = `<p class="dashboard-loader">Cargando gastos...</p>`;
+    if (gastosChart) gastosChart.destroy(); // Limpia el gráfico anterior
+
+    try {
+        const snapshot = await db.collection('gastos').orderBy('fecha', 'desc').get();
+        const gastos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+        if (gastos.length === 0) {
+            s.gastosList.innerHTML = `<p class="dashboard-loader">Aún no has registrado ningún gasto.</p>`;
+            renderGastosChart([], {});
+            return;
+        }
+
+        const gastosPorCategoria = gastos.reduce((acc, gasto) => {
+            const categoria = gasto.categoria;
+            const monto = gasto.monto || 0;
+            acc[categoria] = (acc[categoria] || 0) + monto;
+            return acc;
+        }, {});
+
+        renderGastosChart(gastos, gastosPorCategoria);
+        renderGastosList(gastos);
+
+    } catch (error) {
+        handleDBError(error, s.gastosList, "gastos");
+    }
+}
+
+function renderGastosChart(gastos, gastosPorCategoria) {
+    if (gastosChart) {
+        gastosChart.destroy();
+    }
+    const totalGastos = gastos.reduce((sum, gasto) => sum + (gasto.monto || 0), 0);
+    const labels = Object.keys(gastosPorCategoria);
+    const data = Object.values(gastosPorCategoria);
+    const backgroundColors = labels.map(label => categoriaColores[label] || '#cccccc');
+
+    const centerTextPlugin = {
+        id: 'centerText',
+        afterDraw: (chart) => {
+            const ctx = chart.ctx;
+            const { width, height } = chart;
+            ctx.restore();
+            const fontSize = (height / 150).toFixed(2);
+            ctx.font = `bold ${fontSize}em -apple-system, sans-serif`;
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#ffffff';
+
+            const text1 = 'Total Gastado';
+            const text1X = Math.round((width - ctx.measureText(text1).width) / 2);
+            const text1Y = height / 2 - (fontSize * 10);
+            
+            ctx.font = `300 ${fontSize*0.8}em -apple-system, sans-serif`;
+            ctx.fillStyle = '#86868b';
+            ctx.fillText(text1, text1X, text1Y);
+            
+            ctx.font = `bold ${fontSize*1.5}em -apple-system, sans-serif`;
+            ctx.fillStyle = '#ffffff';
+            const text2 = `$${totalGastos.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            const text2X = Math.round((width - ctx.measureText(text2).width) / 2);
+            const text2Y = height / 2 + (fontSize * 10);
+            ctx.fillText(text2, text2X, text2Y);
+            
+            ctx.save();
+        }
+    };
+
+    gastosChart = new Chart(s.gastosChartCanvas, {
+        type: 'doughnut',
+        data: {
+            labels: labels.map(l => `${l} ($${(gastosPorCategoria[l] || 0).toFixed(2)})`),
+            datasets: [{
+                data: data,
+                backgroundColor: backgroundColors,
+                borderColor: 'var(--container-dark)',
+                borderWidth: 4,
+                hoverOffset: 10
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            cutout: '70%',
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        color: 'var(--text-light)',
+                        boxWidth: 15,
+                        padding: 20,
+                    }
+                },
+                tooltip: {
+                    enabled: false
+                }
+            }
+        },
+        plugins: [centerTextPlugin]
+    });
+}
+
+function renderGastosList(gastos) {
+    if (gastos.length === 0) {
+        s.gastosList.innerHTML = `<p class="dashboard-loader">No hay gastos para mostrar.</p>`;
+        return;
+    }
+
+    let html = '';
+    gastos.forEach(gasto => {
+        const fecha = gasto.fecha ? new Date(gasto.fecha.seconds * 1000).toLocaleDateString('es-AR') : 'N/A';
+        let descripcionCompleta = gasto.descripcion || 'Sin detalles';
+        if (gasto.categoria === 'Accesorios' && gasto.subcategoria) {
+            descripcionCompleta = `${gasto.subcategoria}${gasto.detalle_otro ? `: ${gasto.detalle_otro}` : ''} - ${descripcionCompleta}`;
+        }
+        if (gasto.categoria === 'Otro' && gasto.detalle_otro) {
+             descripcionCompleta = `${gasto.detalle_otro} - ${descripcionCompleta}`;
+        }
+        
+        html += `
+            <div class="gasto-item" style="border-color: ${categoriaColores[gasto.categoria] || '#cccccc'};">
+                <div class="gasto-item-info">
+                    <div class="gasto-item-cat">${gasto.categoria}</div>
+                    <div class="gasto-item-desc">${descripcionCompleta}</div>
+                </div>
+                <div class="gasto-item-details">
+                    <div class="gasto-item-amount">$${(gasto.monto || 0).toLocaleString('es-AR')}</div>
+                    <div class="gasto-item-date">${fecha}</div>
+                </div>
+                <div class="gasto-item-actions">
+                    <button class="delete-btn" title="Eliminar Gasto" onclick="deleteGasto('${gasto.id}', '${gasto.categoria}', ${gasto.monto})">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+    s.gastosList.innerHTML = html;
+}
+
+function promptToAddGasto() {
+    const categoriaOptions = gastosCategorias.map(c => `<option value="${c}">${c}</option>`).join('');
+    const subCategoriaOptions = accesoriosSubcategorias.map(sc => `<option value="${sc}">${sc}</option>`).join('');
+    
+    s.promptContainer.innerHTML = `
+        <div class="container container-sm">
+            <div class="prompt-box">
+                <h3>Registrar Nuevo Gasto</h3>
+                <form id="gasto-form">
+                    <div class="form-group">
+                        <label for="gasto-monto">Monto (ARS)</label>
+                        <input type="number" id="gasto-monto" name="monto" required placeholder="Ej: 1500.50" step="0.01">
+                    </div>
+                    <div class="form-group">
+                        <label for="gasto-categoria">Categoría</label>
+                        <select id="gasto-categoria" name="categoria" required>
+                            <option value="">Seleccione...</option>
+                            ${categoriaOptions}
+                        </select>
+                    </div>
+                    <!-- Campos condicionales -->
+                    <div id="accesorios-fields" class="form-group hidden">
+                        <label for="gasto-subcategoria">Tipo de Accesorio</label>
+                        <select id="gasto-subcategoria" name="subcategoria">
+                           <option value="">Seleccione...</option>
+                           ${subCategoriaOptions}
+                        </select>
+                    </div>
+                    <div id="otro-detalle-field" class="form-group hidden">
+                        <label for="gasto-detalle-otro">Especificar</label>
+                        <input type="text" id="gasto-detalle-otro" name="detalle_otro" placeholder="Detalle aquí...">
+                    </div>
+                    <!-- Fin campos condicionales -->
+                    <div class="form-group">
+                        <label for="gasto-descripcion">Descripción (opcional)</label>
+                        <textarea id="gasto-descripcion" name="descripcion" rows="2" placeholder="Detalles adicionales del gasto"></textarea>
+                    </div>
+                    <div class="prompt-buttons">
+                        <button type="submit" class="prompt-button confirm spinner-btn">
+                            <span class="btn-text">Guardar Gasto</span>
+                            <div class="spinner"></div>
+                        </button>
+                        <button type="button" id="btn-cancel-gasto" class="prompt-button cancel">Cancelar</button>
+                    </div>
+                </form>
+            </div>
+        </div>`;
+
+    const form = document.getElementById('gasto-form');
+    const categoriaSelect = document.getElementById('gasto-categoria');
+    const subcategoriaSelect = document.getElementById('gasto-subcategoria');
+    const accesoriosFields = document.getElementById('accesorios-fields');
+    const otroDetalleField = document.getElementById('otro-detalle-field');
+
+    const toggleConditionalFields = () => {
+        const cat = categoriaSelect.value;
+        const subcat = subcategoriaSelect.value;
+        accesoriosFields.classList.toggle('hidden', cat !== 'Accesorios');
+        otroDetalleField.classList.toggle('hidden', cat !== 'Otro' && subcat !== 'Otro');
+    };
+
+    categoriaSelect.addEventListener('change', toggleConditionalFields);
+    subcategoriaSelect.addEventListener('change', toggleConditionalFields);
+    
+    form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        saveGasto(e.target.querySelector('button[type="submit"]'));
+    });
+    
+    document.getElementById('btn-cancel-gasto').onclick = () => { s.promptContainer.innerHTML = ''; };
+}
+
+async function saveGasto(btn) {
+    toggleSpinner(btn, true);
+    const form = btn.form;
+    const formData = new FormData(form);
+    
+    const gastoData = {
+        monto: parseFloat(formData.get('monto')),
+        categoria: formData.get('categoria'),
+        descripcion: formData.get('descripcion'),
+        fecha: firebase.firestore.FieldValue.serverTimestamp() // Guarda la fecha actual
+    };
+
+    if (gastoData.categoria === 'Accesorios') {
+        gastoData.subcategoria = formData.get('subcategoria');
+        if (gastoData.subcategoria === 'Otro') {
+            gastoData.detalle_otro = formData.get('detalle_otro');
+        }
+    } else if (gastoData.categoria === 'Otro') {
+        gastoData.detalle_otro = formData.get('detalle_otro');
+    }
+
+    try {
+        await db.collection('gastos').add(gastoData);
+        showGlobalFeedback('Gasto registrado con éxito', 'success');
+        s.promptContainer.innerHTML = '';
+        loadGastos(); // Recargar la vista de gastos
+    } catch (error) {
+        console.error("Error al guardar el gasto:", error);
+        showGlobalFeedback('Error al registrar el gasto', 'error');
+    } finally {
+        toggleSpinner(btn, false);
+    }
+}
+
+function deleteGasto(id, categoria, monto) {
+    const message = `Categoría: ${categoria}\nMonto: $${monto}\n\n¿Estás seguro de que quieres eliminar este gasto? Esta acción no se puede deshacer.`;
+    showConfirmationModal('Confirmar Eliminación', message, async () => {
+        try {
+            await db.collection('gastos').doc(id).delete();
+            showGlobalFeedback('Gasto eliminado correctamente.', 'success');
+            loadGastos();
+        } catch (error) {
+            console.error("Error al eliminar gasto:", error);
+            showGlobalFeedback('No se pudo eliminar el gasto.', 'error');
+        }
+    });
+}
+
+// ====================================================================
+// --- RESTO DEL CÓDIGO (STOCK, VENTAS, ETC.) ---
+// ====================================================================
 
 async function loadStock() {
     s.stockTableContainer.innerHTML = `<p class="dashboard-loader">Cargando stock...</p>`;
@@ -160,7 +447,6 @@ async function loadStock() {
         let tableHTML = `<table><thead><tr><th>Fecha Carga</th><th>Modelo</th><th>Color</th><th>GB</th><th>Batería</th><th>Costo (USD)</th><th>Acciones</th></tr></thead><tbody>`;
         querySnapshot.forEach(doc => {
             const item = doc.data();
-            
             const fechaObj = item.fechaDeCarga ? new Date(item.fechaDeCarga.seconds * 1000) : null;
             let fechaFormateada = 'N/A';
             if(fechaObj) {
@@ -172,7 +458,6 @@ async function loadStock() {
                 const minutos = pad(fechaObj.getMinutes());
                 fechaFormateada = `${dia}/${mes}/${anio}<br><small class="time-muted">${horas}:${minutos} hs</small>`;
             }
-
             const itemJSON = JSON.stringify(item).replace(/'/g, "'");
             tableHTML += `<tr data-item='${itemJSON}'>
                 <td>${fechaFormateada}</td>
