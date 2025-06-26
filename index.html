@@ -74,21 +74,33 @@
                     <div class="filter-group"><label for="filter-commissions-end-date">Fecha Hasta</label><input type="date" id="filter-commissions-end-date"></div>
                     <div class="filter-group"><button id="btn-apply-commissions-filters">Filtrar Comisiones</button></div>
                 </div>
-                <div id="commissions-results-container">
-                    <!-- Los resultados de las comisiones se cargarán aquí -->
-                </div>
+                <div id="commissions-results-container"></div>
             </div>
             <div id="gastos-section" class="hidden">
                 <div class="gastos-header">
                     <h2>Resumen de Gastos</h2>
                     <button id="btn-add-gasto" class="control-btn" style="background-color: var(--success-bg);">+ Registrar Gasto</button>
                 </div>
+                <!-- ===== FILTRO DE FECHAS PARA GASTOS ACTUALIZADO ===== -->
+                <div class="filters-container">
+                    <div class="filter-group">
+                        <label for="filter-gastos-start-date">Fecha Desde</label>
+                        <input type="date" id="filter-gastos-start-date">
+                    </div>
+                    <div class="filter-group">
+                        <label for="filter-gastos-end-date">Fecha Hasta</label>
+                        <input type="date" id="filter-gastos-end-date">
+                    </div>
+                    <div class="filter-group">
+                        <button id="btn-apply-gastos-filter">Filtrar Gastos</button>
+                    </div>
+                </div>
                 <div id="gastos-main-content">
                     <div id="gastos-chart-container">
                         <canvas id="gastos-chart"></canvas>
                     </div>
                     <div id="gastos-list-container">
-                        <h3>Últimos Gastos Registrados</h3>
+                        <h3>Gastos Registrados en el Período</h3>
                         <div id="gastos-list"></div>
                     </div>
                 </div>

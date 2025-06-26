@@ -11,7 +11,7 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
 
-const vendedores = ["Agustin", "Joaquín", "Vendedor C"]; // Nombres actualizados como ejemplo
+const vendedores = ["Agustin", "Joaquín", "Vendedor C"];
 const colores = ["Negro espacial", "Plata", "Dorado", "Púrpura oscuro", "Rojo (Product RED)", "Azul", "Verde", "Blanco estelar", "Medianoche", "Titanio Natural", "Titanio Azul", "Otro"];
 const almacenamientos = ["64GB", "128GB", "256GB", "512GB", "1TB"];
 const detallesEsteticos = ["Como Nuevo (Sin detalles)", "Excelente (Mínimos detalles)", "Bueno (Detalles de uso visibles)", "Regular (Marcas o rayones notorios)"];
@@ -94,6 +94,9 @@ function initApp() {
         filterCommissionsStartDate: document.getElementById('filter-commissions-start-date'),
         filterCommissionsEndDate: document.getElementById('filter-commissions-end-date'),
         btnApplyCommissionsFilters: document.getElementById('btn-apply-commissions-filters'),
+        filterGastosStartDate: document.getElementById('filter-gastos-start-date'),
+        filterGastosEndDate: document.getElementById('filter-gastos-end-date'),
+        btnApplyGastosFilter: document.getElementById('btn-apply-gastos-filter'),
     });
     
     populateAllSelects();
@@ -125,6 +128,7 @@ function addEventListeners() {
     s.btnApplyStockFilters.addEventListener('click', loadStock);
     s.btnApplySalesFilters.addEventListener('click', loadSales);
     s.btnApplyCommissionsFilters.addEventListener('click', loadCommissions);
+    s.btnApplyGastosFilter.addEventListener('click', loadGastos);
     s.btnScan.addEventListener('click', startScanner);
     s.manualEntryBtn.addEventListener('click', promptForManualImeiInput);
     s.productForm.addEventListener('submit', handleProductFormSubmit);
@@ -164,6 +168,7 @@ const toggleSpinner = (btn, isLoading) => {
 };
 
 const formatearUSD = (monto) => monto.toLocaleString('es-AR', { style: 'currency', currency: 'USD' });
+const formatearARS = (monto) => monto.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' });
 
 function showGlobalFeedback(message, type = 'success', duration = 3000) {
     s.globalFeedback.textContent = message;
@@ -429,28 +434,58 @@ function mostrarReporteCaja(fecha, totalVentas, totalCosto, gananciaNeta, errore
 async function loadGastos() {
     s.gastosList.innerHTML = `<p class="dashboard-loader">Cargando gastos...</p>`;
     if (gastosChart) gastosChart.destroy();
+    toggleSpinner(s.btnApplyGastosFilter, true);
+
+    let startDate = s.filterGastosStartDate.value;
+    let endDate = s.filterGastosEndDate.value;
+    
+    // Si no se especifican fechas, no se carga nada por defecto
+    if (!startDate && !endDate) {
+        s.gastosList.innerHTML = `<p class="dashboard-loader">Seleccione un rango de fechas para ver los gastos.</p>`;
+        renderGastosChart([], {});
+        toggleSpinner(s.btnApplyGastosFilter, false);
+        return;
+    }
+
+    // Si solo hay una fecha, se asume que el rango es de un solo día
+    if (startDate && !endDate) endDate = startDate;
+    if (!startDate && endDate) startDate = endDate;
+
     try {
-        const snapshot = await db.collection('gastos').orderBy('fecha', 'desc').get();
+        const inicioDelRango = new Date(startDate + 'T00:00:00');
+        const finDelRango = new Date(endDate + 'T23:59:59.999');
+
+        let query = db.collection('gastos').orderBy('fecha', 'desc');
+
+        query = query.where('fecha', '>=', inicioDelRango).where('fecha', '<=', finDelRango);
+        
+        const snapshot = await query.get();
         const gastos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
         if (gastos.length === 0) {
-            s.gastosList.innerHTML = `<p class="dashboard-loader">Aún no has registrado ningún gasto.</p>`;
+            s.gastosList.innerHTML = `<p class="dashboard-loader">No se registraron gastos en este período.</p>`;
             renderGastosChart([], {});
             return;
         }
+
         const gastosPorCategoria = gastos.reduce((acc, gasto) => {
             const categoria = gasto.categoria;
             const monto = gasto.monto || 0;
             acc[categoria] = (acc[categoria] || 0) + monto;
             return acc;
         }, {});
+
         renderGastosChart(gastos, gastosPorCategoria);
         renderGastosList(gastos);
+
     } catch (error) {
         handleDBError(error, s.gastosList, "gastos");
+    } finally {
+        toggleSpinner(s.btnApplyGastosFilter, false);
     }
 }
 
-// ===== FUNCIÓN DE GRÁFICO CORREGIDA =====
+
 function renderGastosChart(gastos, gastosPorCategoria) {
     if (gastosChart) {
         gastosChart.destroy();
@@ -463,48 +498,59 @@ function renderGastosChart(gastos, gastosPorCategoria) {
     const centerTextPlugin = {
         id: 'centerText',
         afterDraw: (chart) => {
-            if (chart.getDatasetMeta(0).data.length === 0) {
-                return;
-            }
-            const innerRadius = chart.getDatasetMeta(0).data[0].innerRadius;
-            const availableWidth = innerRadius * 2 * 0.9;
             const ctx = chart.ctx;
-            ctx.save();
             const centerX = (chart.chartArea.left + chart.chartArea.right) / 2;
             const centerY = (chart.chartArea.top + chart.chartArea.bottom) / 2;
-            
-            const getFittingFontSize = (text, maxWidth, isBold) => {
-                let fontSize = 30;
-                ctx.font = `${isBold ? 'bold' : '500'} ${fontSize}px -apple-system, sans-serif`;
+            ctx.save();
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            if (chart.getDatasetMeta(0).data.length === 0) {
+                ctx.font = '500 16px -apple-system, sans-serif';
+                ctx.fillStyle = '#86868b';
+                ctx.fillText('Total Gastado', centerX, centerY - 12);
+                
+                ctx.font = 'bold 24px -apple-system, sans-serif';
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText('$0,00', centerX, centerY + 12);
+                
+                ctx.restore();
+                return;
+            }
+
+            const innerRadius = chart.getDatasetMeta(0).data[0].innerRadius;
+            const availableWidth = innerRadius * 2 * 0.85;
+
+            const getFittingFontSize = (text, maxWidth, weight = '500') => {
+                let fontSize = 30; 
+                ctx.font = `${weight} ${fontSize}px -apple-system, sans-serif`;
                 while (ctx.measureText(text).width > maxWidth && fontSize > 8) {
                     fontSize--;
-                    ctx.font = `${isBold ? 'bold' : '500'} ${fontSize}px -apple-system, sans-serif`;
+                    ctx.font = `${weight} ${fontSize}px -apple-system, sans-serif`;
                 }
                 return fontSize;
             };
 
             const text1 = 'Total Gastado';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillStyle = '#86868b'; // Corresponde a --text-muted
-            let fontSize1 = Math.min(getFittingFontSize(text1, availableWidth, false), 18);
+            ctx.fillStyle = '#86868b';
+            let fontSize1 = Math.min(getFittingFontSize(text1, availableWidth, '500'), 18);
             ctx.font = `500 ${fontSize1}px -apple-system, sans-serif`;
-            ctx.fillText(text1, centerX, centerY - (fontSize1 * 1.1));
+            ctx.fillText(text1, centerX, centerY - (fontSize1 / 2) - 4);
 
-            const text2 = `$${totalGastos.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-            ctx.fillStyle = '#ffffff'; // Corresponde a --text-light
-            let fontSize2 = Math.min(getFittingFontSize(text2, availableWidth, true), 48);
+            const text2 = formatearARS(totalGastos);
+            ctx.fillStyle = '#ffffff';
+            let fontSize2 = Math.min(getFittingFontSize(text2, availableWidth, 'bold'), 48);
             ctx.font = `bold ${fontSize2}px -apple-system, sans-serif`;
-            ctx.fillText(text2, centerX, centerY + (fontSize2 * 0.7));
+            ctx.fillText(text2, centerX, centerY + (fontSize2 / 2));
             
             ctx.restore();
         }
     };
-
+    
     gastosChart = new Chart(s.gastosChartCanvas, {
         type: 'doughnut',
         data: {
-            labels: labels.map(l => `${l} ($${(gastosPorCategoria[l] || 0).toFixed(2)})`),
+            labels: labels.map(l => `${l} (${formatearARS(gastosPorCategoria[l] || 0)})`),
             datasets: [{
                 data: data,
                 backgroundColor: backgroundColors,
@@ -518,8 +564,17 @@ function renderGastosChart(gastos, gastosPorCategoria) {
             maintainAspectRatio: true,
             cutout: '70%',
             plugins: {
-                legend: { position: 'bottom', labels: { color: '#FFFFFF', boxWidth: 15, padding: 20, } },
-                tooltip: { enabled: false }
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        color: 'var(--text-light)',
+                        boxWidth: 15,
+                        padding: 20,
+                    }
+                },
+                tooltip: {
+                    enabled: false
+                }
             }
         },
         plugins: [centerTextPlugin]
@@ -528,7 +583,7 @@ function renderGastosChart(gastos, gastosPorCategoria) {
 
 function renderGastosList(gastos) {
     if (gastos.length === 0) {
-        s.gastosList.innerHTML = `<p class="dashboard-loader">No hay gastos para mostrar.</p>`;
+        s.gastosList.innerHTML = `<p class="dashboard-loader">No hay gastos para mostrar en este período.</p>`;
         return;
     }
     let html = '';
@@ -548,7 +603,7 @@ function renderGastosList(gastos) {
                     <div class="gasto-item-desc">${descripcionCompleta}</div>
                 </div>
                 <div class="gasto-item-details">
-                    <div class="gasto-item-amount">$${(gasto.monto || 0).toLocaleString('es-AR')}</div>
+                    <div class="gasto-item-amount">${formatearARS(gasto.monto || 0)}</div>
                     <div class="gasto-item-date">${fecha}</div>
                 </div>
                 <div class="gasto-item-actions">
