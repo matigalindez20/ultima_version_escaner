@@ -220,7 +220,7 @@ async function handleLogin(e) {
         await auth.signInWithEmailAndPassword(e.target.email.value, e.target.password.value);
     } catch (error) {
         const feedbackEl = document.getElementById('login-feedback');
-        feedbackEl.textContent = "Error: " + error.message;
+        feedbackEl.textContent = "Usuario o contraseña incorrecta. Por favor, vuelve a intentar.";
         feedbackEl.className = 'error';
         feedbackEl.classList.remove('hidden');
     } finally {
@@ -428,9 +428,10 @@ function mostrarReporteCaja(fecha, totalVentas, totalCosto, gananciaNeta, errore
             <h3>Cierre de Caja</h3><p class="report-date">Reporte para: ${fechaFormateada}</p>${contenidoReporte}
             <div class="prompt-buttons" style="justify-content: center;"><button id="btn-cerrar-reporte" class="prompt-button cancel" style="max-width: 200px;">Cerrar</button></div>
         </div>`;
-    document.getElementById('btn-cerrar-reporte').onclick = () => s.promptContainer.innerHTML = '';
+    document.getElementById('btn-cerrar-reporte').onclick = () => { s.promptContainer.innerHTML = ''; };
 }
 
+// ===== FUNCIÓN DE GASTOS ACTUALIZADA =====
 async function loadGastos() {
     s.gastosList.innerHTML = `<p class="dashboard-loader">Cargando gastos...</p>`;
     if (gastosChart) gastosChart.destroy();
@@ -439,34 +440,33 @@ async function loadGastos() {
     let startDate = s.filterGastosStartDate.value;
     let endDate = s.filterGastosEndDate.value;
     
-    // Si no se especifican fechas, no se carga nada por defecto
+    // Si no hay fecha de inicio ni de fin, se establece el día de hoy por defecto.
     if (!startDate && !endDate) {
-        s.gastosList.innerHTML = `<p class="dashboard-loader">Seleccione un rango de fechas para ver los gastos.</p>`;
-        renderGastosChart([], {});
-        toggleSpinner(s.btnApplyGastosFilter, false);
-        return;
+        const hoy = new Date();
+        const anio = hoy.getFullYear();
+        const mes = String(hoy.getMonth() + 1).padStart(2, '0');
+        const dia = String(hoy.getDate()).padStart(2, '0');
+        startDate = `${anio}-${mes}-${dia}`;
+        endDate = startDate;
+        s.filterGastosStartDate.value = startDate;
+        s.filterGastosEndDate.value = endDate;
+    } else if (startDate && !endDate) {
+        // Si solo hay fecha de inicio, el rango es de un solo día.
+        endDate = startDate;
+    } else if (!startDate && endDate) {
+        // Si solo hay fecha de fin, el rango es de un solo día.
+        startDate = endDate;
     }
-
-    // Si solo hay una fecha, se asume que el rango es de un solo día
-    if (startDate && !endDate) endDate = startDate;
-    if (!startDate && endDate) startDate = endDate;
 
     try {
         const inicioDelRango = new Date(startDate + 'T00:00:00');
         const finDelRango = new Date(endDate + 'T23:59:59.999');
 
         let query = db.collection('gastos').orderBy('fecha', 'desc');
-
         query = query.where('fecha', '>=', inicioDelRango).where('fecha', '<=', finDelRango);
         
         const snapshot = await query.get();
         const gastos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-        if (gastos.length === 0) {
-            s.gastosList.innerHTML = `<p class="dashboard-loader">No se registraron gastos en este período.</p>`;
-            renderGastosChart([], {});
-            return;
-        }
 
         const gastosPorCategoria = gastos.reduce((acc, gasto) => {
             const categoria = gasto.categoria;
@@ -484,7 +484,6 @@ async function loadGastos() {
         toggleSpinner(s.btnApplyGastosFilter, false);
     }
 }
-
 
 function renderGastosChart(gastos, gastosPorCategoria) {
     if (gastosChart) {

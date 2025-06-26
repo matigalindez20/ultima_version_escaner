@@ -31,10 +31,22 @@ body {
     align-items: center; 
     min-height: 100vh; 
     padding: 1rem;
+    /* ===== ESTILO DE FONDO PERMANENTE APLICADO AQUÍ ===== */
+    background-image: 
+        linear-gradient(rgba(13, 13, 13, 0.8), rgba(13, 13, 13, 0.8)),
+        url('./fondo1.jpg');
+    background-size: cover;
+    background-position: center center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
 }
 .logo-container { 
     margin-bottom: 1.5rem; 
     margin-top: 1rem;
+    /* Hacemos transparente el fondo del logo para que se integre */
+    background: none;
+    box-shadow: none;
+    border: none;
 }
 .logo-animado { 
     max-width: 120px;
