@@ -1,5 +1,5 @@
 const firebaseConfig = {
-    apiKey: "AIzaSyAG2rhzDqoy_Iq6DlP0osuJjbrwFEtl6n4",
+    apiKey: "AIzaSyCIriK864klIIu-PfRrTn18NCysRaTwWJs",
     authDomain: "tienda-twins.firebaseapp.com",
     projectId: "tienda-twins",
     storageBucket: "tienda-twins.appspot.com",
