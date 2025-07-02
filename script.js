@@ -18,6 +18,7 @@ const detallesEsteticos = ["Como Nuevo (Sin detalles)", "Excelente (Mínimos det
 const modelos = [ "iPhone 11", "iPhone 11 Pro", "iPhone 11 Pro Max", "iPhone 12 Mini", "iPhone 12", "iPhone 12 Pro", "iPhone 12 Pro Max", "iPhone 13 Mini", "iPhone 13", "iPhone 13 Pro", "iPhone 13 Pro Max", "iPhone 14", "iPhone 14 Plus", "iPhone 14 Pro", "iPhone 14 Pro Max", "iPhone 15", "iPhone 15 Plus", "iPhone 15 Pro", "iPhone 15 Pro Max", "iPhone 16", "iPhone 16 Plus", "iPhone 16 Pro", "iPhone 16 Pro Max",];
 const metodosDePago = ["Dólares", "Pesos (Efectivo)", "Pesos (Transferencia)"];
 const gastosCategorias = ["Comida", "Repuestos", "Alquiler", "Accesorios", "Otro"];
+let ingresosCategorias = []; 
 const accesoriosSubcategorias = ["Fundas", "Fuentes", "Cables", "Templados", "Otro"];
 let proveedoresStock = []; 
 const categoriaColores = {
@@ -33,7 +34,6 @@ const s = {};
 let canjeContext = null;
 let gastosChart = null;
 let batchLoadContext = null;
-// ===== LA NUEVA ESTRATEGIA: UNA VARIABLE GLOBAL SIMPLE =====
 let paymentContext = null;
 
 document.addEventListener('DOMContentLoaded', initApp);
@@ -43,6 +43,8 @@ function initApp() {
         loginContainer: document.getElementById('login-container'),
         appContainer: document.getElementById('app-container'),
         logoutButton: document.getElementById('logout-button'),
+        navTabs: document.querySelector('.nav-tabs'),
+        navSlider: document.querySelector('.nav-slider'),
         tabDashboard: document.getElementById('tab-dashboard'),
         tabReports: document.getElementById('tab-reports'),
         tabManagement: document.getElementById('tab-management'),
@@ -50,15 +52,21 @@ function initApp() {
         dashboardView: document.getElementById('dashboard-view'),
         reportsView: document.getElementById('reports-view'),
         managementView: document.getElementById('management-view'),
-        providersView: document.getElementById('providers-view'), 
+        providersView: document.getElementById('providers-view'),
+        dashboardControls: document.querySelector('.dashboard-controls'),
+        dashboardMenuToggle: document.getElementById('dashboard-menu-toggle'),
+        dashboardMenuLabel: document.getElementById('dashboard-menu-label'),
+        dashboardOptionsContainer: document.getElementById('dashboard-options-container'),
         btnShowStock: document.getElementById('btn-show-stock'),
         btnShowSales: document.getElementById('btn-show-sales'),
         btnShowGastos: document.getElementById('btn-show-gastos'),
         btnShowCanje: document.getElementById('btn-show-canje'),
         btnShowCommissions: document.getElementById('btn-show-commissions'),
+        btnShowIngresos: document.getElementById('btn-show-ingresos'),
         stockSection: document.getElementById('stock-section'),
         salesSection: document.getElementById('sales-section'),
         gastosSection: document.getElementById('gastos-section'),
+        ingresosSection: document.getElementById('ingresos-section'),
         canjeSection: document.getElementById('canje-section'),
         commissionsSection: document.getElementById('commissions-section'),
         stockTableContainer: document.getElementById('stock-table-container'),
@@ -106,6 +114,14 @@ function initApp() {
         filterGastosStartDate: document.getElementById('filter-gastos-start-date'),
         filterGastosEndDate: document.getElementById('filter-gastos-end-date'),
         btnApplyGastosFilter: document.getElementById('btn-apply-gastos-filter'),
+        btnAddIngreso: document.getElementById('btn-add-ingreso'),
+        ingresosList: document.getElementById('ingresos-list'),
+        filterIngresosStartDate: document.getElementById('filter-ingresos-start-date'),
+        filterIngresosEndDate: document.getElementById('filter-ingresos-end-date'),
+        btnApplyIngresosFilter: document.getElementById('btn-apply-ingresos-filter'),
+        ingresosPeriodTotalArsEfectivo: document.getElementById('ingresos-period-total-ars-efectivo'),
+        ingresosPeriodTotalArsTransferencia: document.getElementById('ingresos-period-total-ars-transferencia'),
+        ingresosPeriodTotalUsd: document.getElementById('ingresos-period-total-usd'),
         kpiStockValue: document.getElementById('kpi-stock-value'),
         kpiStockCount: document.getElementById('kpi-stock-count'),
         kpiDollarsDay: document.getElementById('kpi-dollars-day'),
@@ -128,11 +144,17 @@ function initApp() {
 
 async function loadAndPopulateSelects() {
     try {
-        const snapshot = await db.collection('proveedores').orderBy('nombre').get();
-        proveedoresStock = snapshot.docs.map(doc => doc.data().nombre);
+        const proveedoresPromise = db.collection('proveedores').orderBy('nombre').get();
+        const ingresosCatPromise = db.collection('ingresos_categorias').orderBy('nombre').get();
+        
+        const [provSnapshot, ingCatSnapshot] = await Promise.all([proveedoresPromise, ingresosCatPromise]);
+        
+        proveedoresStock = provSnapshot.docs.map(doc => doc.data().nombre);
+        ingresosCategorias = ingCatSnapshot.docs.map(doc => doc.data().nombre);
+
         populateAllSelects();
     } catch (error) {
-        console.error("Error al cargar proveedores para los selects:", error);
+        console.error("Error al cargar datos para los selects:", error);
         populateAllSelects();
     }
 }
@@ -153,19 +175,50 @@ function populateAllSelects() {
 
 function addEventListeners() {
     s.logoutButton.addEventListener('click', () => auth.signOut());
-    s.tabDashboard.addEventListener('click', () => switchView('dashboard'));
-    s.tabProviders.addEventListener('click', () => switchView('providers'));
-    s.tabReports.addEventListener('click', () => switchView('reports'));
-    s.tabManagement.addEventListener('click', () => switchView('management'));
-    s.btnShowStock.addEventListener('click', () => switchDashboardView('stock'));
-    s.btnShowSales.addEventListener('click', () => switchDashboardView('sales'));
-    s.btnShowGastos.addEventListener('click', () => switchDashboardView('gastos'));
-    s.btnShowCanje.addEventListener('click', () => switchDashboardView('canje'));
-    s.btnShowCommissions.addEventListener('click', () => switchDashboardView('commissions'));
+    
+    if (s.navTabs) {
+        s.navTabs.addEventListener('click', (e) => {
+            const tab = e.target.closest('.nav-tab');
+            if (!tab) return;
+            const viewName = tab.id.replace('tab-', '');
+            switchView(viewName, tab);
+        });
+    }
+
+    if (s.dashboardOptionsContainer) {
+        s.dashboardOptionsContainer.addEventListener('click', (e) => {
+            const button = e.target.closest('.control-btn');
+            if (!button) return;
+            const viewName = button.id.replace('btn-show-', '');
+            switchDashboardView(viewName, button);
+            
+            // Cerrar menú en móvil
+            s.dashboardMenuToggle.classList.remove('open');
+            s.dashboardOptionsContainer.classList.remove('open');
+        });
+    }
+
+    if (s.dashboardMenuToggle) {
+        s.dashboardMenuToggle.addEventListener('click', () => {
+            s.dashboardMenuToggle.classList.toggle('open');
+            s.dashboardOptionsContainer.classList.toggle('open');
+        });
+    }
+    
+    // Cerrar menú si se hace clic fuera
+    document.addEventListener('click', (e) => {
+        if (!s.dashboardControls.contains(e.target)) {
+            s.dashboardMenuToggle.classList.remove('open');
+            s.dashboardOptionsContainer.classList.remove('open');
+        }
+    });
+
+
     s.btnApplyStockFilters.addEventListener('click', loadStock);
     s.btnApplySalesFilters.addEventListener('click', loadSales);
     s.btnApplyCommissionsFilters.addEventListener('click', loadCommissions);
     s.btnApplyGastosFilter.addEventListener('click', loadGastos);
+    s.btnApplyIngresosFilter.addEventListener('click', loadIngresos);
     s.btnScan.addEventListener('click', startScanner);
     s.manualEntryBtn.addEventListener('click', promptForManualImeiInput);
     s.productForm.addEventListener('submit', handleProductFormSubmit);
@@ -174,51 +227,48 @@ function addEventListeners() {
     s.exportSalesBtn.addEventListener('click', () => { exportToExcel('sales'); s.exportMenu.classList.remove('show'); });
     document.addEventListener('click', (e) => { if (s.exportMenu && !s.btnExport.contains(e.target)) s.exportMenu.classList.remove('show'); });
     s.btnAddGasto.addEventListener('click', () => promptToAddGasto());
+    s.btnAddIngreso.addEventListener('click', () => promptToAddIngreso());
     s.btnHacerCaja.addEventListener('click', generarCajaDiaria);
     s.btnAddProvider.addEventListener('click', promptToAddProvider);
 
-    // UN SOLO LISTENER PARA ACCIONES DE PROVEEDORES
     s.providersView.addEventListener('click', (e) => {
         const button = e.target.closest('button');
         if (!button) return;
-
         const card = button.closest('.provider-card');
         if (!card) return;
-
         const providerId = card.dataset.providerId;
         const providerName = card.querySelector('h3').textContent;
-
         if (button.classList.contains('btn-register-payment')) {
             const debtAmount = parseFloat(card.querySelector('.debt-amount').textContent.replace(/[^0-9,-]+/g,"").replace(',', '.'));
-            // ===== CAMBIO CLAVE: GUARDAMOS EN LA VARIABLE GLOBAL =====
             paymentContext = { id: providerId, name: providerName };
             promptToRegisterPayment(providerName, debtAmount);
-        }
-        else if (button.classList.contains('btn-batch-load')) {
+        } else if (button.classList.contains('btn-batch-load')) {
             promptToStartBatchLoad(providerId, providerName);
-        }
-        else if (button.classList.contains('btn-view-payments')) {
+        } else if (button.classList.contains('btn-view-payments')) {
             showPaymentHistory(providerId, providerName);
-        }
-        else if (button.classList.contains('btn-view-batches')) {
+        } else if (button.classList.contains('btn-view-batches')) {
             showBatchHistory(providerId, providerName);
-        }
-        else if (button.classList.contains('btn-delete-provider')) {
+        } else if (button.classList.contains('btn-delete-provider')) {
             deleteProvider(providerId, providerName);
         }
     });
 
-    // UN SOLO LISTENER PARA FORMULARIOS DENTRO DEL PROMPT
     s.promptContainer.addEventListener('submit', (e) => {
         e.preventDefault();
         const form = e.target;
-        
         if (form.id === 'payment-form') {
             saveProviderPayment(form);
         } else if (form.id === 'provider-form') {
             saveProvider(form.querySelector('button[type="submit"]'));
         } else if (form.id === 'gasto-form') {
             saveGasto(form.querySelector('button[type="submit"]'));
+        } else if (form.id === 'ingreso-form') {
+            const mode = form.dataset.mode || 'create';
+            if (mode === 'create') {
+                saveIngreso(form.querySelector('button[type="submit"]'));
+            } else {
+                updateIngreso(form.dataset.ingresoId, form.querySelector('button[type="submit"]'));
+            }
         } else if (form.id === 'batch-load-form') {
             const model = form.modelo.value;
             const batchCost = parseFloat(form.costo.value);
@@ -229,11 +279,10 @@ function addEventListeners() {
         }
     });
 
-    // UN SOLO LISTENER PARA BOTONES DE CANCELAR Y OTROS CLICKS EN EL PROMPT
     s.promptContainer.addEventListener('click', (e) => {
         if (e.target.matches('.prompt-button.cancel')) {
             s.promptContainer.innerHTML = '';
-            paymentContext = null; // Limpiamos el contexto si se cancela
+            paymentContext = null;
         }
     });
 
@@ -243,6 +292,20 @@ function addEventListeners() {
     s.kpiDollarsMonth.parentElement.addEventListener('click', () => showKpiDetail('dolares', 'mes'));
     s.kpiCashMonth.parentElement.addEventListener('click', () => showKpiDetail('efectivo_ars', 'mes'));
     s.kpiTransferMonth.parentElement.addEventListener('click', () => showKpiDetail('transferencia_ars', 'mes'));
+}
+
+function moveDashboardSlider(activeButton) {
+    if (!s.dashboardOptionsContainer || !activeButton) return;
+    const { offsetLeft, offsetWidth } = activeButton;
+    s.dashboardOptionsContainer.style.setProperty('--slider-left', `${offsetLeft}px`);
+    s.dashboardOptionsContainer.style.setProperty('--slider-width', `${offsetWidth}px`);
+}
+
+function moveNavSlider(activeTab) {
+    if (!s.navSlider || !activeTab) return;
+    const { offsetLeft, offsetWidth } = activeTab;
+    s.navSlider.style.left = `${offsetLeft}px`;
+    s.navSlider.style.width = `${offsetWidth}px`;
 }
 
 async function updateReports() {
@@ -272,13 +335,17 @@ async function updateReports() {
         const expensesMonthPromise = db.collection('gastos').where('fecha', '>=', startOfMonth).where('fecha', '<=', endOfMonth).get();
         const cashOutflowsDayPromise = db.collection('egresos_caja').where('fecha', '>=', startOfDay).where('fecha', '<=', endOfDay).get();
         const cashOutflowsMonthPromise = db.collection('egresos_caja').where('fecha', '>=', startOfMonth).where('fecha', '<=', endOfMonth).get();
+        const miscellaneousIncomesDayPromise = db.collection('ingresos_caja').where('fecha', '>=', startOfDay).where('fecha', '<=', endOfDay).get();
+        const miscellaneousIncomesMonthPromise = db.collection('ingresos_caja').where('fecha', '>=', startOfMonth).where('fecha', '<=', endOfMonth).get();
         
         const [
             stockSnap, salesDaySnap, salesMonthSnap, expensesDaySnap, expensesMonthSnap,
-            cashOutflowsDaySnap, cashOutflowsMonthSnap
+            cashOutflowsDaySnap, cashOutflowsMonthSnap,
+            miscIncomesDaySnap, miscIncomesMonthSnap
         ] = await Promise.all([
             stockPromise, salesDayPromise, salesMonthPromise, expensesDayPromise, expensesMonthPromise,
-            cashOutflowsDayPromise, cashOutflowsMonthPromise
+            cashOutflowsDayPromise, cashOutflowsMonthPromise,
+            miscellaneousIncomesDayPromise, miscellaneousIncomesMonthPromise
         ]);
         
         let totalStockValue = 0;
@@ -299,7 +366,20 @@ async function updateReports() {
         const dailyOutflows = processCashOutflows(cashOutflowsDaySnap);
         const monthlyOutflows = processCashOutflows(cashOutflowsMonthSnap);
 
-        const processSalesData = async (salesSnapshot, outflows) => {
+        const processMiscIncomes = (snapshot) => {
+            let totalDollars = 0, totalCash = 0, totalTransfer = 0;
+            snapshot.forEach(doc => {
+                const ingreso = doc.data();
+                if (ingreso.metodo === 'Dólares') totalDollars += ingreso.monto || 0;
+                else if (ingreso.metodo === 'Pesos (Efectivo)') totalCash += ingreso.monto || 0;
+                else if (ingreso.metodo === 'Pesos (Transferencia)') totalTransfer += ingreso.monto || 0;
+            });
+            return { totalDollars, totalCash, totalTransfer };
+        };
+        const dailyMiscIncomes = processMiscIncomes(miscIncomesDaySnap);
+        const monthlyMiscIncomes = processMiscIncomes(miscIncomesMonthSnap);
+        
+        const processSalesData = async (salesSnapshot, outflows, miscIncomes) => {
             let totalIngresoDollars = 0, totalIngresoCash = 0, totalIngresoTransfer = 0;
             let totalSalesUSD = 0, totalCost = 0;
             
@@ -319,20 +399,20 @@ async function updateReports() {
                 });
             }
             
-            const finalDollars = totalIngresoDollars - outflows.totalDollars;
-            const finalCash = totalIngresoCash - outflows.totalCash;
-            const finalTransfer = totalIngresoTransfer - outflows.totalTransfer;
+            const finalDollars = (totalIngresoDollars + miscIncomes.totalDollars) - outflows.totalDollars;
+            const finalCash = (totalIngresoCash + miscIncomes.totalCash) - outflows.totalCash;
+            const finalTransfer = (totalIngresoTransfer + miscIncomes.totalTransfer) - outflows.totalTransfer;
 
             return { finalDollars, finalCash, finalTransfer, totalSalesUSD, totalCost };
         };
         
-        const dailyData = await processSalesData(salesDaySnap, dailyOutflows);
+        const dailyData = await processSalesData(salesDaySnap, dailyOutflows, dailyMiscIncomes);
         s.kpiDollarsDay.textContent = formatearUSD(dailyData.finalDollars);
         s.kpiCashDay.textContent = formatearARS(dailyData.finalCash);
         s.kpiTransferDay.textContent = formatearARS(dailyData.finalTransfer);
         s.kpiProfitDay.textContent = formatearUSD(dailyData.totalSalesUSD - dailyData.totalCost);
         
-        const monthlyData = await processSalesData(salesMonthSnap, monthlyOutflows);
+        const monthlyData = await processSalesData(salesMonthSnap, monthlyOutflows, monthlyMiscIncomes);
         s.kpiDollarsMonth.textContent = formatearUSD(monthlyData.finalDollars);
         s.kpiCashMonth.textContent = formatearARS(monthlyData.finalCash);
         s.kpiTransferMonth.textContent = formatearARS(monthlyData.finalTransfer);
@@ -368,8 +448,12 @@ async function handleAuthStateChange(user) {
         s.loginContainer.innerHTML = ''; s.loginContainer.classList.add('hidden');
         s.appContainer.classList.remove('hidden');
         await loadAndPopulateSelects();
-        switchView('dashboard');
+        switchView('dashboard', s.tabDashboard);
         updateCanjeCount();
+        setTimeout(() => {
+            moveDashboardSlider(document.querySelector('.control-btn.active'));
+            moveNavSlider(document.querySelector('.nav-tab.active'));
+        }, 100);
     } else {
         s.loginContainer.classList.remove('hidden');
         s.appContainer.classList.add('hidden');
@@ -453,19 +537,23 @@ async function handleLogin(e) {
     }
 }
 
-function switchView(view) {
+function switchView(view, tabElement) {
     const views = ['dashboard', 'reports', 'management', 'providers']; 
+    
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    if(tabElement) {
+        tabElement.classList.add('active');
+        moveNavSlider(tabElement);
+    }
     
     views.forEach(v => {
         const viewElement = s[`${v}View`];
-        const tabElement = s[`tab${v.charAt(0).toUpperCase() + v.slice(1)}`];
-
         if (viewElement) viewElement.classList.toggle('hidden', v !== view);
-        if (tabElement) tabElement.classList.toggle('active', v === view);
     });
 
     if (view === 'dashboard' && !s.stockTableContainer.innerHTML.includes('<table>')) {
-        switchDashboardView('stock');
+        const initialButton = document.querySelector('.control-btn');
+        switchDashboardView('stock', initialButton);
     } else if (view === 'reports') {
         updateReports();
     } else if (view === 'providers') {
@@ -478,23 +566,333 @@ function switchView(view) {
 }
 
 
-function switchDashboardView(viewName) {
-    const sections = ['stock', 'sales', 'canje', 'gastos', 'commissions'];
+function switchDashboardView(viewName, button) {
+    const sections = ['stock', 'sales', 'canje', 'gastos', 'commissions', 'ingresos'];
+    
+    s.dashboardOptionsContainer.querySelectorAll('.control-btn').forEach(btn => btn.classList.remove('active'));
     sections.forEach(v => {
         const section = document.getElementById(`${v}-section`);
-        const button = document.getElementById(`btn-show-${v}`);
-        if(section) section.classList.toggle('hidden', v !== viewName);
-        if(button) button.classList.toggle('active', v === viewName);
+        if(section) section.classList.add('hidden');
     });
+
+    if (button) {
+        button.classList.add('active');
+        s.dashboardMenuLabel.textContent = button.textContent.replace(/<span.*<\/span>/, '').trim(); // Actualiza el label del menú móvil
+        document.getElementById(`${viewName}-section`).classList.remove('hidden');
+        moveDashboardSlider(button);
+    }
+    
     updateCanjeCount();
     if (viewName === 'stock') loadStock();
     else if (viewName === 'sales') loadSales();
     else if (viewName === 'canje') loadCanjes();
     else if (viewName === 'gastos') loadGastos();
     else if (viewName === 'commissions') loadCommissions();
+    else if (viewName === 'ingresos') loadIngresos();
 }
 
-// ===== INICIO: FUNCIONES DE PROVEEDORES =====
+
+async function loadIngresos() {
+    s.ingresosList.innerHTML = `<p class="dashboard-loader" style="grid-column: 1 / -1;">Cargando ingresos...</p>`;
+    s.ingresosPeriodTotalArsEfectivo.textContent = '...';
+    s.ingresosPeriodTotalArsTransferencia.textContent = '...';
+    s.ingresosPeriodTotalUsd.textContent = '...';
+    toggleSpinner(s.btnApplyIngresosFilter, true);
+    
+    let startDate = s.filterIngresosStartDate.value;
+    let endDate = s.filterIngresosEndDate.value;
+
+    try {
+        let query = db.collection('ingresos_caja').orderBy('fecha', 'desc');
+        
+        if (startDate) {
+            query = query.where('fecha', '>=', new Date(startDate + 'T00:00:00'));
+        }
+        if (endDate) {
+            query = query.where('fecha', '<=', new Date(endDate + 'T23:59:59'));
+        }
+        
+        const snapshot = await query.get();
+        const ingresos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+        let totalArsEfectivo = 0;
+        let totalArsTransferencia = 0;
+        let totalUsd = 0;
+        ingresos.forEach(ingreso => {
+            if (ingreso.metodo === 'Dólares') {
+                totalUsd += ingreso.monto;
+            } else if (ingreso.metodo === 'Pesos (Efectivo)') {
+                totalArsEfectivo += ingreso.monto;
+            } else if (ingreso.metodo === 'Pesos (Transferencia)') {
+                totalArsTransferencia += ingreso.monto;
+            }
+        });
+
+        s.ingresosPeriodTotalArsEfectivo.textContent = formatearARS(totalArsEfectivo);
+        s.ingresosPeriodTotalArsTransferencia.textContent = formatearARS(totalArsTransferencia);
+        s.ingresosPeriodTotalUsd.textContent = formatearUSD(totalUsd);
+        
+        renderIngresosList(ingresos);
+
+    } catch (error) {
+        handleDBError(error, s.ingresosList, "ingresos");
+        s.ingresosPeriodTotalArsEfectivo.textContent = 'Error';
+        s.ingresosPeriodTotalArsTransferencia.textContent = 'Error';
+        s.ingresosPeriodTotalUsd.textContent = 'Error';
+    } finally {
+        toggleSpinner(s.btnApplyIngresosFilter, false);
+    }
+}
+
+function renderIngresosList(ingresos) {
+    if (ingresos.length === 0) {
+        s.ingresosList.innerHTML = `<p class="dashboard-loader" style="grid-column: 1 / -1;">No hay ingresos para mostrar en este período.</p>`;
+        return;
+    }
+
+    s.ingresosList.innerHTML = ingresos.map(ingreso => {
+        const montoFormateado = ingreso.metodo === 'Dólares' 
+            ? formatearUSD(ingreso.monto) 
+            : formatearARS(ingreso.monto);
+        
+        const ingresoJSON = JSON.stringify(ingreso).replace(/'/g, "\\'");
+
+        return `
+        <div class="ingreso-card" data-ingreso-id="${ingreso.id}" data-ingreso-item='${ingresoJSON}'>
+            <div class="ingreso-card-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="1" x2="12" y2="23"></line>
+                    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                </svg>
+            </div>
+            <div class="ingreso-card-content">
+                <div class="ingreso-card-header">
+                    <span class="ingreso-card-category">${ingreso.categoria}</span>
+                    <span class="ingreso-card-amount">${montoFormateado}</span>
+                </div>
+                <p class="ingreso-card-description">${ingreso.descripcion || 'Sin detalles adicionales.'}</p>
+                <div class="ingreso-card-footer">
+                    <span>${new Date((ingreso.fecha?.seconds || 0) * 1000).toLocaleString('es-AR')}</span>
+                    <div class="actions-cell">
+                        <button class="edit-btn btn-edit-ingreso" title="Editar Ingreso">
+                           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                        </button>
+                        <button class="delete-btn" title="Eliminar Ingreso" onclick="deleteIngreso('${ingreso.id}', '${ingreso.categoria}', ${ingreso.monto}, '${ingreso.metodo}')">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+
+    document.querySelectorAll('.btn-edit-ingreso').forEach(button => {
+        button.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const card = e.currentTarget.closest('.ingreso-card');
+            const ingresoItem = JSON.parse(card.dataset.ingresoItem.replace(/\\'/g, "'"));
+            promptToEditIngreso(ingresoItem, card.dataset.ingresoId);
+        });
+    });
+}
+
+
+async function promptToAddIngreso() {
+    await loadAndPopulateSelects(); 
+
+    const categoriaOptions = ingresosCategorias.map(c => `<option value="${c}">${c}</option>`).join('');
+    const metodoOptions = metodosDePago.map(m => `<option value="${m}">${m}</option>`).join('');
+
+    s.promptContainer.innerHTML = `
+    <div class="ingreso-modal-box">
+        <h3>Registrar Nuevo Ingreso</h3>
+        <form id="ingreso-form" novalidate data-mode="create">
+            <div class="form-group">
+                <input type="number" id="ingreso-monto" name="monto" required placeholder=" " step="0.01">
+                <label for="ingreso-monto">Monto</label>
+            </div>
+            <div class="form-group">
+                <select id="ingreso-metodo" name="metodo" required>${metodoOptions}</select>
+                <label for="ingreso-metodo">Método de Ingreso</label>
+            </div>
+            <div class="form-group">
+                <select id="ingreso-categoria-select" name="categoria_existente" required>
+                    <option value="" disabled selected></option>
+                    ${categoriaOptions}
+                    <option value="--nueva--">** Crear Nueva Categoría **</option>
+                </select>
+                <label for="ingreso-categoria-select">Categoría</label>
+            </div>
+            <div id="nueva-categoria-group" class="form-group hidden">
+                <input type="text" id="ingreso-categoria-nueva" name="categoria_nueva" placeholder=" ">
+                <label for="ingreso-categoria-nueva">Nombre de la Nueva Categoría</label>
+            </div>
+            <div class="form-group">
+                <textarea id="ingreso-descripcion" name="descripcion" rows="1" placeholder=" "></textarea>
+                <label for="ingreso-descripcion">Descripción (opcional)</label>
+            </div>
+            <div class="prompt-buttons">
+                <button type="submit" class="prompt-button confirm spinner-btn">
+                    <span class="btn-text">Guardar Ingreso</span>
+                    <div class="spinner"></div>
+                </button>
+                <button type="button" class="prompt-button cancel">Cancelar</button>
+            </div>
+        </form>
+    </div>`;
+
+    const categoriaSelect = document.getElementById('ingreso-categoria-select');
+    const nuevaCategoriaGroup = document.getElementById('nueva-categoria-group');
+    categoriaSelect.addEventListener('change', () => {
+        const isNew = categoriaSelect.value === '--nueva--';
+        nuevaCategoriaGroup.classList.toggle('hidden', !isNew);
+        document.getElementById('ingreso-categoria-nueva').required = isNew;
+    });
+
+    const textarea = document.getElementById('ingreso-descripcion');
+    if (textarea) {
+        textarea.addEventListener('input', () => {
+            textarea.style.height = 'auto';
+            textarea.style.height = (textarea.scrollHeight) + 'px';
+        });
+    }
+}
+
+async function promptToEditIngreso(ingreso, ingresoId) {
+    await loadAndPopulateSelects();
+    const categoriaOptions = ingresosCategorias.map(c => `<option value="${c}" ${ingreso.categoria === c ? 'selected' : ''}>${c}</option>`).join('');
+    const metodoOptions = metodosDePago.map(m => `<option value="${m}" ${ingreso.metodo === m ? 'selected' : ''}>${m}</option>`).join('');
+
+    s.promptContainer.innerHTML = `
+    <div class="ingreso-modal-box">
+        <h3>Editar Ingreso</h3>
+        <form id="ingreso-form" novalidate data-mode="edit" data-ingreso-id="${ingresoId}">
+            <div class="form-group">
+                <input type="number" id="ingreso-monto" name="monto" required placeholder=" " step="0.01" value="${ingreso.monto || ''}">
+                <label for="ingreso-monto">Monto</label>
+            </div>
+            <div class="form-group">
+                <select id="ingreso-metodo" name="metodo" required>${metodoOptions}</select>
+                <label for="ingreso-metodo">Método de Ingreso</label>
+            </div>
+            <div class="form-group">
+                <select id="ingreso-categoria-select" name="categoria" required>${categoriaOptions}</select>
+                <label for="ingreso-categoria-select">Categoría</label>
+            </div>
+            <div class="form-group">
+                <textarea id="ingreso-descripcion" name="descripcion" rows="1" placeholder=" ">${ingreso.descripcion || ''}</textarea>
+                <label for="ingreso-descripcion">Descripción (opcional)</label>
+            </div>
+            <div class="prompt-buttons">
+                <button type="submit" class="prompt-button confirm spinner-btn">
+                    <span class="btn-text">Actualizar Ingreso</span>
+                    <div class="spinner"></div>
+                </button>
+                <button type="button" class="prompt-button cancel">Cancelar</button>
+            </div>
+        </form>
+    </div>`;
+
+    const textarea = document.getElementById('ingreso-descripcion');
+    if (textarea) {
+        textarea.style.height = 'auto';
+        textarea.style.height = (textarea.scrollHeight) + 'px';
+        textarea.addEventListener('input', () => {
+            textarea.style.height = 'auto';
+            textarea.style.height = (textarea.scrollHeight) + 'px';
+        });
+    }
+}
+
+
+async function saveIngreso(btn) {
+    toggleSpinner(btn, true);
+    const form = btn.form;
+    const formData = new FormData(form);
+    
+    let categoria = formData.get('categoria_existente');
+    if (categoria === '--nueva--') {
+        categoria = formData.get('categoria_nueva').trim();
+        if (categoria) {
+            await db.collection('ingresos_categorias').add({ nombre: categoria });
+            ingresosCategorias.push(categoria);
+            ingresosCategorias.sort();
+        }
+    }
+
+    if (!categoria) {
+        showGlobalFeedback("Debes seleccionar o crear una categoría.", "error");
+        toggleSpinner(btn, false);
+        return;
+    }
+
+    const ingresoData = {
+        monto: parseFloat(formData.get('monto')),
+        metodo: formData.get('metodo'),
+        categoria: categoria,
+        descripcion: formData.get('descripcion'), 
+        fecha: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    
+    try {
+        await db.collection('ingresos_caja').add(ingresoData);
+        showGlobalFeedback('Ingreso registrado con éxito', 'success');
+        s.promptContainer.innerHTML = '';
+        if(s.ingresosSection && !s.ingresosSection.classList.contains('hidden')) {
+            loadIngresos();
+        }
+        updateReports();
+    } catch (error) {
+        console.error("Error al guardar el ingreso:", error);
+        showGlobalFeedback('Error al registrar el ingreso', 'error');
+    } finally {
+        toggleSpinner(btn, false);
+    }
+}
+
+async function updateIngreso(ingresoId, btn) {
+    toggleSpinner(btn, true);
+    const form = btn.form;
+    const formData = new FormData(form);
+
+    const ingresoUpdateData = {
+        monto: parseFloat(formData.get('monto')),
+        metodo: formData.get('metodo'),
+        categoria: formData.get('categoria'),
+        descripcion: formData.get('descripcion'), 
+    };
+
+    try {
+        await db.collection('ingresos_caja').doc(ingresoId).update(ingresoUpdateData);
+        showGlobalFeedback('Ingreso actualizado con éxito', 'success');
+        s.promptContainer.innerHTML = '';
+        loadIngresos();
+        updateReports();
+    } catch (error) {
+        console.error("Error al actualizar el ingreso:", error);
+        showGlobalFeedback('Error al actualizar el ingreso', 'error');
+    } finally {
+        toggleSpinner(btn, false);
+    }
+}
+
+
+function deleteIngreso(id, categoria, monto, metodo) {
+    const montoFormateado = metodo === 'Dólares' ? formatearUSD(monto) : formatearARS(monto);
+    const message = `Categoría: ${categoria}\nMonto: ${montoFormateado}\n\n¿Estás seguro de que quieres eliminar este ingreso? Esta acción es irreversible.`;
+    showConfirmationModal('Confirmar Eliminación', message, async () => {
+        try {
+            await db.collection('ingresos_caja').doc(id).delete();
+            showGlobalFeedback('Ingreso eliminado correctamente.', 'success');
+            loadIngresos();
+            updateReports();
+        } catch (error) {
+            console.error("Error al eliminar ingreso:", error);
+            showGlobalFeedback('No se pudo eliminar el ingreso.', 'error');
+        }
+    });
+}
+
 
 async function loadProviders() {
     s.providersListContainer.innerHTML = `<p class="dashboard-loader">Cargando proveedores...</p>`;
@@ -511,7 +909,6 @@ async function loadProviders() {
     }
 }
 
-// FUNCIÓN SIMPLIFICADA: SOLO RENDERIZA HTML, NO AÑADE LISTENERS
 function renderProviders(providers) {
     s.providersListContainer.innerHTML = providers.map(provider => {
         const debt = provider.deuda_usd || 0;
@@ -692,7 +1089,7 @@ async function initiateBatchLoad(providerId, providerName, model, batchCost, bat
         showGlobalFeedback(`Deuda de ${formatearUSD(batchCost)} agregada. Comienza a cargar los equipos.`, 'info', 5000);
         
         resetManagementView(true);
-        switchView('management');
+        switchView('management', s.tabManagement);
 
     } catch (error) {
         console.error("Error al iniciar la carga de lote:", error);
@@ -701,7 +1098,6 @@ async function initiateBatchLoad(providerId, providerName, model, batchCost, bat
 }
 
 async function promptToRegisterPayment(providerName, currentDebt) {
-    // Ya no necesita el ID, lo toma de la variable global 'paymentContext'
     const lotesSnapshot = await db.collection('lotes').where('proveedorId', '==', paymentContext.id).get();
     const lotesOptions = lotesSnapshot.docs.map(doc => {
         const lote = doc.data();
@@ -854,7 +1250,7 @@ async function saveProviderPayment(form) {
         showGlobalFeedback('Error al registrar el pago.', 'error');
     } finally {
         toggleSpinner(btn, false);
-        paymentContext = null; // Limpiamos la variable global
+        paymentContext = null;
     }
 }
 
@@ -1033,10 +1429,6 @@ function deleteBatch(batchId, batchNumber, providerId, providerName) {
 }
 
 
-// ===== FIN: FUNCIONES DE PROVEEDORES =====
-
-// ===== INICIO: LÓGICA DE DETALLE DE KPI Y REVERSIÓN INTELIGENTE =====
-
 async function showKpiDetail(kpiType, period) {
     const now = new Date();
     let startDate, endDate;
@@ -1046,7 +1438,7 @@ async function showKpiDetail(kpiType, period) {
         startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
         endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
         title = `Detalle de Caja del Día - ${kpiType.replace(/_/g, ' ').toUpperCase()}`;
-    } else { // mes
+    } else {
         startDate = new Date(now.getFullYear(), now.getMonth(), 1);
         endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
         title = `Detalle de Caja del Mes - ${kpiType.replace(/_/g, ' ').toUpperCase()}`;
@@ -1067,26 +1459,47 @@ async function showKpiDetail(kpiType, period) {
 
     try {
         const transactions = [];
-        let kpiMoneda, kpiMetodo, kpiMontoField, egresoMoneda;
+        let kpiMoneda, kpiMetodo, kpiMontoField, egresoMoneda, ingresoMetodo;
 
         if (kpiType === 'dolares') {
-            kpiMoneda = 'USD'; kpiMetodo = 'Dólares'; kpiMontoField = 'precio_venta_usd'; egresoMoneda = 'USD';
+            kpiMoneda = 'USD';
+            kpiMetodo = 'Dólares';
+            kpiMontoField = 'precio_venta_usd';
+            egresoMoneda = 'USD';
+            ingresoMetodo = 'Dólares';
         } else if (kpiType === 'efectivo_ars') {
-            kpiMoneda = 'ARS'; kpiMetodo = 'Pesos (Efectivo)'; kpiMontoField = 'monto_efectivo'; egresoMoneda = 'ARS_Efectivo';
+            kpiMoneda = 'ARS';
+            kpiMetodo = 'Pesos (Efectivo)';
+            kpiMontoField = 'monto_efectivo';
+            egresoMoneda = 'ARS_Efectivo';
+            ingresoMetodo = 'Pesos (Efectivo)';
         } else if (kpiType === 'transferencia_ars') {
-            kpiMoneda = 'ARS'; kpiMetodo = 'Pesos (Transferencia)'; kpiMontoField = 'monto_transferencia'; egresoMoneda = 'ARS_Transferencia';
+            kpiMoneda = 'ARS';
+            kpiMetodo = 'Pesos (Transferencia)';
+            kpiMontoField = 'monto_transferencia';
+            egresoMoneda = 'ARS_Transferencia';
+            ingresoMetodo = 'Pesos (Transferencia)';
         }
         
-        const salesSnap = await db.collection('ventas').where('fecha_venta', '>=', startDate).where('fecha_venta', '<=', endDate).where('metodo_pago', '==', kpiMetodo).get();
+        const salesSnapPromise = db.collection('ventas').where('fecha_venta', '>=', startDate).where('fecha_venta', '<=', endDate).where('metodo_pago', '==', kpiMetodo).get();
+        const outflowsSnapPromise = db.collection('egresos_caja').where('fecha', '>=', startDate).where('fecha', '<=', endDate).where('moneda', '==', egresoMoneda).get();
+        const miscIncomesSnapPromise = db.collection('ingresos_caja').where('fecha', '>=', startDate).where('fecha', '<=', endDate).where('metodo', '==', ingresoMetodo).get();
+
+        const [salesSnap, outflowsSnap, miscIncomesSnap] = await Promise.all([salesSnapPromise, outflowsSnapPromise, miscIncomesSnapPromise]);
+        
         salesSnap.forEach(doc => {
             const venta = doc.data();
-            transactions.push({ id: doc.id, fecha: venta.fecha_venta.toDate(), tipo: 'Ingreso', concepto: `Venta: ${venta.producto.modelo}`, monto: venta[kpiMontoField], moneda: kpiMoneda, data: venta });
+            transactions.push({ id: doc.id, fecha: venta.fecha_venta.toDate(), tipo: 'Ingreso', concepto: `Venta: ${venta.producto.modelo}`, monto: venta[kpiMontoField], moneda: kpiMoneda, data: venta, collection: 'ventas' });
         });
 
-        const outflowsSnap = await db.collection('egresos_caja').where('fecha', '>=', startDate).where('fecha', '<=', endDate).where('moneda', '==', egresoMoneda).get();
+        miscIncomesSnap.forEach(doc => {
+            const ingreso = doc.data();
+            transactions.push({ id: doc.id, fecha: ingreso.fecha.toDate(), tipo: 'Ingreso', concepto: `Ingreso: ${ingreso.categoria}`, monto: ingreso.monto, moneda: kpiMoneda, data: ingreso, collection: 'ingresos_caja' });
+        });
+        
         outflowsSnap.forEach(doc => {
             const egreso = doc.data();
-            transactions.push({ id: doc.id, fecha: egreso.fecha.toDate(), tipo: 'Egreso', concepto: egreso.descripcion, monto: egreso.monto, moneda: egreso.moneda.startsWith('ARS') ? 'ARS' : 'USD', data: egreso });
+            transactions.push({ id: doc.id, fecha: egreso.fecha.toDate(), tipo: 'Egreso', concepto: egreso.descripcion, monto: egreso.monto, moneda: egreso.moneda.startsWith('ARS') ? 'ARS' : 'USD', data: egreso, collection: 'egresos_caja' });
         });
         
         transactions.sort((a, b) => b.fecha - a.fecha);
@@ -1103,8 +1516,10 @@ async function showKpiDetail(kpiType, period) {
                     <tbody>
                         ${transactions.map(t => {
                             const dataString = JSON.stringify(t.data).replace(/'/g, "\\'");
+                            const isVenta = 'imei_vendido' in t.data;
+
                             return `
-                                <tr data-id="${t.id}" data-type="${t.tipo}" data-item='${dataString}'>
+                                <tr data-id="${t.id}" data-type="${t.tipo}" data-collection="${t.collection}" data-item='${dataString}'>
                                     <td>${t.fecha.toLocaleString('es-AR')}</td>
                                     <td>${t.tipo}</td>
                                     <td>${t.concepto}</td>
@@ -1112,8 +1527,9 @@ async function showKpiDetail(kpiType, period) {
                                         ${t.tipo === 'Egreso' ? '-' : ''}${t.moneda === 'USD' ? formatearUSD(t.monto) : formatearARS(t.monto)}
                                     </td>
                                     <td class="actions-cell">
-                                        <button class="edit-btn btn-edit-kpi-item" title="Editar" ${t.tipo === 'Egreso' ? 'disabled' : ''}><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
-                                        <button class="delete-btn btn-delete-kpi-item" title="Eliminar/Revertir"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button>
+                                        <button class="delete-btn btn-delete-kpi-item" title="Eliminar/Revertir">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                                        </button>
                                     </td>
                                 </tr>`;
                         }).join('')}
@@ -1122,28 +1538,27 @@ async function showKpiDetail(kpiType, period) {
             </div>`;
         detailContent.innerHTML = tableHTML;
 
-        detailContent.querySelectorAll('.btn-edit-kpi-item').forEach(btn => btn.addEventListener('click', (e) => {
-            const row = e.currentTarget.closest('tr');
-            promptToEditSale(JSON.parse(row.dataset.item.replace(/\\'/g, "'")), row.dataset.id);
-        }));
-
         detailContent.querySelectorAll('.btn-delete-kpi-item').forEach(btn => btn.addEventListener('click', (e) => {
             const row = e.currentTarget.closest('tr');
             const id = row.dataset.id;
             const type = row.dataset.type;
+            const collection = row.dataset.collection;
             const data = JSON.parse(row.dataset.item.replace(/\\'/g, "'"));
             
-            if (type === 'Ingreso') {
+            if (type === 'Ingreso' && collection === 'ventas') {
                 const message = `¿Seguro que quieres revertir esta venta?\n\n- La venta se eliminará.\n- El equipo (IMEI: ${data.imei_vendido}) volverá al stock.`;
                 showConfirmationModal('Revertir Venta', message, () => reverseSaleTransaction(id, data, kpiType, period));
-            } else { // Egreso
+            } else if (type === 'Ingreso' && collection === 'ingresos_caja') {
+                 const message = `¿Seguro que quieres eliminar este ingreso?\n\n- Concepto: ${data.categoria}\n- Monto: ${kpiMoneda === 'USD' ? formatearUSD(data.monto) : formatearARS(data.monto)}`;
+                 showConfirmationModal('Eliminar Ingreso Vario', message, () => deleteSimpleTransaction(id, 'ingresos_caja', kpiType, period));
+            } else if (type === 'Egreso') {
                 const isRevertible = data.proveedorId && typeof data.monto_total_usd === 'number';
                 if (isRevertible) {
                     const message = `¿Seguro que quieres revertir este pago?\n\n- El egreso de caja se eliminará.\n- La deuda con el proveedor se incrementará en ${formatearUSD(data.monto_total_usd)}.`;
                     showConfirmationModal('Revertir Pago a Proveedor', message, () => reverseEgresoTransaction(id, data, kpiType, period));
                 } else {
-                    const message = `<strong>¡ATENCIÓN!</strong>\n\nEste es un registro de pago antiguo y no puede ser revertido automáticamente.\n\nSolo podemos <strong>eliminar este registro del historial</strong> de caja.\n\nLa deuda con el proveedor <strong>NO será modificada</strong>.\n\n¿Deseas forzar el borrado de este registro?`;
-                    showConfirmationModal('Borrado Administrativo', message, () => forceDeleteEgresoRecord(id, kpiType, period));
+                    const message = `<strong>¡ATENCIÓN!</strong>\n\nEste es un egreso no reversible automáticamente (posiblemente un gasto).\n\n¿Deseas eliminar permanentemente este registro?`;
+                    showConfirmationModal('Borrado Administrativo', message, () => deleteSimpleTransaction(id, 'egresos_caja', kpiType, period));
                 }
             }
         }));
@@ -1152,6 +1567,20 @@ async function showKpiDetail(kpiType, period) {
         handleDBError(error, detailContent, `el detalle de ${kpiType}`);
     }
 }
+
+
+async function deleteSimpleTransaction(id, collectionName, kpiType, period) {
+    try {
+        await db.collection(collectionName).doc(id).delete();
+        showGlobalFeedback("Registro eliminado correctamente.", "success");
+        updateReports();
+        showKpiDetail(kpiType, period);
+    } catch (error) {
+        console.error(`Error al eliminar registro de ${collectionName}:`, error);
+        showGlobalFeedback("No se pudo eliminar el registro.", "error");
+    }
+}
+
 
 async function reverseSaleTransaction(saleId, saleData, kpiType, period) {
     try {
@@ -1202,20 +1631,6 @@ async function reverseEgresoTransaction(egresoId, egresoData, kpiType, period) {
         showGlobalFeedback(error.message || "Error al revertir el pago.", "error");
     }
 }
-
-async function forceDeleteEgresoRecord(egresoId, kpiType, period) {
-    try {
-        await db.collection('egresos_caja').doc(egresoId).delete();
-        showGlobalFeedback("Registro de egreso eliminado administrativamente.", "success", 4000);
-        updateReports();
-        showKpiDetail(kpiType, period);
-    } catch (error) {
-        console.error("Error en el borrado administrativo:", error);
-        showGlobalFeedback("No se pudo eliminar el registro.", "error");
-    }
-}
-
-// ===== FIN: LÓGICA DE DETALLE DE KPI =====
 
 
 async function loadCommissions() {
@@ -1545,7 +1960,7 @@ async function loadStock() {
 }
 
 function promptToEditStock(item) {
-    switchView('management');
+    switchView('management', s.tabManagement);
     resetManagementView();
     s.scanOptions.classList.add('hidden'); s.scannerContainer.classList.add('hidden'); s.feedbackMessage.classList.add('hidden');
     s.managementTitle.textContent = "Editar Producto"; s.productFormSubmitBtn.querySelector('.btn-text').textContent = "Actualizar Producto";
@@ -1752,14 +2167,14 @@ function cargarCanje(docId, modelo) {
     document.getElementById('btn-canje-scan').onclick = () => {
         canjeContext = { docId, modelo };
         resetManagementView();
-        switchView('management');
+        switchView('management', s.tabManagement);
         startScanner();
     };
     
     document.getElementById('btn-canje-manual').onclick = () => {
         canjeContext = { docId, modelo };
         resetManagementView();
-        switchView('management');
+        switchView('management', s.tabManagement);
         promptForManualImeiInput();
     };
 }
@@ -1923,7 +2338,7 @@ async function registerSale(imei, productDetails, btn) {
             t.set(saleRef, saleData);
         });
         s.promptContainer.innerHTML = ''; s.managementView.classList.add('hidden');
-        switchView('dashboard');
+        switchView('dashboard', s.tabDashboard);
         updateReports();
     } catch (error) { console.error("Error al registrar la venta:", error); alert("Error al procesar la venta. Revisa la consola."); } 
     finally { toggleSpinner(btn, false); }
@@ -2000,7 +2415,7 @@ async function handleProductFormSubmit(e) {
                 showFeedback(`¡Éxito! ${unitData.modelo} añadido al stock.`, "success");
                 setTimeout(() => { 
                     resetManagementView(); 
-                    switchView('dashboard');
+                    switchView('dashboard', s.tabDashboard);
                     loadStock();
                     updateReports();
                 }, 1500);
@@ -2010,7 +2425,7 @@ async function handleProductFormSubmit(e) {
             showGlobalFeedback("¡Producto actualizado con éxito!", "success");
             setTimeout(() => { 
                 resetManagementView(); 
-                switchView('dashboard');
+                switchView('dashboard', s.tabDashboard);
                 loadStock();
                 updateReports();
             }, 1500);
@@ -2058,7 +2473,7 @@ function resetManagementView(isBatchLoad = false) {
              showGlobalFeedback(`Carga de lote finalizada. Se cargaron ${loadedCount} equipos.`, 'success', 4000);
              batchLoadContext = null;
              resetManagementView();
-             switchView('providers');
+             switchView('providers', s.tabProviders);
          };
          s.scanOptions.appendChild(endBatchBtn);
      }

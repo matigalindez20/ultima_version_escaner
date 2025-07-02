@@ -28,6 +28,7 @@
         </div>
         
         <div class="nav-tabs">
+            <div class="nav-slider"></div>
             <div id="tab-dashboard" class="nav-tab active">Dashboard</div>
             <div id="tab-providers" class="nav-tab">Proveedores</div>
             <div id="tab-reports" class="nav-tab">Informes</div>
@@ -35,13 +36,28 @@
         </div>
 
         <div id="dashboard-view">
+            <!-- ============================================= -->
+            <!-- ======== INICIO: BARRA DE CONTROL REDISEÑADA (MÓVIL) ======= -->
+            <!-- ============================================= -->
             <div class="dashboard-controls">
-                <button id="btn-show-stock" class="control-btn active">Stock</button>
-                <button id="btn-show-sales" class="control-btn">Ventas</button>
-                <button id="btn-show-canje" class="control-btn">Pendientes de Carga<span id="canje-badge" class="notification-badge hidden"></span></button>
-                <button id="btn-show-commissions" class="control-btn">Comisiones</button>
-                <button id="btn-show-gastos" class="control-btn">Gastos</button>
+                <!-- Este botón será visible solo en móvil -->
+                <button id="dashboard-menu-toggle" class="dashboard-menu-toggle">
+                    <span id="dashboard-menu-label">Stock</span>
+                    <svg class="chevron-down" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
+                <!-- Este contenedor tendrá las opciones y será el menú desplegable en móvil -->
+                <div id="dashboard-options-container" class="dashboard-options-container">
+                    <button id="btn-show-stock" class="control-btn active">Stock</button>
+                    <button id="btn-show-sales" class="control-btn">Ventas</button>
+                    <button id="btn-show-canje" class="control-btn">Pendientes de Carga<span id="canje-badge" class="notification-badge hidden"></span></button>
+                    <button id="btn-show-commissions" class="control-btn">Comisiones</button>
+                    <button id="btn-show-gastos" class="control-btn">Gastos</button>
+                    <button id="btn-show-ingresos" class="control-btn">Ingresos</button>
+                </div>
             </div>
+             <!-- ============================================= -->
+            <!-- ========= FIN: BARRA DE CONTROL REDISEÑADA (MÓVIL) ========= -->
+            <!-- ============================================= -->
             <div id="stock-section">
                 <h2>Stock Actual</h2>
                 <div class="filters-container">
@@ -110,6 +126,50 @@
                     </div>
                 </div>
             </div>
+            
+            <div id="ingresos-section" class="hidden">
+                <div class="ingresos-header">
+                    <h2>Resumen de Ingresos Varios</h2>
+                    <button id="btn-add-ingreso" class="control-btn" style="background-color: var(--success-bg);">+ Registrar Ingreso</button>
+                </div>
+
+                <div class="ingresos-summary-card">
+                    <div class="summary-title">Total Ingresado en el Período</div>
+                    <div class="summary-values">
+                        <div class="summary-value-item">
+                            <span class="currency-label">EFECTIVO (ARS)</span>
+                            <span class="value" id="ingresos-period-total-ars-efectivo">$0,00</span>
+                        </div>
+                        <div class="summary-value-item">
+                            <span class="currency-label">TRANSFERENCIA (ARS)</span>
+                            <span class="value" id="ingresos-period-total-ars-transferencia">$0,00</span>
+                        </div>
+                        <div class="summary-value-item">
+                            <span class="currency-label">DÓLARES (USD)</span>
+                            <span class="value" id="ingresos-period-total-usd">US$0,00</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="filters-container">
+                    <div class="filter-group">
+                        <label for="filter-ingresos-start-date">Fecha Desde</label>
+                        <input type="date" id="filter-ingresos-start-date">
+                    </div>
+                    <div class="filter-group">
+                        <label for="filter-ingresos-end-date">Fecha Hasta</label>
+                        <input type="date" id="filter-ingresos-end-date">
+                    </div>
+                    <div class="filter-group">
+                        <button id="btn-apply-ingresos-filter">Filtrar Ingresos</button>
+                    </div>
+                </div>
+
+                <div id="ingresos-list-container">
+                    <div id="ingresos-list"></div>
+                </div>
+            </div>
+
             <div id="canje-section" class="hidden">
                  <h2>Equipos Pendientes de Carga (Plan Canje)</h2>
                  <div id="canje-table-container" class="table-container"></div>
@@ -122,25 +182,6 @@
                 <button id="btn-add-provider" class="control-btn" style="background-color: var(--success-bg);">+ Agregar Proveedor</button>
             </div>
             <div id="providers-list-container">
-                <!-- Ejemplo de tarjeta (para referencia):
-                <div class="provider-card">
-                    <div class="provider-card-header">
-                        <div class="provider-card-info">
-                            <h3>Nombre del Proveedor</h3>
-                            <p>Contacto: 11-1234-5678</p>
-                        </div>
-                    </div>
-                    <div class="provider-card-debt">
-                        <div class="debt-label">Deuda Pendiente</div>
-                        <div class="debt-amount zero">$0.00</div>
-                    </div>
-                    <div class="provider-card-actions">
-                        <button class="control-btn btn-batch-load">Carga de Lote</button>
-                        <button class="control-btn btn-register-payment">Registrar Pago</button>
-                        <button class="control-btn btn-view-batches">Ver Lotes</button>
-                    </div>
-                </div>
-                -->
             </div>
         </div>
         

@@ -199,29 +199,49 @@ h2 { font-size: 1.5rem; }
     flex-direction: column;
     gap: 0.75rem; 
 }
+
 .nav-tabs { 
+    position: relative;
     display: flex; 
+    justify-content: space-around; /* Mejor distribución en móvil */
+    flex-wrap: wrap; /* Permite que los elementos pasen a la siguiente línea */
     border-bottom: 1px solid var(--border-dark); 
     margin-bottom: 1.5rem; 
     margin-top: 50px;
 }
-.nav-tab { 
-    flex: 1;
-    text-align: center;
-    padding: 0.8rem 0.5rem; 
-    cursor: pointer; 
-    border-bottom: 3px solid transparent; 
-    transition: all 0.2s; 
-    color: var(--text-muted); 
-    font-weight: 600;
-    font-size: 0.9rem;
-}
-.nav-tab.active { 
-    color: var(--brand-yellow); 
-    border-bottom-color: var(--brand-yellow); 
+
+.nav-slider {
+    position: absolute;
+    bottom: -1px;
+    height: 3px;
+    background-color: var(--brand-yellow);
+    transition: left 0.3s ease-in-out, width 0.3s ease-in-out;
 }
 
-/* ===== ESTILOS PARA LA PÁGINA DE INFORMES (ACTUALIZADO) ===== */
+.nav-tab { 
+    flex-grow: 1; /* Permite que crezcan para ocupar espacio */
+    text-align: center;
+    padding: 0.8rem 0.5rem;
+    cursor: pointer; 
+    border-bottom: 3px solid transparent;
+    transition: color 0.3s; 
+    color: var(--text-muted); 
+    font-weight: 600;
+    font-size: 0.8rem; /* Un poco más pequeño para móviles */
+    z-index: 1;
+    white-space: nowrap;
+}
+
+.nav-tab.active { 
+    color: var(--brand-yellow); 
+    border-bottom-color: transparent;
+}
+
+.nav-tab:not(.active):hover {
+    color: var(--text-light);
+}
+
+
 #reports-view h2 {
     margin-bottom: 2.5rem;
 }
@@ -246,34 +266,17 @@ h2 { font-size: 1.5rem; }
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 1.5rem;
-    margin-bottom: 1rem; /* Espacio entre filas de tarjetas */
+    margin-bottom: 1rem;
 }
-/* Clases específicas para las nuevas cuadrículas */
 .kpi-container.two-cols {
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
 }
 .kpi-container.three-cols {
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
 }
-/* Centrar las tarjetas de abajo */
 .kpi-container.centered {
     justify-content: center;
 }
-
-@media (min-width: 992px) {
-    .kpi-container.two-cols {
-        grid-template-columns: repeat(2, 1fr);
-    }
-     .kpi-container.three-cols {
-        grid-template-columns: repeat(3, 1fr);
-    }
-    .kpi-container.two-cols.centered {
-        max-width: 67%; /* 2/3 del ancho para que se centren bajo las 3 de arriba */
-        margin-left: auto;
-        margin-right: auto;
-    }
-}
-
 
 .kpi-card {
     background-color: #252525;
@@ -333,6 +336,11 @@ input, select, textarea {
     font-size: 1rem; 
     background-color: #2c2c2e; 
     color: var(--text-light); 
+}
+
+select option {
+    background-color: #2c2c2e;
+    color: var(--text-light);
 }
 
 .payment-details-group {
@@ -410,24 +418,43 @@ button.spinner-btn.loading .spinner {
 }
 
 .dashboard-controls {
+    position: relative;
+    margin-bottom: 2rem;
+}
+
+.dashboard-slider { display: none; }
+.dashboard-menu-toggle { display: none; }
+
+.dashboard-options-container {
+    position: relative;
     display: flex;
     background-color: #2c2c2e;
     border-radius: var(--border-radius);
     padding: 0.4rem;
-    gap: 0.5rem;
-    position: relative;
-    border: none;
-    margin-bottom: 2rem;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
 }
-.dashboard-controls::-webkit-scrollbar {
+.dashboard-options-container::-webkit-scrollbar {
     display: none;
 }
 
+.dashboard-options-container::before {
+    content: '';
+    position: absolute;
+    top: 0.4rem;
+    bottom: 0.4rem;
+    border-radius: 8px;
+    background-color: var(--brand-yellow);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    transition: left 0.3s ease-in-out, width 0.3s ease-in-out;
+    z-index: 1;
+    left: var(--slider-left, 0);
+    width: var(--slider-width, 0);
+}
+
 .control-btn {
-    flex: 0 0 auto;
+    flex: 1 1 auto;
     padding: 0.8rem 1.2rem;
     font-size: 0.9rem;
     font-weight: 600;
@@ -436,7 +463,7 @@ button.spinner-btn.loading .spinner {
     border: none;
     border-radius: 8px;
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: color 0.3s ease;
     z-index: 2;
     white-space: nowrap;
     position: relative;
@@ -444,14 +471,14 @@ button.spinner-btn.loading .spinner {
 
 .control-btn:not(.active):hover {
     color: var(--text-light);
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: transparent;
 }
 
 .control-btn.active {
     color: #000;
-    background-color: var(--brand-yellow);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-    transform: scale(1.02);
+    background-color: transparent;
+    transform: none;
+    box-shadow: none;
 }
 
 .notification-badge { 
@@ -657,6 +684,74 @@ td.actions-cell {
     margin: 2rem auto;
 }
 
+/* Media Queries */
+@media (max-width: 767px) {
+    .dashboard-controls {
+        background-color: transparent;
+        padding: 0;
+        margin-bottom: 1.5rem;
+    }
+    .dashboard-menu-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        padding: 0.8rem 1.2rem;
+        background-color: #2c2c2e;
+        border-radius: var(--border-radius);
+        border: 1px solid var(--border-dark);
+        color: var(--text-light);
+        font-size: 1rem;
+    }
+    .dashboard-menu-toggle .chevron-down {
+        transition: transform 0.3s ease;
+    }
+    .dashboard-menu-toggle.open .chevron-down {
+        transform: rotate(180deg);
+    }
+    
+    .dashboard-options-container {
+        position: absolute;
+        top: calc(100% + 5px);
+        left: 0;
+        right: 0;
+        background-color: #333;
+        border: 1px solid var(--border-dark);
+        border-radius: var(--border-radius);
+        flex-direction: column;
+        padding: 0.5rem;
+        z-index: 100;
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.4s ease-in-out, padding 0.4s ease, opacity 0.3s ease;
+        opacity: 0;
+    }
+    .dashboard-options-container.open {
+        max-height: 500px; /* Un valor alto para permitir que se expanda */
+        padding: 0.5rem;
+        opacity: 1;
+    }
+
+    .dashboard-options-container .control-btn {
+        text-align: left;
+        width: 100%;
+        color: var(--text-muted);
+    }
+    .dashboard-options-container .control-btn.active {
+        background-color: var(--brand-yellow);
+        color: #000;
+    }
+    .dashboard-options-container::before {
+        display: none; /* Oculta el slider de escritorio */
+    }
+
+    .nav-tab {
+        font-size: 0.85rem;
+        padding: 0.8rem 0.25rem;
+    }
+}
+
+
 @media (min-width: 768px) {
     body {
         padding: 1.5rem;
@@ -696,6 +791,7 @@ td.actions-cell {
     }
     .nav-tab {
         flex: initial;
+        font-size: 1rem;
     }
     .detail-item {
         flex-direction: row;
@@ -805,11 +901,11 @@ td.actions-cell {
         gap: 2.5rem;
     }
     #gastos-chart-container {
-        width: 380px; /* Ancho fijo para el gráfico */
-        flex-shrink: 0; /* Evita que el contenedor del gráfico se encoja */
+        width: 380px;
+        flex-shrink: 0;
     }
     #gastos-list-container {
-        flex-grow: 1; /* Permite que la lista ocupe el resto del espacio */
+        flex-grow: 1;
     }
 }
 
@@ -1011,20 +1107,16 @@ td.actions-cell {
     }
 }
 
-/* ===== INICIO: NUEVOS ESTILOS PARA TARJETA DE PROVEEDOR PROFESIONAL ===== */
-
-/* Estructura principal de la tarjeta */
 .provider-card {
     background-color: #252525;
     border: 1px solid var(--border-dark);
     border-radius: var(--border-radius);
     padding: 1.5rem;
     display: flex;
-    flex-direction: column; /* Importante para la alineación vertical */
-    height: 100%; /* Asegura que todas las tarjetas en una fila tengan la misma altura */
+    flex-direction: column;
+    height: 100%;
 }
 
-/* Encabezado con nombre y contacto */
 .provider-card-header {
     padding-bottom: 1rem;
     margin-bottom: 1rem;
@@ -1046,7 +1138,6 @@ td.actions-cell {
     font-size: 0.9rem;
 }
 
-/* Cuerpo con la deuda */
 .provider-card-debt {
     text-align: center;
     margin-bottom: 1.5rem;
@@ -1072,15 +1163,13 @@ td.actions-cell {
 }
 
 
-/* Contenedor de todas las acciones, empujado al final */
 .provider-card-actions {
-    margin-top: auto; /* Magia para empujar los botones hacia abajo */
+    margin-top: auto;
     display: flex;
     flex-direction: column;
-    gap: 1rem; /* Espacio entre el botón primario y el grupo secundario */
+    gap: 1rem;
 }
 
-/* Estilo para el botón de acción principal (amarillo) */
 .provider-primary-action .control-btn {
     background-color: var(--brand-yellow);
     color: #000;
@@ -1095,22 +1184,20 @@ td.actions-cell {
     background-color: var(--brand-yellow-hover);
 }
 
-/* Cuadrícula para las acciones secundarias */
 .provider-secondary-actions {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 0.75rem;
 }
 
-/* Estilo para los botones de acciones secundarias */
 .provider-secondary-actions .control-btn.btn-secondary {
     background-color: #333;
     color: var(--text-light);
     font-size: 0.8rem;
     padding: 0.8rem 0.5rem;
     width: 100%;
-    flex-direction: column; /* Ícono arriba, texto abajo */
-    height: 80px; /* Altura fija para alinear */
+    flex-direction: column;
+    height: 80px;
     justify-content: center;
     gap: 0.4rem;
     border: 1px solid #444;
@@ -1138,116 +1225,7 @@ td.actions-cell {
     stroke-width: 2;
 }
 
-/* ===== FIN: NUEVOS ESTILOS PARA TARJETA DE PROVEEDOR ===== */
 
-/* ===== ESTILOS PARA HISTORIAL DE LOTES ===== */
-.batch-history-modal {
-    max-width: 800px;
-    width: 100%;
-}
-
-.batch-history-modal h3 {
-    text-align: center;
-    color: var(--brand-yellow);
-    margin-bottom: 2rem;
-}
-
-.batch-list {
-    margin-bottom: 2rem;
-}
-
-.batch-list-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1rem;
-    background-color: #2c2c2e;
-    border-radius: 8px;
-    margin-bottom: 0.75rem;
-    border-left: 4px solid var(--info-bg);
-    transition: background-color 0.2s;
-    gap: 1rem;
-}
-
-.batch-list-item:not(.no-hover):hover {
-    background-color: #3a3a3c;
-}
-
-.batch-list-item .list-item-content {
-    flex-grow: 1;
-    cursor: pointer;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.batch-list-item.selected {
-    background-color: var(--brand-yellow);
-    border-color: var(--brand-yellow);
-}
-
-.batch-list-item.selected .batch-info span,
-.batch-list-item.selected .batch-cost {
-    color: #000;
-}
-
-.batch-info {
-    font-weight: 600;
-}
-
-.batch-info span {
-    font-weight: normal;
-    color: var(--text-muted);
-    font-size: 0.9rem;
-    margin-left: 0.5rem;
-}
-
-.batch-cost {
-    font-weight: bold;
-    color: var(--text-light);
-}
-
-#batch-detail-container h4 {
-    text-align: center;
-    color: var(--text-muted);
-    margin: 2rem 0;
-}
-
-#batch-detail-container .table-container {
-    max-height: 300px;
-    overflow-y: auto;
-}
-
-.delete-icon-btn {
-    background: none;
-    border: none;
-    padding: 0;
-    width: 32px;
-    height: 32px;
-    min-width: 32px;
-    cursor: pointer;
-}
-.delete-icon-btn svg {
-    stroke: var(--text-muted);
-    transition: stroke 0.2s;
-}
-.delete-icon-btn:hover svg {
-    stroke: var(--error-bg);
-}
-.delete-icon-btn:disabled svg {
-    stroke: #555;
-    cursor: not-allowed;
-}
-
-.provider-card-header .delete-icon-btn {
-    align-self: flex-start;
-}
-
-.batch-list-item .delete-icon-btn {
-    flex-shrink: 0;
-}
-
-/* ===== INICIO: NUEVOS ESTILOS PARA MODAL DE DETALLE DE KPI ===== */
 .kpi-detail-modal {
     max-width: 900px;
     width: 100%;
@@ -1273,4 +1251,231 @@ td.actions-cell {
     color: var(--error-bg);
     font-weight: bold;
 }
-/* ===== FIN: NUEVOS ESTILOS PARA MODAL DE DETALLE DE KPI ===== */
+
+.ingresos-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.ingresos-header h2 {
+    margin-bottom: 0;
+}
+
+.ingresos-summary-card {
+    background-color: #252525;
+    border: 1px solid var(--border-dark);
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    text-align: center;
+}
+
+.summary-title {
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 1rem;
+    margin-bottom: 1rem;
+}
+
+.summary-values {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.summary-value-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0 1rem;
+    flex-basis: 120px; /* Base para cada item */
+}
+
+.summary-value-item .currency-label {
+    font-size: 0.8rem;
+    color: var(--brand-yellow);
+    font-weight: 500;
+    text-transform: uppercase;
+}
+
+.summary-value-item .value {
+    font-size: 1.8rem;
+    font-weight: bold;
+    color: var(--success-bg);
+}
+
+#ingresos-list-container {
+    margin-top: 2rem;
+}
+
+#ingresos-list {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+}
+
+@media(min-width: 992px) {
+    #ingresos-list {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+.ingreso-card {
+    background-color: #252525;
+    border-radius: var(--border-radius);
+    border-left: 6px solid var(--success-bg);
+    padding: 1.25rem;
+    display: flex;
+    gap: 1.25rem;
+    align-items: flex-start;
+}
+
+.ingreso-card-icon {
+    flex-shrink: 0;
+    background-color: rgba(29, 106, 60, 0.2);
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ingreso-card-icon svg {
+    width: 24px;
+    height: 24px;
+    stroke: var(--success-bg);
+    stroke-width: 2.5;
+}
+
+.ingreso-card-content {
+    flex-grow: 1;
+}
+
+.ingreso-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 0.25rem;
+}
+
+.ingreso-card-category {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-light);
+}
+
+.ingreso-card-amount {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--brand-yellow);
+}
+
+.ingreso-card-description {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    margin-bottom: 0.75rem;
+}
+
+.ingreso-card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.ingreso-modal-box {
+    background-color: var(--container-dark);
+    padding: 2.5rem;
+    border-radius: var(--border-radius);
+    max-width: 550px;
+    width: 100%;
+}
+
+.ingreso-modal-box h3 {
+    text-align: center;
+    color: var(--brand-yellow);
+    margin-bottom: 2.5rem;
+    font-size: 1.6rem;
+}
+
+.ingreso-modal-box .form-group {
+    position: relative;
+    margin-bottom: 2.5rem;
+}
+
+.ingreso-modal-box label {
+    position: absolute;
+    top: 10px;
+    left: 0;
+    font-size: 1rem;
+    color: var(--text-muted);
+    transition: all 0.2s ease-in-out;
+    pointer-events: none;
+}
+
+.ingreso-modal-box input,
+.ingreso-modal-box select,
+.ingreso-modal-box textarea {
+    background-color: transparent;
+    border: none;
+    border-bottom: 2px solid #444;
+    border-radius: 0;
+    padding: 10px 0;
+    font-size: 1.1rem;
+    color: var(--text-light);
+    transition: border-color 0.2s ease-in-out;
+}
+
+.ingreso-modal-box input:focus,
+.ingreso-modal-box select:focus,
+.ingreso-modal-box textarea:focus {
+    outline: none;
+    border-bottom-color: var(--brand-yellow);
+}
+
+.ingreso-modal-box input:focus + label,
+.ingreso-modal-box input:not(:placeholder-shown) + label,
+.ingreso-modal-box select:focus + label,
+.ingreso-modal-box select:not([value=""]):not(:focus) + label,
+.ingreso-modal-box textarea:focus + label,
+.ingreso-modal-box textarea:not(:placeholder-shown) + label {
+    top: -16px;
+    left: 0;
+    font-size: 0.8rem;
+    color: var(--brand-yellow);
+}
+
+.ingreso-modal-box select + label {
+     top: -16px;
+    left: 0;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+.ingreso-modal-box select:focus + label {
+    color: var(--brand-yellow);
+}
+
+
+.ingreso-modal-box select {
+    padding-right: 2rem;
+    background-position: right 0 center;
+}
+
+.ingreso-modal-box textarea {
+    padding-bottom: 8px;
+    resize: none;
+    overflow-y: hidden;
+}
+
+.ingreso-modal-box .prompt-buttons {
+    margin-top: 2.5rem;
+}
