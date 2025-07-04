@@ -11,13 +11,13 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
 
-const vendedores = ["Agustin", "Joaquín", "Vendedor C"];
+const vendedores = ["Agustin", "Vendedor C"];
 const colores = ["Negro espacial", "Plata", "Dorado", "Púrpura oscuro", "Rojo (Product RED)", "Azul", "Verde", "Blanco estelar", "Medianoche", "Titanio Natural", "Titanio Azul", "Otro"];
 const almacenamientos = ["64GB", "128GB", "256GB", "512GB", "1TB"];
 const detallesEsteticos = ["Como Nuevo (Sin detalles)", "Excelente (Mínimos detalles)", "Bueno (Detalles de uso visibles)", "Regular (Marcas o rayones notorios)"];
 const modelos = [ "iPhone 11", "iPhone 11 Pro", "iPhone 11 Pro Max", "iPhone 12 Mini", "iPhone 12", "iPhone 12 Pro", "iPhone 12 Pro Max", "iPhone 13 Mini", "iPhone 13", "iPhone 13 Pro", "iPhone 13 Pro Max", "iPhone 14", "iPhone 14 Plus", "iPhone 14 Pro", "iPhone 14 Pro Max", "iPhone 15", "iPhone 15 Plus", "iPhone 15 Pro", "iPhone 15 Pro Max", "iPhone 16", "iPhone 16 Plus", "iPhone 16 Pro", "iPhone 16 Pro Max",];
 const metodosDePago = ["Dólares", "Pesos (Efectivo)", "Pesos (Transferencia)"];
-const gastosCategorias = ["Comida", "Repuestos", "Alquiler", "Accesorios", "Otro"];
+const gastosCategorias = ["Comida", "Repuestos", "Alquiler", "Accesorios", "Otro", "Comisiones"];
 let ingresosCategorias = []; 
 const accesoriosSubcategorias = ["Fundas", "Fuentes", "Cables", "Templados", "Otro"];
 let proveedoresStock = []; 
@@ -27,6 +27,7 @@ const categoriaColores = {
     "Alquiler": "#9b59b6",
     "Accesorios": "#f1c40f",
     "Pago a Proveedor": "#2ecc71",
+    "Comisiones": "#e67e22",
     "Otro": "#95a5a6"
 };
 
@@ -35,6 +36,7 @@ let canjeContext = null;
 let gastosChart = null;
 let batchLoadContext = null;
 let paymentContext = null;
+let wholesaleSaleContext = null;
 
 document.addEventListener('DOMContentLoaded', initApp);
 
@@ -46,13 +48,15 @@ function initApp() {
         navTabs: document.querySelector('.nav-tabs'),
         navSlider: document.querySelector('.nav-slider'),
         tabDashboard: document.getElementById('tab-dashboard'),
+        tabProviders: document.getElementById('tab-providers'), 
+        tabWholesale: document.getElementById('tab-wholesale'),
         tabReports: document.getElementById('tab-reports'),
         tabManagement: document.getElementById('tab-management'),
-        tabProviders: document.getElementById('tab-providers'), 
         dashboardView: document.getElementById('dashboard-view'),
+        providersView: document.getElementById('providers-view'),
+        wholesaleView: document.getElementById('wholesale-view'),
         reportsView: document.getElementById('reports-view'),
         managementView: document.getElementById('management-view'),
-        providersView: document.getElementById('providers-view'),
         dashboardControls: document.querySelector('.dashboard-controls'),
         dashboardMenuToggle: document.getElementById('dashboard-menu-toggle'),
         dashboardMenuLabel: document.getElementById('dashboard-menu-label'),
@@ -110,7 +114,7 @@ function initApp() {
         filterCommissionsVendedor: document.getElementById('filter-commissions-vendedor'),
         filterCommissionsStartDate: document.getElementById('filter-commissions-start-date'),
         filterCommissionsEndDate: document.getElementById('filter-commissions-end-date'),
-        btnApplyCommissionsFilters: document.getElementById('btn-apply-commissions-filters'),
+        btnCalculateCommissions: document.getElementById('btn-calculate-commissions'),
         filterGastosStartDate: document.getElementById('filter-gastos-start-date'),
         filterGastosEndDate: document.getElementById('filter-gastos-end-date'),
         btnApplyGastosFilter: document.getElementById('btn-apply-gastos-filter'),
@@ -139,7 +143,9 @@ function initApp() {
         kpiExpensesMonthCash: document.getElementById('kpi-expenses-month-cash'),
         kpiExpensesMonthTransfer: document.getElementById('kpi-expenses-month-transfer'),
         btnAddProvider: document.getElementById('btn-add-provider'), 
-        providersListContainer: document.getElementById('providers-list-container') 
+        providersListContainer: document.getElementById('providers-list-container'),
+        btnAddWholesaleClient: document.getElementById('btn-add-wholesale-client'),
+        wholesaleClientsListContainer: document.getElementById('wholesale-clients-list-container'),
     });
     
     addEventListeners();
@@ -220,10 +226,9 @@ function addEventListeners() {
         }
     });
 
-
+    s.btnCalculateCommissions.addEventListener('click', loadCommissions);
     s.btnApplyStockFilters.addEventListener('click', loadStock);
     s.btnApplySalesFilters.addEventListener('click', loadSales);
-    s.btnApplyCommissionsFilters.addEventListener('click', loadCommissions);
     s.btnApplyGastosFilter.addEventListener('click', loadGastos);
     s.btnApplyIngresosFilter.addEventListener('click', loadIngresos);
     s.btnScan.addEventListener('click', startScanner);
@@ -236,6 +241,7 @@ function addEventListeners() {
     s.btnAddIngreso.addEventListener('click', () => promptToAddIngreso());
     s.btnHacerCaja.addEventListener('click', generarCajaDiaria);
     s.btnAddProvider.addEventListener('click', promptToAddProvider);
+    s.btnAddWholesaleClient.addEventListener('click', promptToAddWholesaleClient);
 
     s.providersView.addEventListener('click', (e) => {
         const button = e.target.closest('button');
@@ -258,6 +264,36 @@ function addEventListeners() {
             deleteProvider(providerId, providerName);
         }
     });
+    
+    s.wholesaleView.addEventListener('click', e => {
+        const button = e.target.closest('button');
+        if (!button) return;
+        const clientItem = button.closest('.wholesale-client-item');
+        if (!clientItem) return;
+        const clientId = clientItem.dataset.clientId;
+        const clientName = clientItem.querySelector('h3').textContent;
+
+        if (button.classList.contains('btn-new-wholesale-sale')) {
+            promptToStartWholesaleSale(clientId, clientName);
+        } else if (button.classList.contains('btn-view-wholesale-history')) {
+            showWholesaleHistory(clientId, clientName);
+        } else if (button.classList.contains('btn-resync-client')) {
+            resyncWholesaleClientTotal(clientId, clientName);
+        } else if (button.classList.contains('btn-delete-wholesale-client')) {
+            deleteWholesaleClient(clientId, clientName);
+        }
+    });
+
+
+    s.commissionsResultsContainer.addEventListener('click', (e) => {
+        const payButton = e.target.closest('.btn-pay-commission');
+        if (payButton) {
+            const card = payButton.closest('.commission-vendor-card');
+            const vendorName = card.dataset.vendorName;
+            const pendingAmount = parseFloat(payButton.dataset.pendingAmount);
+            promptToPayCommission(vendorName, pendingAmount);
+        }
+    });
 
     s.promptContainer.addEventListener('submit', (e) => {
         e.preventDefault();
@@ -275,6 +311,8 @@ function addEventListeners() {
             } else {
                 updateIngreso(form.dataset.ingresoId, form.querySelector('button[type="submit"]'));
             }
+        } else if (form.id === 'commission-payment-form') {
+            saveCommissionPayment(form);
         } else if (form.id === 'batch-load-form') {
             const model = form.modelo.value;
             const batchCost = parseFloat(form.costo.value);
@@ -282,6 +320,10 @@ function addEventListeners() {
             const providerId = form.dataset.providerId;
             const providerName = form.dataset.providerName;
             initiateBatchLoad(providerId, providerName, model, batchCost, batchNumber);
+        } else if (form.id === 'wholesale-client-form') {
+            saveWholesaleClient(form.querySelector('button[type="submit"]'));
+        } else if (form.id === 'wholesale-sale-start-form') {
+            initiateWholesaleSale(form);
         }
     });
 
@@ -298,6 +340,10 @@ function addEventListeners() {
     s.kpiDollarsMonth.parentElement.addEventListener('click', () => showKpiDetail('dolares', 'mes'));
     s.kpiCashMonth.parentElement.addEventListener('click', () => showKpiDetail('efectivo_ars', 'mes'));
     s.kpiTransferMonth.parentElement.addEventListener('click', () => showKpiDetail('transferencia_ars', 'mes'));
+
+    // NUEVOS EVENT LISTENERS PARA EL PROFIT
+    s.kpiProfitDay.parentElement.addEventListener('click', () => showProfitDetail('dia'));
+    s.kpiProfitMonth.parentElement.addEventListener('click', () => showProfitDetail('mes'));
 }
 
 function moveDashboardSlider(activeButton) {
@@ -355,20 +401,29 @@ async function updateReports() {
         s.kpiStockValue.textContent = formatearUSD(totalStockValue);
         s.kpiStockCount.textContent = stockSnap.size;
 
-        const processEntries = (salesSnap, miscIncomesSnap, expensesSnap) => {
+        const processEntries = async (salesSnapshot, miscIncomesSnap, expensesSnap) => {
             let incomes = { usd: 0, cash: 0, transfer: 0, profit: 0 };
             let expenses = { usd: 0, cash: 0, transfer: 0 };
+        
+            if (!salesSnapshot.empty) {
+                const costPromises = salesSnapshot.docs.map(saleDoc => 
+                    db.collection("stock_individual").doc(saleDoc.data().imei_vendido).get()
+                );
+                const costDocs = await Promise.all(costPromises);
+                const costMap = new Map(costDocs.map(doc => [doc.id, doc.data()?.precio_costo_usd || 0]));
 
-            salesSnap.forEach(doc => {
-                const venta = doc.data();
-                const cost = venta.producto?.precio_costo_usd || 0;
-                incomes.profit += (venta.precio_venta_usd || 0) - cost;
-                
-                if (venta.metodo_pago === 'Dólares') incomes.usd += venta.precio_venta_usd || 0;
-                if (venta.metodo_pago === 'Pesos (Efectivo)') incomes.cash += venta.monto_efectivo || 0;
-                if (venta.metodo_pago === 'Pesos (Transferencia)') incomes.transfer += venta.monto_transferencia || 0;
-            });
-
+                salesSnapshot.forEach(doc => {
+                    const venta = doc.data();
+                    const cost = costMap.get(venta.imei_vendido) || 0;
+                    const commission = venta.comision_vendedor_usd || 0;
+                    incomes.profit += (venta.precio_venta_usd || 0) - cost - commission; // CÁLCULO DE PROFIT CORREGIDO
+                    
+                    if (venta.metodo_pago === 'Dólares') incomes.usd += venta.precio_venta_usd || 0;
+                    if (venta.metodo_pago === 'Pesos (Efectivo)') incomes.cash += venta.monto_efectivo || 0;
+                    if (venta.metodo_pago === 'Pesos (Transferencia)') incomes.transfer += venta.monto_transferencia || 0;
+                });
+            }
+        
             miscIncomesSnap.forEach(doc => {
                 const ingreso = doc.data();
                 if (ingreso.metodo === 'Dólares') incomes.usd += ingreso.monto || 0;
@@ -382,18 +437,18 @@ async function updateReports() {
                 if (gasto.metodo_pago === 'Pesos (Efectivo)') expenses.cash += gasto.monto || 0;
                 if (gasto.metodo_pago === 'Pesos (Transferencia)') expenses.transfer += gasto.monto || 0;
             });
-
+        
             const netIncomes = {
                 usd: incomes.usd - expenses.usd,
                 cash: incomes.cash - expenses.cash,
                 transfer: incomes.transfer - expenses.transfer,
                 profit: incomes.profit
             };
-
+        
             return { netIncomes, expenses };
         };
 
-        const daily = processEntries(salesDaySnap, miscIncomesDaySnap, expensesDaySnap);
+        const daily = await processEntries(salesDaySnap, miscIncomesDaySnap, expensesDaySnap);
         s.kpiDollarsDay.textContent = formatearUSD(daily.netIncomes.usd);
         s.kpiCashDay.textContent = formatearARS(daily.netIncomes.cash);
         s.kpiTransferDay.textContent = formatearARS(daily.netIncomes.transfer);
@@ -402,7 +457,7 @@ async function updateReports() {
         s.kpiExpensesDayCash.textContent = formatearARS(daily.expenses.cash);
         s.kpiExpensesDayTransfer.textContent = formatearARS(daily.expenses.transfer);
 
-        const monthly = processEntries(salesMonthSnap, miscIncomesMonthSnap, expensesMonthSnap);
+        const monthly = await processEntries(salesMonthSnap, miscIncomesMonthSnap, expensesMonthSnap);
         s.kpiDollarsMonth.textContent = formatearUSD(monthly.netIncomes.usd);
         s.kpiCashMonth.textContent = formatearARS(monthly.netIncomes.cash);
         s.kpiTransferMonth.textContent = formatearARS(monthly.netIncomes.transfer);
@@ -455,7 +510,7 @@ const formatearARS = (monto) => (monto || 0).toLocaleString('es-AR', { style: 'c
 
 
 function showGlobalFeedback(message, type = 'success', duration = 3000) {
-    s.globalFeedback.textContent = message;
+    s.globalFeedback.innerHTML = message;
     s.globalFeedback.className = `feedback-message ${type}`;
     s.globalFeedback.classList.add('show');
     setTimeout(() => {
@@ -513,7 +568,7 @@ async function handleLogin(e) {
 }
 
 function switchView(view, tabElement) {
-    const views = ['dashboard', 'reports', 'management', 'providers']; 
+    const views = ['dashboard', 'providers', 'wholesale', 'reports', 'management'];
     
     document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
     if(tabElement) {
@@ -533,8 +588,10 @@ function switchView(view, tabElement) {
         updateReports();
     } else if (view === 'providers') {
         loadProviders();
+    } else if (view === 'wholesale') {
+        loadWholesaleClients();
     } else if (view === 'management') {
-        if (!batchLoadContext && !canjeContext) {
+        if (!batchLoadContext && !canjeContext && !wholesaleSaleContext) {
             resetManagementView();
         }
     }
@@ -566,6 +623,315 @@ function switchDashboardView(viewName, button) {
     else if (viewName === 'ingresos') loadIngresos();
 }
 
+// =======================================================
+// ============= INICIO VENTA MAYORISTA ==================
+// =======================================================
+
+async function loadWholesaleClients() {
+    s.wholesaleClientsListContainer.innerHTML = `<p class="dashboard-loader">Cargando clientes mayoristas...</p>`;
+    try {
+        const snapshot = await db.collection('clientes_mayoristas').orderBy('nombre').get();
+        if (snapshot.empty) {
+            s.wholesaleClientsListContainer.innerHTML = `<p class="dashboard-loader">No hay clientes mayoristas. ¡Agrega el primero!</p>`;
+            return;
+        }
+        const clients = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        renderWholesaleClients(clients);
+    } catch (error) {
+        handleDBError(error, s.wholesaleClientsListContainer, "clientes mayoristas");
+    }
+}
+
+
+function promptToAddWholesaleClient() {
+    s.promptContainer.innerHTML = `
+        <div class="ingreso-modal-box">
+            <h3>Nuevo Cliente Mayorista</h3>
+            <form id="wholesale-client-form" novalidate>
+                <div class="form-group">
+                    <input type="text" id="ws-client-name" name="nombre" required placeholder=" ">
+                    <label for="ws-client-name">Nombre del Cliente</label>
+                </div>
+                <div class="form-group">
+                    <textarea id="ws-client-notes" name="notas" rows="1" placeholder=" "></textarea>
+                    <label for="ws-client-notes">Notas (Teléfono, etc. - opcional)</label>
+                </div>
+                <div class="prompt-buttons">
+                    <button type="submit" class="prompt-button confirm spinner-btn">
+                        <span class="btn-text">Guardar Cliente</span>
+                        <div class="spinner"></div>
+                    </button>
+                    <button type="button" class="prompt-button cancel">Cancelar</button>
+                </div>
+            </form>
+        </div>`;
+    
+    const textarea = document.getElementById('ws-client-notes');
+    if (textarea) {
+        textarea.addEventListener('input', () => {
+            textarea.style.height = 'auto';
+            textarea.style.height = (textarea.scrollHeight) + 'px';
+        });
+    }
+}
+
+async function saveWholesaleClient(btn) {
+    toggleSpinner(btn, true);
+    const form = btn.form;
+    const clientData = {
+        nombre: form.nombre.value.trim(),
+        notas: form.notas.value.trim(),
+        total_comprado_usd: 0,
+        fecha_creacion: firebase.firestore.FieldValue.serverTimestamp(),
+        fecha_ultima_compra: null
+    };
+
+    try {
+        await db.collection('clientes_mayoristas').add(clientData);
+        showGlobalFeedback('Cliente mayorista agregado con éxito', 'success');
+        s.promptContainer.innerHTML = '';
+        loadWholesaleClients();
+    } catch (error) {
+        console.error("Error guardando cliente mayorista:", error);
+        showGlobalFeedback('Error al guardar el cliente', 'error');
+    } finally {
+        toggleSpinner(btn, false);
+    }
+}
+
+function promptToStartWholesaleSale(clientId, clientName) {
+    s.promptContainer.innerHTML = `
+        <div class="ingreso-modal-box">
+            <h3>Registrar Venta a ${clientName}</h3>
+            <form id="wholesale-sale-start-form" data-client-id="${clientId}" data-client-name="${clientName}" novalidate>
+                <div class="form-group">
+                    <input type="text" id="ws-sale-id" name="sale_id" required placeholder=" ">
+                    <label for="ws-sale-id">ID de la Venta (Ej: VTA-050)</label>
+                </div>
+                <p style="color:var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem;">Ingresa los montos que recibirás. El total se calculará solo.</p>
+                <div class="form-group">
+                    <input type="number" id="ws-sale-usd" name="monto_usd" placeholder=" " step="0.01">
+                    <label for="ws-sale-usd">Monto Recibido (USD)</label>
+                </div>
+                <div class="form-group">
+                    <input type="number" id="ws-sale-ars-efectivo" name="monto_ars_efectivo" placeholder=" " step="0.01">
+                    <label for="ws-sale-ars-efectivo">Monto Recibido (ARS Efectivo)</label>
+                </div>
+                <div class="form-group">
+                    <input type="number" id="ws-sale-ars-transf" name="monto_ars_transferencia" placeholder=" " step="0.01">
+                    <label for="ws-sale-ars-transf">Monto Recibido (ARS Transferencia)</label>
+                </div>
+                <div class="prompt-buttons">
+                    <button type="submit" class="prompt-button confirm">Iniciar Carga de Equipos</button>
+                    <button type="button" class="prompt-button cancel">Cancelar</button>
+                </div>
+            </form>
+        </div>`;
+}
+
+async function initiateWholesaleSale(form) {
+    const formData = new FormData(form);
+    const saleId = formData.get('sale_id').trim();
+    const montoUsd = parseFloat(formData.get('monto_usd')) || 0;
+    const montoArsEfectivo = parseFloat(formData.get('monto_ars_efectivo')) || 0;
+    const montoArsTransferencia = parseFloat(formData.get('monto_ars_transferencia')) || 0;
+
+    if (!saleId) {
+        showGlobalFeedback("El ID de la venta es obligatorio.", "error");
+        return;
+    }
+    if (montoUsd === 0 && montoArsEfectivo === 0 && montoArsTransferencia === 0) {
+        showGlobalFeedback("Debes ingresar al menos un monto.", "error");
+        return;
+    }
+    
+    wholesaleSaleContext = {
+        clientId: form.dataset.clientId,
+        clientName: form.dataset.clientName,
+        saleId: saleId,
+        payment: {
+            usd: montoUsd,
+            ars_efectivo: montoArsEfectivo,
+            ars_transferencia: montoArsTransferencia,
+        },
+        items: [],
+        totalSaleValue: 0
+    };
+
+    s.promptContainer.innerHTML = '';
+    showGlobalFeedback(`Venta ${saleId} iniciada. Comienza a escanear los equipos a vender.`, 'info', 4000);
+    
+    resetManagementView(false, false, true);
+    switchView('management', s.tabManagement);
+}
+
+async function processWholesaleItem(imei) {
+    showFeedback("Buscando IMEI...", "loading");
+    try {
+        const imeiDoc = await db.collection("stock_individual").doc(imei.trim()).get();
+        
+        if (!imeiDoc.exists || imeiDoc.data().estado !== 'en_stock') {
+            throw new Error(`El IMEI ${imei} no existe en el stock o ya fue vendido.`);
+        }
+        
+        const itemDetails = imeiDoc.data();
+        s.feedbackMessage.classList.add('hidden');
+        
+        s.promptContainer.innerHTML = `
+            <div class="ingreso-modal-box">
+                <h3>Vender ${itemDetails.modelo}</h3>
+                <p style="color: var(--text-muted); text-align: center; margin-top: -1.5rem; margin-bottom: 2rem;">IMEI: ${imei}</p>
+                <form id="wholesale-item-price-form">
+                    <div class="form-group">
+                        <input type="number" id="ws-item-price" name="precio_venta" required placeholder=" " step="0.01">
+                        <label for="ws-item-price">Precio de Venta (USD) para este equipo</label>
+                    </div>
+                    <div class="prompt-buttons">
+                        <button type="submit" class="prompt-button confirm">Agregar a la Venta</button>
+                        <button type="button" class="prompt-button cancel">Cancelar Equipo</button>
+                    </div>
+                </form>
+            </div>`;
+
+        document.getElementById('wholesale-item-price-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const price = parseFloat(e.target.precio_venta.value);
+            if (isNaN(price) || price <= 0) {
+                showGlobalFeedback("Ingresa un precio de venta válido.", "error");
+                return;
+            }
+
+            wholesaleSaleContext.items.push({
+                imei: imei.trim(),
+                details: itemDetails,
+                precio_venta_usd: price
+            });
+            wholesaleSaleContext.totalSaleValue += price;
+
+            s.promptContainer.innerHTML = '';
+            showFeedback(`${itemDetails.modelo} agregado. Escanea el siguiente.`, "success");
+            
+            resetManagementView(false, false, true);
+            setTimeout(() => startScanner(), 500);
+        });
+        
+    } catch (error) {
+        showFeedback(error.message, "error");
+        console.error(error);
+        resetManagementView(false, false, true);
+        setTimeout(() => startScanner(), 2000);
+    }
+}
+
+function renderWholesaleLoader() {
+    s.managementTitle.textContent = `Venta a ${wholesaleSaleContext.clientName} (ID: ${wholesaleSaleContext.saleId})`;
+    
+    s.productForm.querySelectorAll('.form-group, #product-form-submit-btn').forEach(el => {
+        el.style.display = 'none';
+    });
+
+    const oldLoader = s.managementView.querySelector('#wholesale-sale-imei-loader');
+    if(oldLoader) oldLoader.remove();
+    
+    const itemsHtml = wholesaleSaleContext.items.map(item => `
+        <div class="wholesale-sale-item-row">
+            <span class="item-info">${item.details.modelo} - ${item.details.color}</span>
+            <span class="item-price">${formatearUSD(item.precio_venta_usd)}</span>
+        </div>
+    `).join('');
+
+    const loaderDiv = document.createElement('div');
+    loaderDiv.id = 'wholesale-sale-imei-loader';
+    loaderDiv.innerHTML = `
+        <div class="details-box">
+            <div class="detail-item"><span>Total Acumulado:</span> <strong>${formatearUSD(wholesaleSaleContext.totalSaleValue)}</strong></div>
+            <div class="detail-item"><span>Equipos Cargados:</span> <strong>${wholesaleSaleContext.items.length}</strong></div>
+        </div>
+        <h3>Equipos en esta Venta</h3>
+        <div id="wholesale-sale-items-container">${itemsHtml || '<p style="text-align:center; color: var(--text-muted);">Aún no has agregado equipos.</p>'}</div>`;
+
+    s.productForm.prepend(loaderDiv);
+    s.productForm.classList.remove('hidden');
+}
+
+async function finalizeWholesaleSale() {
+    if (!wholesaleSaleContext) {
+        showGlobalFeedback("Error: El contexto de venta mayorista se perdió. Por favor, inicia nuevamente la venta.", "error", 6000);
+        console.error("[Venta Mayorista] wholesaleSaleContext es null al finalizar la venta");
+        resetManagementView();
+        switchView('wholesale', s.tabWholesale);
+        return;
+    }
+    if (!Array.isArray(wholesaleSaleContext.items) || wholesaleSaleContext.items.length === 0) {
+        showGlobalFeedback("No hay equipos agregados a la venta. Debes escanear y agregar al menos un equipo antes de finalizar.", "warning", 6000);
+        console.warn("[Venta Mayorista] Se intentó finalizar sin equipos agregados", wholesaleSaleContext);
+        resetManagementView(false, false, true); // Mantener el modo mayorista
+        return;
+    }
+
+    try {
+        console.log("[Venta Mayorista] Finalizando venta:", JSON.stringify(wholesaleSaleContext));
+        await db.runTransaction(async t => {
+            const saleDate = firebase.firestore.FieldValue.serverTimestamp();
+            const { clientId, clientName, saleId, payment, items, totalSaleValue } = wholesaleSaleContext;
+
+            // 1. Crear el registro maestro de la venta mayorista
+            const wholesaleSaleRef = db.collection('ventas_mayoristas').doc();
+            t.set(wholesaleSaleRef, {
+                clienteId: clientId,
+                clienteNombre: clientName,
+                venta_id_manual: saleId,
+                fecha_venta: saleDate,
+                pago_recibido: payment,
+                total_venta_usd: totalSaleValue,
+                cantidad_equipos: items.length
+            });
+
+            // 2. Crear un registro de venta individual por cada equipo
+            for (const item of items) {
+                const ventaIndividualRef = db.collection('ventas').doc();
+                const ventaData = {
+                    imei_vendido: item.imei,
+                    producto: item.details,
+                    precio_venta_usd: item.precio_venta_usd,
+                    metodo_pago: 'Venta Mayorista',
+                    vendedor: `Mayorista: ${clientName}`,
+                    fecha_venta: saleDate,
+                    venta_mayorista_ref: wholesaleSaleRef.id,
+                    id_venta_mayorista_manual: saleId,
+                    comision_vendedor_usd: 0,
+                    hubo_canje: false
+                };
+                t.set(ventaIndividualRef, ventaData);
+
+                // 3. Actualizar el estado de cada equipo en el stock
+                const stockRef = db.collection('stock_individual').doc(item.imei);
+                t.update(stockRef, { estado: 'vendido' });
+            }
+
+            // 4. Actualizar las estadísticas del cliente
+            const clientRef = db.collection('clientes_mayoristas').doc(clientId);
+            t.update(clientRef, {
+                total_comprado_usd: firebase.firestore.FieldValue.increment(totalSaleValue),
+                fecha_ultima_compra: saleDate
+            });
+        });
+        showGlobalFeedback(`Venta mayorista ${wholesaleSaleContext.saleId} registrada con éxito!`, 'success', 5000);
+        console.log("[Venta Mayorista] Venta registrada correctamente", wholesaleSaleContext);
+    } catch (error) {
+        console.error("Error al finalizar la venta mayorista:", error, wholesaleSaleContext);
+        showGlobalFeedback("Error crítico al registrar la venta. Revisa la consola.", "error", 6000);
+    } finally {
+        wholesaleSaleContext = null;
+        resetManagementView();
+        switchView('wholesale', s.tabWholesale);
+        updateReports();
+    }
+}
+
+// =======================================================
+// ============= FIN VENTA MAYORISTA =====================
+// =======================================================
 
 async function loadIngresos() {
     s.ingresosList.innerHTML = `<p class="dashboard-loader" style="grid-column: 1 / -1;">Cargando ingresos...</p>`;
@@ -1499,11 +1865,8 @@ async function showKpiDetail(kpiType, period) {
                     <thead><tr><th>Fecha</th><th>Tipo</th><th>Concepto</th><th>Monto</th><th>Acciones</th></tr></thead>
                     <tbody>
                         ${transactions.map(t => {
-                            const dataString = JSON.stringify(t.data).replace(/'/g, "\\'");
-                            const isRevertible = t.collection === 'ventas' || (t.collection === 'egresos_caja' && t.data.proveedorId);
-                            
                             return `
-                                <tr data-id="${t.id}" data-type="${t.tipo}" data-collection="${t.collection}" data-item='${dataString}'>
+                                <tr data-id="${t.id}" data-type="${t.tipo}" data-collection="${t.collection}" data-item='${JSON.stringify(t.data).replace(/'/g, "\\'")}'>
                                     <td>${t.fecha.toLocaleString('es-AR')}</td>
                                     <td>${t.tipo}</td>
                                     <td>${t.concepto}</td>
@@ -1511,7 +1874,7 @@ async function showKpiDetail(kpiType, period) {
                                         ${t.tipo === 'Egreso' ? '-' : ''}${t.moneda === 'USD' ? formatearUSD(t.monto) : formatearARS(t.monto)}
                                     </td>
                                     <td class="actions-cell">
-                                        <button class="delete-btn btn-delete-kpi-item" title="${isRevertible ? 'Revertir' : 'Eliminar'}">
+                                        <button class="delete-btn btn-delete-kpi-item" title="Eliminar/Revertir">
                                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
                                         </button>
                                     </td>
@@ -1527,15 +1890,17 @@ async function showKpiDetail(kpiType, period) {
             const id = row.dataset.id;
             const collection = row.dataset.collection;
             const data = JSON.parse(row.dataset.item.replace(/\\'/g, "'"));
+            const monto = data.monto || (data.metodo_pago === kpiMetodo ? data[kpiMontoField] : 0);
+            const montoFormateado = kpiMoneda === 'USD' ? formatearUSD(monto) : formatearARS(monto);
             
             if (collection === 'ventas') {
                 const message = `¿Seguro que quieres revertir esta venta?\n\n- La venta se eliminará.\n- El equipo (IMEI: ${data.imei_vendido}) volverá al stock.`;
                 showConfirmationModal('Revertir Venta', message, () => reverseSaleTransaction(id, data, kpiType, period));
             } else if (collection === 'ingresos_caja') {
-                 const message = `¿Seguro que quieres eliminar este ingreso?\n\n- Concepto: ${data.categoria}\n- Monto: ${kpiMoneda === 'USD' ? formatearUSD(data.monto) : formatearARS(data.monto)}`;
+                 const message = `¿Seguro que quieres eliminar este ingreso?\n\n- Concepto: ${data.categoria}\n- Monto: ${montoFormateado}`;
                  showConfirmationModal('Eliminar Ingreso Vario', message, () => deleteSimpleTransaction(id, 'ingresos_caja', kpiType, period));
             } else if (collection === 'gastos') {
-                 const message = `¿Seguro que quieres eliminar este gasto?\n\n- Concepto: ${data.categoria}\n- Monto: ${kpiMoneda === 'USD' ? formatearUSD(data.monto) : formatearARS(data.monto)}`;
+                 const message = `¿Seguro que quieres eliminar este gasto?\n\n- Concepto: ${data.categoria}\n- Monto: ${montoFormateado}`;
                  showConfirmationModal('Eliminar Gasto', message, () => deleteSimpleTransaction(id, 'gastos', kpiType, period));
             } else if (collection === 'egresos_caja') {
                 const isRevertible = data.proveedorId && typeof data.monto_total_usd === 'number';
@@ -1551,12 +1916,100 @@ async function showKpiDetail(kpiType, period) {
     }
 }
 
+// NUEVA FUNCIÓN PARA VER DETALLE DE GANANCIAS
+async function showProfitDetail(period) {
+    const now = new Date();
+    let startDate, endDate, title;
+
+    if (period === 'dia') {
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+        title = 'Detalle de Ganancias del Día';
+    } else { // 'mes'
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+        title = 'Detalle de Ganancias del Mes';
+    }
+
+    s.promptContainer.innerHTML = `
+        <div class="container kpi-detail-modal">
+            <h3>${title}</h3>
+            <div id="kpi-profit-detail-content" class="table-container">
+                <p class="dashboard-loader">Cargando detalle de ganancias...</p>
+            </div>
+            <div class="prompt-buttons" style="justify-content: center;">
+                <button class="prompt-button cancel">Cerrar</button>
+            </div>
+        </div>`;
+    
+    const detailContent = document.getElementById('kpi-profit-detail-content');
+
+    try {
+        const salesQuery = db.collection('ventas')
+            .where('fecha_venta', '>=', startDate)
+            .where('fecha_venta', '<=', endDate);
+        
+        const salesSnapshot = await salesQuery.get();
+
+        if (salesSnapshot.empty) {
+            detailContent.innerHTML = `<p class="dashboard-loader">No hay ventas con ganancias en este período.</p>`;
+            return;
+        }
+
+        const costPromises = salesSnapshot.docs.map(saleDoc => 
+            db.collection("stock_individual").doc(saleDoc.data().imei_vendido).get()
+        );
+        const costDocs = await Promise.all(costPromises);
+        const costMap = new Map(costDocs.map(doc => [doc.id, doc.data()?.precio_costo_usd || 0]));
+
+        let tableHTML = `
+            <table>
+                <thead>
+                    <tr>
+                        <th>Producto</th>
+                        <th>Precio Venta</th>
+                        <th>Costo Producto</th>
+                        <th>Comisión</th>
+                        <th>Ganancia Neta</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        salesSnapshot.forEach(doc => {
+            const venta = doc.data();
+            const precioVenta = venta.precio_venta_usd || 0;
+            const costoProducto = costMap.get(venta.imei_vendido) || 0;
+            const comision = venta.comision_vendedor_usd || 0;
+            const ganancia = precioVenta - costoProducto - comision;
+
+            tableHTML += `
+                <tr>
+                    <td>${venta.producto.modelo || 'Producto Desc.'}</td>
+                    <td class="income">${formatearUSD(precioVenta)}</td>
+                    <td class="outcome">-${formatearUSD(costoProducto)}</td>
+                    <td class="outcome">-${formatearUSD(comision)}</td>
+                    <td style="font-weight:bold; color:var(--brand-yellow);">${formatearUSD(ganancia)}</td>
+                </tr>
+            `;
+        });
+
+        tableHTML += '</tbody></table>';
+        detailContent.innerHTML = tableHTML;
+
+    } catch (error) {
+        handleDBError(error, detailContent, `el detalle de ganancias`);
+    }
+}
+
 
 async function deleteSimpleTransaction(id, collectionName, kpiType, period) {
     try {
         await db.collection(collectionName).doc(id).delete();
         showGlobalFeedback("Registro eliminado correctamente.", "success");
         updateReports();
+        if (collectionName === 'gastos') loadGastos();
+        if (collectionName === 'ingresos_caja') loadIngresos();
         showKpiDetail(kpiType, period);
     } catch (error) {
         console.error(`Error al eliminar registro de ${collectionName}:`, error);
@@ -1617,53 +2070,77 @@ async function reverseEgresoTransaction(egresoId, egresoData, kpiType, period) {
 
 
 async function loadCommissions() {
-    s.commissionsResultsContainer.innerHTML = `<p class="dashboard-loader">Cargando comisiones...</p>`;
-    toggleSpinner(s.btnApplyCommissionsFilters, true);
+    s.commissionsResultsContainer.innerHTML = `<p class="dashboard-loader">Calculando comisiones...</p>`;
+    toggleSpinner(s.btnCalculateCommissions, true);
+    
     try {
-        let query = db.collection("ventas").where("comision_vendedor_usd", ">", 0);
-        if (s.filterCommissionsVendedor.value) {
-            query = query.where('vendedor', '==', s.filterCommissionsVendedor.value);
+        const vendorNameFilter = s.filterCommissionsVendedor.value;
+        const vendorsToQuery = vendorNameFilter ? [vendorNameFilter] : vendedores;
+
+        if (vendorsToQuery.length === 0) {
+            s.commissionsResultsContainer.innerHTML = `<p class="dashboard-loader">No hay vendedores para mostrar.</p>`;
+            return;
         }
-        query = query.orderBy("comision_vendedor_usd", "desc").orderBy("fecha_venta", "desc");
-        const querySnapshot = await query.get();
-        let sales = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+        const vendorPromises = vendorsToQuery.map(name => db.collection('vendedores').doc(name).get());
+        const vendorDocs = await Promise.all(vendorPromises);
+        const vendorData = {};
+        vendorDocs.forEach(doc => {
+            if (doc.exists) {
+                vendorData[doc.id] = { ...doc.data() };
+            } else {
+                vendorData[doc.id] = { nombre: doc.id, comision_pendiente_usd: 0 };
+            }
+        });
+
+        let salesQuery = db.collection("ventas").where("comision_vendedor_usd", ">", 0);
+        if (vendorNameFilter) {
+            salesQuery = salesQuery.where("vendedor", "==", vendorNameFilter);
+        }
+        
         const startDate = s.filterCommissionsStartDate.value;
         const endDate = s.filterCommissionsEndDate.value;
         if (startDate) {
-            sales = sales.filter(sale => sale.fecha_venta && sale.fecha_venta.toDate() >= new Date(startDate + 'T00:00:00'));
+            salesQuery = salesQuery.where('fecha_venta', '>=', new Date(startDate + 'T00:00:00'));
         }
         if (endDate) {
-            sales = sales.filter(sale => sale.fecha_venta && sale.fecha_venta.toDate() <= new Date(endDate + 'T23:59:59'));
+            salesQuery = salesQuery.where('fecha_venta', '<=', new Date(endDate + 'T23:59:59'));
         }
-        if (sales.length === 0) {
-            s.commissionsResultsContainer.innerHTML = `<p class="dashboard-loader">No se encontraron comisiones con los filtros seleccionados.</p>`;
-            return;
-        }
-        renderCommissions(sales);
+        
+        const salesSnapshot = await salesQuery.get();
+        const salesByVendor = salesSnapshot.docs.reduce((acc, doc) => {
+            const sale = doc.data();
+            const vendorName = sale.vendedor;
+            if (!acc[vendorName]) {
+                acc[vendorName] = [];
+            }
+            acc[vendorName].push(sale);
+            return acc;
+        }, {});
+        
+        renderCommissions(vendorData, salesByVendor);
+
     } catch (error) {
         handleDBError(error, s.commissionsResultsContainer, "comisiones");
     } finally {
-        toggleSpinner(s.btnApplyCommissionsFilters, false);
+        toggleSpinner(s.btnCalculateCommissions, false);
     }
 }
 
-function renderCommissions(sales) {
-    const commissionsByVendor = sales.reduce((acc, sale) => {
-        const vendor = sale.vendedor;
-        if (!vendor) return acc;
-        if (!acc[vendor]) acc[vendor] = { total: 0, sales: [] };
-        acc[vendor].total += sale.comision_vendedor_usd || 0;
-        acc[vendor].sales.push(sale);
-        return acc;
-    }, {});
-    if (Object.keys(commissionsByVendor).length === 0) {
+
+function renderCommissions(vendorData, salesByVendor) {
+    if (Object.keys(vendorData).length === 0) {
         s.commissionsResultsContainer.innerHTML = `<p class="dashboard-loader">No hay datos de comisiones para mostrar.</p>`;
         return;
     }
+
     let html = '';
-    for (const vendorName in commissionsByVendor) {
-        const data = commissionsByVendor[vendorName];
-        const salesListHtml = data.sales.map(sale => `
+    for (const vendorName in vendorData) {
+        const vendor = vendorData[vendorName];
+        const sales = salesByVendor[vendorName] || [];
+        const pendingAmount = vendor.comision_pendiente_usd || 0;
+
+        const salesListHtml = sales.map(sale => `
             <div class="commission-sale-item">
                 <div class="commission-sale-main">
                     <span class="commission-sale-product">${sale.producto.modelo || 'Producto desc.'} ${sale.producto.color || ''}</span>
@@ -1672,18 +2149,311 @@ function renderCommissions(sales) {
                 <span class="commission-sale-date">${new Date((sale.fecha_venta?.seconds || 0) * 1000).toLocaleString('es-AR', {day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'})} hs</span>
             </div>
         `).join('');
+
         html += `
-            <div class="commission-vendor-card">
+            <div class="commission-vendor-card" data-vendor-name="${vendorName}">
                 <div class="vendor-card-header">
                     <h3>${vendorName}</h3>
-                    <span class="vendor-total-commission">${formatearUSD(data.total)}</span>
+                    <div class="vendor-commission-details">
+                         <span class="vendor-total-commission" title="Comisión PENDIENTE de pago">${formatearUSD(pendingAmount)}</span>
+                         <button class="btn-pay-commission" data-pending-amount="${pendingAmount}" title="Registrar un pago de comisión a este vendedor" ${pendingAmount <= 0 ? 'disabled' : ''}>Pagar Comisión</button>
+                    </div>
                 </div>
-                <div class="commission-sales-list">${salesListHtml}</div>
+                ${salesListHtml ? `<div class="commission-sales-list">${salesListHtml}</div>` : '<p class="dashboard-loader" style="font-size:0.9rem; padding: 1rem 0;">No hay nuevas comisiones en este período.</p>'}
+                <div class="commission-payment-history" id="history-${vendorName.replace(/\s+/g, '')}"></div>
             </div>
         `;
     }
     s.commissionsResultsContainer.innerHTML = html;
+
+    Object.keys(vendorData).forEach(vendorName => {
+        showCommissionPaymentHistory(vendorName);
+    });
 }
+async function promptToPayCommission(vendorName, pendingAmount) {
+    const metodoOptions = metodosDePago.map(m => `<option value="${m}">${m}</option>`).join('');
+
+   s.promptContainer.innerHTML = `
+   <div class="ingreso-modal-box">
+       <h3>Pagar Comisión a ${vendorName}</h3>
+       <p style="text-align:center; color: var(--text-muted); margin-top:-1.5rem; margin-bottom: 2rem;">Deuda de comisión actual: <strong>${formatearUSD(pendingAmount)}</strong></p>
+       <form id="commission-payment-form" data-vendor-name="${vendorName}" novalidate>
+           <div class="form-group">
+               <input type="number" id="payment-monto-usd" name="monto_usd" required placeholder=" " step="0.01" max="${pendingAmount}" value="${pendingAmount > 0 ? pendingAmount : ''}">
+               <label for="payment-monto-usd">Monto a Pagar (USD)</label>
+           </div>
+           <div class="form-group">
+               <select id="payment-metodo" name="metodo_pago" required>${metodoOptions}</select>
+               <label for="payment-metodo">Pagar Con</label>
+           </div>
+
+           <div id="ars-payment-fields" class="payment-details-group hidden">
+               <div class="form-group">
+                   <input type="number" id="payment-cotizacion" name="cotizacion_dolar" placeholder=" ">
+                   <label for="payment-cotizacion">Cotización del Dólar</label>
+               </div>
+               <div class="form-group">
+                   <input type="number" id="payment-monto-ars" name="monto_ars" placeholder=" " readonly>
+                   <label for="payment-monto-ars">Monto Equivalente (ARS)</label>
+               </div>
+           </div>
+
+           <div class="form-group">
+               <textarea id="payment-descripcion" name="descripcion" rows="1" placeholder=" ">Ej: Adelanto comisiones Junio</textarea>
+               <label for="payment-descripcion">Descripción (opcional)</label>
+           </div>
+           <div class="prompt-buttons">
+               <button type="submit" class="prompt-button confirm spinner-btn">
+                   <span class="btn-text">Registrar Pago</span>
+                   <div class="spinner"></div>
+               </button>
+               <button type="button" class="prompt-button cancel">Cancelar</button>
+           </div>
+       </form>
+   </div>`;
+   
+   const form = document.getElementById('commission-payment-form');
+   const metodoSelect = form.querySelector('#payment-metodo');
+   const arsFields = form.querySelector('#ars-payment-fields');
+   const montoUsdInput = form.querySelector('#payment-monto-usd');
+   const cotizacionInput = form.querySelector('#payment-cotizacion');
+   const montoArsInput = form.querySelector('#payment-monto-ars');
+
+   const toggleArsFields = () => {
+       const show = metodoSelect.value.startsWith('Pesos') || metodoSelect.value === 'Dólares';
+       arsFields.classList.toggle('hidden', !show);
+       
+       if (metodoSelect.value.startsWith('Pesos')) {
+           cotizacionInput.required = true;
+           montoArsInput.required = true;
+           arsFields.querySelector('label[for="payment-cotizacion"]').textContent = "Cotización del Dólar";
+       } else if (metodoSelect.value === 'Dólares') {
+           cotizacionInput.required = true; // Se pide igual para el gráfico
+           montoArsInput.required = true;
+           arsFields.querySelector('label[for="payment-cotizacion"]').textContent = "Cotización (para gráfico)";
+       } else {
+           cotizacionInput.required = false;
+           montoArsInput.required = false;
+       }
+   };
+
+   const calculateArs = () => {
+       const montoUsd = parseFloat(montoUsdInput.value) || 0;
+       const cotizacion = parseFloat(cotizacionInput.value) || 0;
+       if (montoUsd > 0 && cotizacion > 0) {
+           montoArsInput.value = (montoUsd * cotizacion).toFixed(2);
+       } else {
+           montoArsInput.value = '';
+       }
+   };
+   
+   metodoSelect.addEventListener('change', toggleArsFields);
+   montoUsdInput.addEventListener('input', calculateArs);
+   cotizacionInput.addEventListener('input', calculateArs);
+   toggleArsFields();
+
+   const textarea = document.getElementById('payment-descripcion');
+   if (textarea) {
+       textarea.addEventListener('input', () => {
+           textarea.style.height = 'auto';
+           textarea.style.height = (textarea.scrollHeight) + 'px';
+       });
+   }
+}
+
+async function saveCommissionPayment(form) {
+    const btn = form.querySelector('button[type="submit"]');
+    toggleSpinner(btn, true);
+
+    const vendorName = form.dataset.vendorName;
+    const formData = new FormData(form);
+    const montoUsd = parseFloat(formData.get('monto_usd'));
+    const metodoPago = formData.get('metodo_pago');
+    const descripcion = formData.get('descripcion') || `Pago de comisión a ${vendorName}`;
+
+    if (isNaN(montoUsd) || montoUsd <= 0) {
+        showGlobalFeedback("El monto a pagar en USD debe ser válido y mayor a cero.", "error");
+        toggleSpinner(btn, false);
+        return;
+    }
+
+    const gastoData = {
+        categoria: 'Comisiones',
+        descripcion,
+        vendedor: vendorName,
+        fecha: firebase.firestore.FieldValue.serverTimestamp(),
+        monto_usd_original: montoUsd 
+    };
+
+    const cotizacion = parseFloat(formData.get('cotizacion_dolar'));
+    if (isNaN(cotizacion) || cotizacion <= 0) {
+        showGlobalFeedback("La cotización del dólar es requerida para registrar el gasto.", "error");
+        toggleSpinner(btn, false);
+        return;
+    }
+    
+    gastoData.cotizacion_dolar = cotizacion;
+
+    if (metodoPago.startsWith('Pesos')) {
+        const montoArs = parseFloat(formData.get('monto_ars'));
+        if (isNaN(montoArs) || montoArs <= 0) {
+            showGlobalFeedback("El monto en ARS es inválido.", "error");
+            toggleSpinner(btn, false);
+            return;
+        }
+        gastoData.monto = montoArs;
+        gastoData.metodo_pago = metodoPago;
+    } else { // Dólares
+        gastoData.monto = montoUsd;
+        gastoData.metodo_pago = 'Dólares';
+    }
+
+    const vendorRef = db.collection('vendedores').doc(vendorName);
+
+    try {
+        await db.runTransaction(async (t) => {
+            const vendorDoc = await t.get(vendorRef);
+            if (!vendorDoc.exists) {
+                throw new Error(`El vendedor ${vendorName} no existe en la base de datos.`);
+            }
+
+            t.update(vendorRef, {
+                comision_pendiente_usd: firebase.firestore.FieldValue.increment(-montoUsd)
+            });
+
+            const gastoRef = db.collection('gastos').doc();
+            t.set(gastoRef, gastoData);
+
+            const pagoComisionRef = db.collection('pagos_comisiones').doc();
+            t.set(pagoComisionRef, {
+                monto_usd: montoUsd,
+                metodo_pago: metodoPago,
+                vendedor: vendorName,
+                fecha: gastoData.fecha,
+                descripcion,
+                gastoAsociadoId: gastoRef.id
+            });
+        });
+
+        showGlobalFeedback('Pago de comisión registrado con éxito.', 'success');
+        s.promptContainer.innerHTML = '';
+        loadCommissions();
+        updateReports();
+
+    } catch (error) {
+        console.error("Error al registrar el pago de comisión:", error);
+        showGlobalFeedback(error.message || 'Error al registrar el pago.', 'error');
+    } finally {
+        toggleSpinner(btn, false);
+    }
+}
+
+
+async function showCommissionPaymentHistory(vendorName) {
+    const historyContainerId = `history-${vendorName.replace(/\s+/g, '')}`;
+    const historyContainer = document.getElementById(historyContainerId);
+    if (!historyContainer) return;
+
+    try {
+        const snapshot = await db.collection('pagos_comisiones')
+            .where('vendedor', '==', vendorName)
+            .orderBy('fecha', 'desc')
+            .limit(10)
+            .get();
+
+        if (snapshot.empty) {
+            historyContainer.innerHTML = '';
+            return;
+        }
+
+        let historyHtml = '<h4>Últimos Pagos Realizados:</h4><ul>';
+        snapshot.forEach(doc => {
+            const pago = doc.data();
+            const pagoId = doc.id;
+            
+            historyHtml += `
+            <li class="commission-payment-item">
+                <span>${new Date(pago.fecha.seconds * 1000).toLocaleDateString()} - <strong>${formatearUSD(pago.monto_usd)}</strong> <span>(${pago.metodo_pago})</span></span>
+                <button class="delete-btn btn-delete-commission-payment" 
+                        title="Revertir este pago"
+                        data-pago-id="${pagoId}"
+                        data-pago-item='${JSON.stringify(pago).replace(/'/g, "\\'")}'>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                </button>
+            </li>`;
+        });
+        historyHtml += '</ul>';
+        historyContainer.innerHTML = historyHtml;
+
+        historyContainer.querySelectorAll('.btn-delete-commission-payment').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const pagoId = e.currentTarget.dataset.pagoId;
+                const pagoItem = JSON.parse(e.currentTarget.dataset.pagoItem.replace(/\\'/g, "'"));
+                deleteCommissionPayment(pagoId, pagoItem);
+            });
+        });
+
+    } catch (error) {
+        console.error(`Error al cargar historial de pagos para ${vendorName}:`, error);
+        historyContainer.innerHTML = '<p style="color:var(--error-bg); font-size: 0.8rem;">Error al cargar historial.</p>';
+    }
+}
+
+async function deleteCommissionPayment(pagoId, pagoData) {
+    const { monto_usd, vendedor, gastoAsociadoId, fecha, metodo_pago } = pagoData;
+
+    const message = `¿Seguro que quieres revertir este pago de ${formatearUSD(monto_usd)} a ${vendedor}?\n\nEsta acción hará lo siguiente:\n- Se eliminará el registro del pago.\n- Se eliminará el gasto correspondiente de la caja.\n- La deuda de comisión del vendedor AUMENTARÁ en ${formatearUSD(monto_usd)}.`;
+
+    showConfirmationModal('Confirmar Reversión de Pago', message, async () => {
+        try {
+            await db.runTransaction(async t => {
+                const pagoRef = db.collection('pagos_comisiones').doc(pagoId);
+                const vendorRef = db.collection('vendedores').doc(vendedor);
+
+                if (gastoAsociadoId) {
+                    const gastoRef = db.collection('gastos').doc(gastoAsociadoId);
+                    t.delete(gastoRef);
+                } else {
+                    const fiveSecondsBefore = new Date(fecha.seconds * 1000 - 5000);
+                    const fiveSecondsAfter = new Date(fecha.seconds * 1000 + 5000);
+
+                    const gastosQuery = db.collection('gastos')
+                        .where('categoria', '==', 'Comisiones')
+                        .where('vendedor', '==', vendedor)
+                        .where('monto_usd_original', '==', monto_usd)
+                        .where('metodo_pago', '==', metodo_pago)
+                        .where('fecha', '>=', fiveSecondsBefore)
+                        .where('fecha', '<=', fiveSecondsAfter)
+                        .limit(1);
+                    
+                    const gastosSnap = await gastosQuery.get();
+                    if (!gastosSnap.empty) {
+                        const gastoDoc = gastosSnap.docs[0];
+                        t.delete(gastoDoc.ref);
+                    } else {
+                        console.warn(`No se encontró un gasto coincidente para revertir el pago de comisión ${pagoId}. La deuda se restaurará, pero el gasto podría permanecer.`);
+                        showGlobalFeedback('No se encontró el gasto asociado, podría quedar un registro huérfano.', 'error', 5000);
+                    }
+                }
+                
+                t.delete(pagoRef);
+                
+                t.update(vendorRef, {
+                    comision_pendiente_usd: firebase.firestore.FieldValue.increment(monto_usd)
+                });
+            });
+
+            showGlobalFeedback('Pago de comisión revertido con éxito.', 'success');
+            loadCommissions();
+            updateReports();
+
+        } catch (error) {
+            console.error("Error al revertir pago de comisión:", error);
+            showGlobalFeedback('No se pudo revertir el pago. Revisa la consola.', 'error');
+        }
+    });
+}
+
 
 async function generarCajaDiaria() {
     const fechaSeleccionada = s.filterSalesEndDate.value;
@@ -1744,6 +2514,125 @@ function mostrarReporteCaja(fecha, totalVentas, totalCosto, gananciaNeta, errore
     document.getElementById('btn-cerrar-reporte').onclick = () => { s.promptContainer.innerHTML = ''; };
 }
 
+async function promptToAddGasto() {
+    const categoriaOptions = gastosCategorias.map(c => `<option value="${c}">${c}</option>`).join('');
+    const metodoOptions = metodosDePago.map(m => `<option value="${m}">${m}</option>`).join('');
+    const accesoriosOptions = accesoriosSubcategorias.map(s => `<option value="${s}">${s}</option>`).join('');
+
+    s.promptContainer.innerHTML = `
+    <div class="ingreso-modal-box">
+        <h3>Registrar Nuevo Gasto</h3>
+        <form id="gasto-form" novalidate>
+            <div class="form-group">
+                <select id="gasto-categoria" name="categoria" required>
+                    <option value="" disabled selected></option>
+                    ${categoriaOptions}
+                </select>
+                <label for="gasto-categoria">Categoría</label>
+            </div>
+
+            <div id="accesorios-subcategoria-group" class="form-group hidden">
+                <select id="gasto-accesorio-subcategoria" name="subcategoria">
+                    <option value="" disabled selected></option>
+                    ${accesoriosOptions}
+                </select>
+                <label for="gasto-accesorio-subcategoria">Subcategoría de Accesorio</label>
+            </div>
+            
+            <div id="detalle-otro-group" class="form-group hidden">
+                 <input type="text" id="gasto-detalle-otro" name="detalle_otro" placeholder=" ">
+                 <label for="gasto-detalle-otro">Especificar Detalle</label>
+            </div>
+
+            <div class="form-group">
+                <input type="number" id="gasto-monto" name="monto" required placeholder=" " step="0.01">
+                <label for="gasto-monto">Monto del Gasto</label>
+            </div>
+
+            <div class="form-group">
+                <select id="gasto-metodo" name="metodo_pago" required>
+                     <option value="" disabled selected></option>
+                    ${metodoOptions}
+                </select>
+                <label for="gasto-metodo">Pagado con</label>
+            </div>
+
+            <div class="form-group">
+                <textarea id="gasto-descripcion" name="descripcion" rows="1" placeholder=" "></textarea>
+                <label for="gasto-descripcion">Descripción (opcional)</label>
+            </div>
+
+            <div class="prompt-buttons">
+                <button type="submit" class="prompt-button confirm spinner-btn">
+                    <span class="btn-text">Guardar Gasto</span>
+                    <div class="spinner"></div>
+                </button>
+                <button type="button" class="prompt-button cancel">Cancelar</button>
+            </div>
+        </form>
+    </div>`;
+
+    const categoriaSelect = document.getElementById('gasto-categoria');
+    const accesoriosGroup = document.getElementById('accesorios-subcategoria-group');
+    const otroGroup = document.getElementById('detalle-otro-group');
+
+    categoriaSelect.addEventListener('change', () => {
+        const selectedCategory = categoriaSelect.value;
+        accesoriosGroup.classList.toggle('hidden', selectedCategory !== 'Accesorios');
+        otroGroup.classList.toggle('hidden', selectedCategory !== 'Otro' && selectedCategory !== 'Repuestos');
+    });
+
+    const textarea = document.getElementById('gasto-descripcion');
+    if (textarea) {
+        textarea.addEventListener('input', () => {
+            textarea.style.height = 'auto';
+            textarea.style.height = (textarea.scrollHeight) + 'px';
+        });
+    }
+}
+
+async function saveGasto(btn) {
+    toggleSpinner(btn, true);
+    const form = btn.form;
+    const formData = new FormData(form);
+    
+    const gastoData = {
+        categoria: formData.get('categoria'),
+        monto: parseFloat(formData.get('monto')),
+        metodo_pago: formData.get('metodo_pago'),
+        descripcion: formData.get('descripcion'),
+        fecha: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    
+    if (gastoData.categoria === 'Accesorios') {
+        gastoData.subcategoria = formData.get('subcategoria');
+    }
+    if (gastoData.categoria === 'Otro' || gastoData.categoria === 'Repuestos') {
+        gastoData.detalle_otro = formData.get('detalle_otro');
+    }
+
+    if (!gastoData.categoria || !gastoData.monto || !gastoData.metodo_pago) {
+        showGlobalFeedback("Por favor, completa los campos obligatorios.", "error");
+        toggleSpinner(btn, false);
+        return;
+    }
+
+    try {
+        await db.collection('gastos').add(gastoData);
+        showGlobalFeedback('Gasto registrado con éxito', 'success');
+        s.promptContainer.innerHTML = '';
+        if(s.gastosSection && !s.gastosSection.classList.contains('hidden')) {
+            loadGastos();
+        }
+        updateReports();
+    } catch (error) {
+        console.error("Error al guardar el gasto:", error);
+        showGlobalFeedback('Error al registrar el gasto', 'error');
+    } finally {
+        toggleSpinner(btn, false);
+    }
+}
+
 async function loadGastos() {
     s.gastosList.innerHTML = `<p class="dashboard-loader">Cargando gastos...</p>`;
     if (gastosChart) gastosChart.destroy();
@@ -1767,11 +2656,20 @@ async function loadGastos() {
         let query = db.collection('gastos').orderBy('fecha', 'desc').where('fecha', '>=', inicioDelRango).where('fecha', '<=', finDelRango);
         const snapshot = await query.get();
         const gastos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
         const gastosPorCategoria = gastos.reduce((acc, gasto) => {
-            const monto = gasto.moneda === 'USD' ? gasto.monto * (gasto.cotizacion_dolar || 1) : gasto.monto; 
-            acc[gasto.categoria] = (acc[gasto.categoria] || 0) + (monto || 0);
+            let montoArs = 0;
+            if (gasto.metodo_pago.startsWith('Pesos')) {
+                montoArs = gasto.monto || 0;
+            } else if (gasto.metodo_pago === 'Dólares' && gasto.categoria === 'Comisiones') {
+                montoArs = (gasto.monto_usd_original || 0) * (gasto.cotizacion_dolar || 0);
+            }
+            if (montoArs > 0) {
+                acc[gasto.categoria] = (acc[gasto.categoria] || 0) + montoArs;
+            }
             return acc;
         }, {});
+        
         renderGastosChart(gastos, gastosPorCategoria);
         renderGastosList(gastos);
     } catch (error) {
@@ -1795,7 +2693,7 @@ function renderGastosChart(gastos, gastosPorCategoria) {
             const centerY = (chart.chartArea.top + chart.chartArea.bottom) / 2;
             ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             ctx.font = '500 16px -apple-system, sans-serif'; ctx.fillStyle = '#86868b';
-            ctx.fillText('Total Gastado', centerX, centerY - 12);
+            ctx.fillText('Total Gastado (ARS)', centerX, centerY - 12);
             ctx.font = 'bold 24px -apple-system, sans-serif'; ctx.fillStyle = '#ffffff';
             ctx.fillText(formatearARS(totalGastos), centerX, centerY + 12);
             ctx.restore();
@@ -1834,118 +2732,30 @@ function renderGastosList(gastos) {
     }
     s.gastosList.innerHTML = gastos.map(gasto => {
         let desc = gasto.descripcion || 'Sin detalles';
-        if (gasto.categoria === 'Accesorios' && gasto.subcategoria) desc = `${gasto.subcategoria}${gasto.detalle_otro ? `: ${gasto.detalle_otro}` : ''} - ${desc}`;
-        if (gasto.categoria === 'Otro' && gasto.detalle_otro) desc = `${gasto.detalle_otro} - ${desc}`;
-        const montoFormateado = gasto.metodo_pago === 'Dólares' ? formatearUSD(gasto.monto) : formatearARS(gasto.monto);
+        let montoFormateado;
+        let deleteButton;
+
+        if (gasto.categoria === 'Comisiones') {
+            desc = `Pago a ${gasto.vendedor}. ${gasto.descripcion || ''}`;
+            if (gasto.metodo_pago.startsWith('Pesos')) {
+                montoFormateado = `${formatearARS(gasto.monto)} <small>(${formatearUSD(gasto.monto_usd_original)})</small>`;
+            } else {
+                montoFormateado = formatearUSD(gasto.monto);
+            }
+            deleteButton = `<button class="delete-btn" title="Revertir desde la pestaña Comisiones" disabled><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>`;
+        } else {
+            if (gasto.categoria === 'Accesorios' && gasto.subcategoria) desc = `${gasto.subcategoria}${gasto.detalle_otro ? `: ${gasto.detalle_otro}` : ''} - ${desc}`;
+            if (gasto.categoria === 'Otro' && gasto.detalle_otro) desc = `${gasto.detalle_otro} - ${desc}`;
+            montoFormateado = gasto.metodo_pago === 'Dólares' ? formatearUSD(gasto.monto) : formatearARS(gasto.monto);
+            deleteButton = `<button class="delete-btn" title="Eliminar Gasto" onclick="deleteGasto('${gasto.id}', '${gasto.categoria}', ${gasto.monto})"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>`;
+        }
+
         return `<div class="gasto-item" style="border-color: ${categoriaColores[gasto.categoria] || '#cccccc'};">
             <div class="gasto-item-info"><div class="gasto-item-cat">${gasto.categoria}</div><div class="gasto-item-desc">${desc}</div></div>
             <div class="gasto-item-details"><div class="gasto-item-amount">${montoFormateado}</div><div class="gasto-item-date">${new Date((gasto.fecha?.seconds || 0) * 1000).toLocaleDateString('es-AR')}</div></div>
-            <div class="gasto-item-actions"><button class="delete-btn" title="Eliminar Gasto" onclick="deleteGasto('${gasto.id}', '${gasto.categoria}', ${gasto.monto})"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button></div>
+            <div class="gasto-item-actions">${deleteButton}</div>
         </div>`;
     }).join('');
-}
-
-function promptToAddGasto() {
-    const categoriaOptions = gastosCategorias.map(c => `<option value="${c}">${c}</option>`).join('');
-    const metodoOptions = metodosDePago.map(m => `<option value="${m}">${m}</option>`).join('');
-
-    s.promptContainer.innerHTML = `
-    <div class="ingreso-modal-box">
-        <h3>Registrar Nuevo Gasto</h3>
-        <form id="gasto-form" novalidate>
-             <div class="form-group">
-                <input type="number" id="gasto-monto" name="monto" required placeholder=" " step="0.01">
-                <label for="gasto-monto">Monto</label>
-            </div>
-            <div class="form-group">
-                <select id="gasto-metodo" name="metodo_pago" required>${metodoOptions}</select>
-                <label for="gasto-metodo">Método de Pago</label>
-            </div>
-            <div class="form-group">
-                <select id="gasto-categoria" name="categoria" required>
-                    <option value="" disabled selected></option>
-                    ${categoriaOptions}
-                </select>
-                <label for="gasto-categoria">Categoría</label>
-            </div>
-            <div id="accesorios-fields" class="form-group hidden">
-                <label for="gasto-subcategoria">Tipo de Accesorio</label>
-                <select id="gasto-subcategoria" name="subcategoria">
-                    <option value="">Seleccione...</option>
-                    ${accesoriosSubcategorias.map(sc => `<option value="${sc}">${sc}</option>`).join('')}
-                </select>
-            </div>
-            <div id="otro-detalle-field" class="form-group hidden">
-                <input type="text" id="gasto-detalle-otro" name="detalle_otro" placeholder=" ">
-                <label for="gasto-detalle-otro">Especificar</label>
-            </div>
-            <div class="form-group">
-                <textarea id="gasto-descripcion" name="descripcion" rows="1" placeholder=" "></textarea>
-                <label for="gasto-descripcion">Descripción (opcional)</label>
-            </div>
-            <div class="prompt-buttons">
-                <button type="submit" class="prompt-button confirm spinner-btn"><span class="btn-text">Guardar Gasto</span><div class="spinner"></div></button>
-                <button type="button" class="prompt-button cancel">Cancelar</button>
-            </div>
-        </form>
-    </div>`;
-    
-    const form = document.getElementById('gasto-form');
-    const categoriaSelect = document.getElementById('gasto-categoria');
-    const subcategoriaSelect = document.getElementById('gasto-subcategoria');
-    const accesoriosFields = document.getElementById('accesorios-fields');
-    const otroDetalleField = document.getElementById('otro-detalle-field');
-
-    const toggleConditionalFields = () => {
-        const categoria = categoriaSelect.value;
-        accesoriosFields.classList.toggle('hidden', categoria !== 'Accesorios');
-        otroDetalleField.classList.toggle('hidden', categoria !== 'Otro' && subcategoriaSelect.value !== 'Otro');
-    };
-    
-    categoriaSelect.addEventListener('change', toggleConditionalFields);
-    subcategoriaSelect.addEventListener('change', toggleConditionalFields);
-    
-    const textarea = document.getElementById('gasto-descripcion');
-    if (textarea) {
-        textarea.addEventListener('input', () => {
-            textarea.style.height = 'auto';
-            textarea.style.height = (textarea.scrollHeight) + 'px';
-        });
-    }
-}
-
-
-async function saveGasto(btn) {
-    toggleSpinner(btn, true);
-    const form = btn.form;
-    const formData = new FormData(form);
-    
-    const gastoData = {
-        monto: parseFloat(formData.get('monto')), 
-        metodo_pago: formData.get('metodo_pago'),
-        categoria: formData.get('categoria'),
-        descripcion: formData.get('descripcion'), 
-        fecha: firebase.firestore.FieldValue.serverTimestamp()
-    };
-
-    if (gastoData.categoria === 'Accesorios') {
-        gastoData.subcategoria = formData.get('subcategoria');
-        if (gastoData.subcategoria === 'Otro') gastoData.detalle_otro = formData.get('detalle_otro');
-    } else if (gastoData.categoria === 'Otro') {
-        gastoData.detalle_otro = formData.get('detalle_otro');
-    }
-    try {
-        await db.collection('gastos').add(gastoData);
-        showGlobalFeedback('Gasto registrado con éxito', 'success');
-        s.promptContainer.innerHTML = '';
-        if(s.gastosSection && !s.gastosSection.classList.contains('hidden')) loadGastos();
-        updateReports();
-    } catch (error) {
-        console.error("Error al guardar el gasto:", error);
-        showGlobalFeedback('Error al registrar el gasto', 'error');
-    } finally {
-        toggleSpinner(btn, false);
-    }
 }
 
 
@@ -2097,10 +2907,9 @@ function promptToEditSale(sale, saleId) {
     const metodoPagoSelect = form.querySelector('[name="metodoPago"]');
     const vendedorSelect = form.querySelector('[name="vendedor"]');
     const toggleSaleFields = () => {
-        const pago = metodoPagoSelect.value;
-        form.querySelector('#pesos-efectivo-fields').classList.toggle('hidden', pago !== 'Pesos (Efectivo)');
-        form.querySelector('#pesos-transferencia-fields').classList.toggle('hidden', pago !== 'Pesos (Transferencia)');
-        form.querySelector('#cotizacion-dolar-field').classList.toggle('hidden', !pago.startsWith('Pesos'));
+        form.querySelector('#pesos-efectivo-fields').classList.toggle('hidden', metodoPagoSelect.value !== 'Pesos (Efectivo)');
+        form.querySelector('#pesos-transferencia-fields').classList.toggle('hidden', metodoPagoSelect.value !== 'Pesos (Transferencia)');
+        form.querySelector('#cotizacion-dolar-field').classList.toggle('hidden', !metodoPagoSelect.value.startsWith('Pesos'));
         form.querySelector('#comision-vendedor-field').classList.toggle('hidden', !vendedorSelect.value);
     };
     toggleSaleFields();
@@ -2232,11 +3041,13 @@ function startScanner() {
         feedbackText = `Escanea el IMEI para el ${canjeContext.modelo} del plan canje...`;
     } else if (batchLoadContext) {
         feedbackText = `Cargando lote de ${batchLoadContext.model}. Escanea el siguiente IMEI.`;
+    } else if (wholesaleSaleContext) {
+        feedbackText = `Escanea el IMEI del equipo para la venta a ${wholesaleSaleContext.clientName}.`;
     }
     
     showFeedback(feedbackText, 'info');
 
-    s.scanOptions.classList.add('hidden');
+    s.scanOptions.classList.remove('hidden');
     s.scannerContainer.classList.remove('hidden');
     html5QrCode.start(
         { facingMode: "environment" }, 
@@ -2256,6 +3067,7 @@ function promptForManualImeiInput(e) {
     let promptTitle = 'Ingresar IMEI Manualmente';
     if (canjeContext) promptTitle = `Ingresar IMEI para ${canjeContext.modelo}`;
     else if (batchLoadContext) promptTitle = `Ingresar IMEI para ${batchLoadContext.model}`;
+    else if (wholesaleSaleContext) promptTitle = `Ingresar IMEI para venta a ${wholesaleSaleContext.clientName}`;
 
     s.promptContainer.innerHTML = `<div class="container container-sm"><div class="prompt-box"><h3>${promptTitle}</h3><p style="color: var(--text-muted); margin-bottom: 1.5rem; text-align: center;">Escribe el IMEI para buscarlo o agregarlo.</p><div class="form-group"><label for="manual-imei-input">IMEI</label><input type="text" id="manual-imei-input" placeholder="Ingresa el IMEI aquí..."></div><div class="prompt-buttons"><button id="btn-search-manual-imei" class="prompt-button confirm">Buscar / Continuar</button><button class="prompt-button cancel">Cancelar</button></div></div></div>`;
     
@@ -2287,6 +3099,8 @@ async function onScanSuccess(imei) {
         canjeContext = null;
     } else if (batchLoadContext) {
         showAddProductForm(null, imei, batchLoadContext.model);
+    } else if (wholesaleSaleContext) {
+        await processWholesaleItem(imei);
     } else {
         showFeedback("Buscando IMEI...", "loading");
         try {
@@ -2353,7 +3167,8 @@ async function registerSale(imei, productDetails, btn) {
     const saleData = {
         imei_vendido: imei, producto: productDetails, precio_venta_usd: parseFloat(formData.get('precioVenta')) || 0,
         metodo_pago: metodoPago, vendedor: formData.get('vendedor'), comision_vendedor_usd: parseFloat(formData.get('comision_vendedor_usd')) || 0,
-        fecha_venta: firebase.firestore.FieldValue.serverTimestamp(), hubo_canje: formData.get('acepta-canje') === 'on'
+        fecha_venta: firebase.firestore.FieldValue.serverTimestamp(), hubo_canje: formData.get('acepta-canje') === 'on',
+        comision_pagada: false
     };
     if (metodoPago.startsWith('Pesos')) {
         saleData.cotizacion_dolar = parseFloat(formData.get('cotizacion_dolar')) || 0;
@@ -2480,48 +3295,272 @@ async function handleProductFormSubmit(e) {
     }
 }
 
-function resetManagementView(isBatchLoad = false) {
-     s.promptContainer.innerHTML = ''; 
-     s.productForm.reset();
-     s.productForm.classList.add('hidden');
-     s.scanOptions.classList.remove('hidden');
-     s.scannerContainer.classList.add('hidden');
-     s.feedbackMessage.classList.add('hidden');
-     s.managementTitle.textContent = "Gestión de IMEI";
-     s.productFormSubmitBtn.querySelector('.btn-text').textContent = "Guardar Producto";
-     
-     const existingEndBatchBtn = document.getElementById('btn-end-batch');
-     if (existingEndBatchBtn) {
-         existingEndBatchBtn.remove();
-     }
+function resetManagementView(isBatchLoad = false, isCanje = false, isWholesaleSale = false) {
+    s.promptContainer.innerHTML = '';
+    s.feedbackMessage.classList.add('hidden');
 
-     if (!isBatchLoad) {
-         batchLoadContext = null;
-         canjeContext = null;
-     } else if (batchLoadContext) {
-         s.managementTitle.textContent = `Cargando lote: ${batchLoadContext.model}`;
-         
-         const endBatchBtn = document.createElement('button');
-         endBatchBtn.id = 'btn-end-batch';
-         endBatchBtn.className = 'control-btn';
-         endBatchBtn.style.backgroundColor = 'var(--error-bg)';
-         endBatchBtn.textContent = 'Finalizar Carga de Lote';
-         endBatchBtn.onclick = () => {
-             const loadedCount = batchLoadContext.count;
-             showGlobalFeedback(`Carga de lote finalizada. Se cargaron ${loadedCount} equipos.`, 'success', 4000);
-             batchLoadContext = null;
-             resetManagementView();
-             switchView('providers', s.tabProviders);
-         };
-         s.scanOptions.appendChild(endBatchBtn);
-     }
-     
-     delete s.productForm.dataset.mode;
-     delete s.productForm.dataset.canjeId;
+    const wholesaleLoader = s.managementView.querySelector('#wholesale-sale-imei-loader');
+    if (wholesaleLoader) wholesaleLoader.remove();
+    
+    s.productForm.querySelectorAll('.form-group, #product-form-submit-btn').forEach(el => {
+        el.style.display = 'block';
+    });
+
+    s.productForm.reset();
+    s.productForm.classList.add('hidden');
+    
+    s.scanOptions.classList.remove('hidden');
+    s.scannerContainer.classList.add('hidden');
+
+    s.managementTitle.textContent = "Gestión de IMEI";
+    if (s.productFormSubmitBtn) {
+        s.productFormSubmitBtn.querySelector('.btn-text').textContent = "Guardar Producto";
+    }
+
+    const existingEndBtn = s.managementView.querySelector('#btn-end-process');
+    if (existingEndBtn) existingEndBtn.remove();
+    
+    if (!isBatchLoad) batchLoadContext = null;
+    if (!isCanje) canjeContext = null;
+    if (!isWholesaleSale) wholesaleSaleContext = null;
+
+    let endBtn;
+    if (isBatchLoad && batchLoadContext) {
+        s.managementTitle.textContent = `Cargando lote: ${batchLoadContext.model} (${batchLoadContext.count} cargados)`;
+        endBtn = document.createElement('button');
+        endBtn.id = 'btn-end-process';
+        endBtn.className = 'control-btn';
+        endBtn.style.backgroundColor = 'var(--error-bg)';
+        endBtn.textContent = 'Finalizar Carga de Lote';
+        endBtn.onclick = () => {
+            showGlobalFeedback(`Carga de lote finalizada. Se cargaron ${batchLoadContext.count} equipos.`, 'success', 4000);
+            batchLoadContext = null;
+            resetManagementView();
+            switchView('providers', s.tabProviders);
+        };
+        s.scanOptions.appendChild(endBtn);
+    } else if (isWholesaleSale && wholesaleSaleContext) {
+        renderWholesaleLoader();
+        s.scanOptions.classList.remove('hidden');
+        endBtn = document.createElement('button');
+        endBtn.id = 'btn-end-process';
+        endBtn.className = 'control-btn';
+        endBtn.style.backgroundColor = 'var(--success-bg)';
+        endBtn.textContent = 'Finalizar y Registrar Venta';
+        endBtn.onclick = () => finalizeWholesaleSale();
+        s.managementTitle.insertAdjacentElement('afterend', endBtn);
+    }
+    
+    delete s.productForm.dataset.mode;
+    delete s.productForm.dataset.canjeId;
 }
+
 
 function showFeedback(message, type = 'info') {
     s.feedbackMessage.textContent = message;
     s.feedbackMessage.className = `feedback-message ${type}`;
     s.feedbackMessage.classList.remove('hidden');
+}
+
+async function showWholesaleHistory(clientId, clientName) {
+    s.promptContainer.innerHTML = `
+    <div class="container wholesale-history-modal">
+        <h3>Historial de Compras</h3>
+        <p class="client-name-subtitle">${clientName}</p>
+        <div id="wholesale-history-content" class="table-container">
+            <p class="dashboard-loader">Cargando historial de compras...</p>
+        </div>
+        <div class="prompt-buttons" style="justify-content: center; margin-top: 1.5rem;">
+            <button class="prompt-button cancel">Cerrar</button>
+        </div>
+    </div>`;
+
+    const contentDiv = document.getElementById('wholesale-history-content');
+    try {
+        const snapshot = await db.collection('ventas_mayoristas')
+            .where('clienteId', '==', clientId)
+            .orderBy('fecha_venta', 'desc')
+            .get();
+
+        if (snapshot.empty) {
+            contentDiv.innerHTML = '<p class="dashboard-loader">Este cliente no tiene compras registradas.</p>';
+            return;
+        }
+
+        const sales = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+        const tableHTML = `
+            <table>
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>ID Venta</th>
+                        <th>Equipos</th>
+                        <th>Total Venta</th>
+                        <th style="text-align:right;">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${sales.map(sale => {
+                        const saleJSON = JSON.stringify(sale).replace(/'/g, "\\'");
+                        return `
+                        <tr data-sale-id="${sale.id}" data-sale-item='${saleJSON}'>
+                            <td>${sale.fecha_venta.toDate().toLocaleString('es-AR')}</td>
+                            <td>${sale.venta_id_manual}</td>
+                            <td>${sale.cantidad_equipos}</td>
+                            <td>${formatearUSD(sale.total_venta_usd)}</td>
+                            <td class="actions-cell">
+                                <button class="control-btn btn-secondary" disabled title="Próximamente">Ver Detalle</button>
+                                <button class="control-btn btn-revert-sale">Revertir</button>
+                            </td>
+                        </tr>
+                    `}).join('')}
+                </tbody>
+            </table>`;
+        contentDiv.innerHTML = tableHTML;
+        
+        contentDiv.querySelectorAll('.btn-revert-sale').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const row = e.currentTarget.closest('tr');
+                const saleItem = JSON.parse(row.dataset.saleItem.replace(/\\'/g, "'"));
+                revertWholesaleSale(row.dataset.saleId, saleItem);
+            });
+        });
+
+    } catch (error) {
+        handleDBError(error, contentDiv, 'historial de compras');
+    }
+}
+
+function revertWholesaleSale(masterSaleId, masterSaleData) {
+    const message = `¿Estás seguro de que quieres revertir la venta <strong>${masterSaleData.venta_id_manual}</strong> por un total de <strong>${formatearUSD(masterSaleData.total_venta_usd)}</strong>?
+    <br><br>
+    <strong style="color:var(--error-bg);">¡ATENCIÓN!</strong> Esta acción es irreversible y hará lo siguiente:
+    <ul>
+        <li>Los <strong>${masterSaleData.cantidad_equipos} equipos</strong> de esta venta volverán al stock.</li>
+        <li>Se eliminarán todos los registros de venta asociados.</li>
+        <li>El total comprado del cliente <strong>${masterSaleData.clienteNombre}</strong> se reducirá.</li>
+    </ul>`;
+
+    showConfirmationModal('Confirmar Reversión de Venta Mayorista', message, async () => {
+        try {
+            await db.runTransaction(async t => {
+                const masterSaleRef = db.collection('ventas_mayoristas').doc(masterSaleId);
+                const clientRef = db.collection('clientes_mayoristas').doc(masterSaleData.clienteId);
+
+                const individualSalesQuery = db.collection('ventas').where('venta_mayorista_ref', '==', masterSaleId);
+                const individualSalesSnapshot = await individualSalesQuery.get(); 
+                
+                if (individualSalesSnapshot.empty) {
+                    throw new Error("No se encontraron los registros de venta individuales para revertir. Operación cancelada para evitar inconsistencias.");
+                }
+
+                for (const doc of individualSalesSnapshot.docs) {
+                    const ventaIndividual = doc.data();
+                    const imei = ventaIndividual.imei_vendido;
+                    const stockRef = db.collection('stock_individual').doc(imei);
+                    
+                    t.update(stockRef, { estado: 'en_stock' });
+                    t.delete(doc.ref);
+                }
+
+                t.update(clientRef, {
+                    total_comprado_usd: firebase.firestore.FieldValue.increment(-masterSaleData.total_venta_usd)
+                });
+                
+                t.delete(masterSaleRef);
+            });
+
+            showGlobalFeedback(`Venta ${masterSaleData.venta_id_manual} revertida con éxito.`, 'success');
+            showWholesaleHistory(masterSaleData.clienteId, masterSaleData.clienteNombre);
+            loadWholesaleClients();
+
+        } catch (error) {
+            console.error("Error al revertir la venta mayorista:", error);
+            showGlobalFeedback(error.message || "Error crítico al revertir la venta. Revisa la consola.", "error", 6000);
+            s.promptContainer.innerHTML = '';
+        }
+    });
+}
+
+async function resyncWholesaleClientTotal(clientId, clientName) {
+    const message = `Esto recalculará el "Total Comprado" para <strong>${clientName}</strong> basándose en su historial de ventas guardado.
+    <br><br>
+    Esta acción es útil si el total parece incorrecto. ¿Deseas continuar?`;
+    
+    showConfirmationModal('Recalcular Total del Cliente', message, async () => {
+        try {
+            showGlobalFeedback('Resincronizando... por favor espera.', 'info', 2000);
+
+            const salesSnapshot = await db.collection('ventas_mayoristas')
+                .where('clienteId', '==', clientId)
+                .get();
+
+            let newTotal = 0;
+            salesSnapshot.forEach(doc => {
+                newTotal += doc.data().total_venta_usd || 0;
+            });
+
+            await db.collection('clientes_mayoristas').doc(clientId).update({
+                total_comprado_usd: newTotal
+            });
+
+            showGlobalFeedback(`¡Éxito! Total para "${clientName}" actualizado a ${formatearUSD(newTotal)}.`, 'success');
+            loadWholesaleClients();
+
+        } catch (error) {
+            console.error("Error al resincronizar el total del cliente:", error);
+            showGlobalFeedback("Error al resincronizar. Revisa la consola.", "error");
+        }
+    });
+}
+function renderWholesaleClients(clients) {
+    s.wholesaleClientsListContainer.innerHTML = clients.map(client => {
+        const totalComprado = client.total_comprado_usd || 0;
+        const ultimaCompra = client.fecha_ultima_compra ? new Date(client.fecha_ultima_compra.seconds * 1000).toLocaleDateString('es-AR') : 'Nunca';
+        const deleteTitle = totalComprado > 0 ? 'No se puede eliminar un cliente con compras' : 'Eliminar Cliente';
+
+        return `
+        <div class="wholesale-client-item" data-client-id="${client.id}">
+            <div class="client-item-main">
+                <div class="client-item-info">
+                    <h3>${client.nombre}</h3>
+                    <div class="client-item-stats">
+                        <span>Total Comprado: <strong>${formatearUSD(totalComprado)}</strong></span>
+                        <span>Última Compra: <strong>${ultimaCompra}</strong></span>
+                    </div>
+                </div>
+                <div class="client-item-actions">
+                    <button class="control-btn btn-new-wholesale-sale">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14m-7-7h14" /></svg>
+                        Registrar Venta
+                    </button>
+                    <button class="control-btn btn-secondary btn-view-wholesale-history">
+                        Historial
+                    </button>
+                    
+                    <button class="icon-btn btn-resync-client" title="Recalcular Total Comprado" style="background-color: #3498db;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                    </button>
+                    <button class="delete-icon-btn btn-delete-wholesale-client" title="${deleteTitle}" ${totalComprado > 0 ? 'disabled' : ''}>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    </button>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function deleteWholesaleClient(clientId, clientName) {
+    const message = `¿Estás seguro de que quieres eliminar al cliente "${clientName}"?\n\nEsta acción es irreversible. Sus compras históricas NO se eliminarán.`;
+    showConfirmationModal('Confirmar Eliminación', message, async () => {
+        try {
+            await db.collection('clientes_mayoristas').doc(clientId).delete();
+            showGlobalFeedback(`Cliente "${clientName}" eliminado.`, 'success');
+            loadWholesaleClients();
+        } catch (error) {
+            console.error("Error eliminando cliente:", error);
+            showGlobalFeedback('No se pudo eliminar el cliente.', 'error');
+        }
+    });
 }

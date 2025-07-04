@@ -762,13 +762,7 @@ td.actions-cell {
     .logo-animado { 
         max-width: 150px; 
     }
-    .dashboard-controls { 
-        flex-wrap: nowrap;
-        gap: 1rem;
-    }
     .control-btn {
-        flex: 1 1 auto;
-        width: auto;
         font-size: 1rem;
     }
     .filters-container {
@@ -797,8 +791,6 @@ td.actions-cell {
         justify-content: space-between;
     }
 }
-
-/* --- ESTILOS PARA LA SECCIÓN DE GASTOS --- */
 
 .gastos-header {
     display: flex;
@@ -907,7 +899,6 @@ td.actions-cell {
     }
 }
 
-/* --- ESTILOS PARA EL CONTENEDOR DE FORMULARIOS MODALES --- */
 #prompt-container:not(:empty) {
     position: fixed;
     top: 0;
@@ -924,7 +915,6 @@ td.actions-cell {
     animation: fadeIn 0.3s;
 }
 
-/* ===== ESTILOS PARA EL REPORTE DE CAJA ===== */
 .caja-report-box {
     width: 100%;
     max-width: 550px;
@@ -990,8 +980,6 @@ td.actions-cell {
 }
 
 
-/* ===== ESTILOS PARA EL REPORTE DE COMISIONES ===== */
-
 #commissions-results-container {
     display: grid;
     grid-template-columns: 1fr;
@@ -1008,7 +996,9 @@ td.actions-cell {
 .vendor-card-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 1rem;
     padding-bottom: 1rem;
     margin-bottom: 1rem;
     border-bottom: 1px solid var(--border-dark);
@@ -1020,10 +1010,27 @@ td.actions-cell {
     color: var(--text-light);
 }
 
+.vendor-commission-details {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
 .vendor-total-commission {
     font-size: 1.5rem;
     font-weight: bold;
     color: var(--success-bg);
+}
+
+.btn-pay-commission {
+    padding: 0.6rem 1rem;
+    font-size: 0.8rem;
+    width: auto;
+    background-color: var(--info-bg);
+    color: white;
+}
+.btn-pay-commission:disabled {
+    background-color: #555 !important;
 }
 
 .commission-sales-list {
@@ -1063,9 +1070,47 @@ td.actions-cell {
     align-self: flex-start;
 }
 
+.commission-payment-history {
+    margin-top: 1.5rem;
+    border-top: 1px solid var(--border-dark);
+    padding-top: 1rem;
+}
+.commission-payment-history h4 {
+    font-size: 1rem;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+}
+.commission-payment-history ul {
+    list-style: none;
+    padding-left: 0.5rem;
+    font-size: 0.85rem;
+}
+.commission-payment-history li {
+    padding: 0.25rem 0;
+    color: var(--text-light);
+}
+.commission-payment-history li span {
+    color: var(--text-muted);
+}
+
+.commission-payment-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.25rem 0;
+}
+
+.commission-payment-item .delete-btn {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+}
+
 @media (min-width: 768px) {
     #commissions-results-container {
-        grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
     }
     .commission-sale-item {
         flex-direction: row;
@@ -1077,8 +1122,6 @@ td.actions-cell {
         align-self: center;
     }
 }
-
-/* ===== ESTILOS PARA VISTA DE PROVEEDORES ===== */
 
 .providers-header {
     display: flex;
@@ -1511,4 +1554,40 @@ td.actions-cell {
     font-size: 1.4rem;
     font-weight: bold;
     color: var(--error-bg);
+}
+
+/* ======== ESTILOS PARA MODAL DE HISTORIAL MAYORISTA ======== */
+
+.wholesale-history-modal {
+    max-width: 950px;
+    width: 100%;
+}
+
+.wholesale-history-modal h3 {
+    text-align: center;
+    color: var(--brand-yellow);
+    margin-bottom: 0.5rem;
+}
+.wholesale-history-modal .client-name-subtitle {
+    text-align: center;
+    color: var(--text-muted);
+    margin-bottom: 2rem;
+    font-weight: 500;
+}
+
+.wholesale-history-modal .table-container {
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.wholesale-history-modal .actions-cell {
+    justify-content: flex-end;
+}
+
+.wholesale-history-modal .btn-revert-sale {
+    background-color: var(--error-bg);
+    color: white;
+    padding: 0.5rem 1rem;
+    width: auto;
+    font-size: 0.8rem;
 }
