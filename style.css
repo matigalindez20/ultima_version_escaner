@@ -1782,7 +1782,7 @@ td.actions-cell {
 
 /* === ESTILOS PARA EL BOTÓN DE ICONO DE ELIMINAR === */
 .delete-icon-btn {
-    background-color: var(--error-bg) !important;
+    background-color: transparent !important;
     border-radius: 50% !important;
     width: 36px !important;
     height: 36px !important;
@@ -1797,13 +1797,18 @@ td.actions-cell {
 
 .delete-icon-btn:hover {
     transform: scale(1.1);
-    background-color: #e04342 !important;
+    background-color: var(--error-bg) !important;
 }
 
 .delete-icon-btn svg {
-    stroke: white !important;
+    stroke: var(--text-muted) !important;
     width: 18px !important;
     height: 18px !important;
+    transition: stroke 0.2s !important;
+}
+
+.delete-icon-btn:hover svg {
+    stroke: white !important;
 }
 
 .delete-icon-btn:disabled {
@@ -1814,4 +1819,89 @@ td.actions-cell {
 
 .delete-icon-btn:disabled svg {
     stroke: #888 !important;
+}
+
+/* === ESTILOS PARA LA COLUMNA DE GARANTÍA === */
+.garantia-cell {
+    text-align: center;
+    font-weight: bold;
+    white-space: nowrap; /* Evita que se parta en dos líneas */
+}
+
+.garantia-activa {
+    color: var(--success-bg); /* Verde */
+    background-color: rgba(29, 106, 60, 0.15);
+    padding: 4px 8px;
+    border-radius: 6px;
+}
+
+.garantia-vencida {
+    color: var(--error-bg); /* Rojo */
+    background-color: rgba(177, 42, 41, 0.15);
+    padding: 4px 8px;
+    border-radius: 6px;
+}
+
+.garantia-venciendo {
+    color: #f39c12; /* Naranja/Amarillo */
+    background-color: rgba(243, 156, 18, 0.15);
+    padding: 4px 8px;
+    border-radius: 6px;
+}
+
+/* === NUEVOS ESTILOS PARA GARANTÍA CON ICONOS Y TOOLTIP === */
+
+.garantia-cell {
+    text-align: center;
+    vertical-align: middle;
+    position: relative; /* Clave para el posicionamiento del tooltip */
+}
+
+.garantia-icon {
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.garantia-icon:hover {
+    transform: scale(1.15);
+}
+
+.garantia-icon svg {
+    width: 28px;
+    height: 28px;
+}
+
+.garantia-tooltip {
+    position: absolute;
+    bottom: 110%; /* Aparece arriba del icono */
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #333;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    z-index: 10;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s, visibility 0.2s;
+    pointer-events: none; /* Para que no interfiera con el mouse */
+}
+
+.garantia-tooltip.visible {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Flechita para el tooltip */
+.garantia-tooltip::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: #333 transparent transparent transparent;
 }

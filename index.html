@@ -178,42 +178,14 @@
             </div>
         </div>
 
-        <!-- =========== NUEVA SECCIÓN DE VENTA MAYORISTA =========== -->
         <div id="wholesale-view" class="hidden">
-            <div class="providers-header"> <!-- Reutilizamos esta clase para el header, es genérica -->
+            <div class="providers-header">
                 <h2>Clientes Mayoristas</h2>
                 <button id="btn-add-wholesale-client" class="control-btn" style="background-color: var(--success-bg);">+ Nuevo Cliente</button>
             </div>
             <div id="wholesale-clients-list-container">
-                <!-- Aquí se cargarán los clientes mayoristas con JS -->
-                <!-- Ejemplo de cómo se vería un cliente (será generado dinámicamente)
-                <div class="wholesale-client-item">
-                    <div class="client-item-main">
-                        <div class="client-item-info">
-                            <h3>Nombre del Cliente</h3>
-                            <div class="client-item-stats">
-                                <span>Total Comprado: <strong id="ws-client-total-XXX">US$ 15,500.00</strong></span>
-                                <span>Última Compra: <strong id="ws-client-last-XXX">15/07/2024</strong></span>
-                            </div>
-                        </div>
-                        <div class="client-item-actions">
-                             <button class="control-btn btn-new-wholesale-sale">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
-                                Registrar Venta Mayorista
-                            </button>
-                            <button class="control-btn btn-secondary btn-view-wholesale-history">
-                                Historial
-                            </button>
-                             <button class="delete-icon-btn btn-delete-wholesale-client" title="Eliminar Cliente">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                -->
             </div>
         </div>
-        <!-- =========== FIN DE LA NUEVA SECCIÓN =========== -->
         
         <div id="reports-view" class="hidden">
             <h2>Informes Generales</h2>
@@ -302,7 +274,7 @@
             <div id="scan-options">
                 <button id="btn-scan">Escanear IMEI</button>
                 <div class="manual-entry-link">
-                    <a href="#" id="manual-entry-btn">O ingresar manually</a>
+                    <a href="#" id="manual-entry-btn">O ingresar manualmente</a>
                 </div>
             </div>
             <div id="scanner-container" class="hidden"></div>

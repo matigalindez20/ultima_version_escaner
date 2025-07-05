@@ -3178,6 +3178,9 @@ async function exportToExcel(type) {
     }
 }
 
+// REEMPLAZA ESTA FUNCIÓN
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
+
 async function loadSales() {
     s.salesTableContainer.innerHTML = `<p class="dashboard-loader">Cargando ventas...</p>`;
     toggleSpinner(s.btnApplySalesFilters, true);
@@ -3188,27 +3191,91 @@ async function loadSales() {
         if (s.filterSalesVendedor.value) query = query.where('vendedor', '==', s.filterSalesVendedor.value);
         const querySnapshot = await query.limit(100).get();
         if (querySnapshot.empty) { s.salesTableContainer.innerHTML = `<p class="dashboard-loader">No se encontraron ventas con esos filtros.</p>`; return; }
-        let tableHTML = `<table><thead><tr><th>Fecha</th><th>Producto</th><th>Vendedor</th><th>Precio (USD)</th><th>Pago</th><th>Detalles Pago</th><th>Plan Canje</th><th>Acciones</th></tr></thead><tbody>`;
+        
+        let tableHTML = `<table><thead><tr><th>Fecha</th><th>Producto</th><th>Cliente</th><th>Vendedor</th><th>Precio (USD)</th><th>Pago</th><th>Garantía</th><th>Acciones</th></tr></thead><tbody>`;
+        
         querySnapshot.forEach(doc => {
             const venta = doc.data();
-            const fechaObj = venta.fecha_venta ? new Date(venta.fecha_venta.seconds * 1000) : null;
-            let fechaFormateada = fechaObj ? `${String(fechaObj.getDate()).padStart(2, '0')}/${String(fechaObj.getMonth() + 1).padStart(2, '0')}/${fechaObj.getFullYear()}<br><small class="time-muted">${String(fechaObj.getHours()).padStart(2, '0')}:${String(fechaObj.getMinutes()).padStart(2, '0')} hs</small>` : 'N/A';
-            let pagoDetalle = '-';
-            if (venta.metodo_pago === 'Pesos (Efectivo)') pagoDetalle = `${formatearARS(venta.monto_efectivo)} (T/C ${venta.cotizacion_dolar || ''})`;
-            else if (venta.metodo_pago === 'Pesos (Transferencia)') pagoDetalle = `${formatearARS(venta.monto_transferencia)} (T/C ${venta.cotizacion_dolar || ''})`;
-            const canjeIcon = venta.hubo_canje ? `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2ecc71" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>` : `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#e74c3c" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+            const fechaObj = venta.fecha_venta ? venta.fecha_venta.toDate() : new Date();
+            let fechaFormateada = `${String(fechaObj.getDate()).padStart(2, '0')}/${String(fechaObj.getMonth() + 1).padStart(2, '0')}/${fechaObj.getFullYear()}<br><small class="time-muted">${String(fechaObj.getHours()).padStart(2, '0')}:${String(fechaObj.getMinutes()).padStart(2, '0')} hs</small>`;
+            
+            const hoy = new Date();
+            const fechaVenta = fechaObj;
+            const diffTiempo = hoy.getTime() - fechaVenta.getTime();
+            const diffDias = Math.floor(diffTiempo / (1000 * 3600 * 24));
+            const diasRestantes = 30 - diffDias;
+
+            let garantiaHtml = '';
+            let tooltipText = '';
+
+            if (diasRestantes > 0) {
+                tooltipText = `Quedan ${diasRestantes} día${diasRestantes > 1 ? 's' : ''} de garantía`;
+                garantiaHtml = `
+                    <div class="garantia-icon" data-tooltip="${tooltipText}">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2ecc71" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                            <polyline points="9 12 12 15 15 9"></polyline>
+                        </svg>
+                    </div>`;
+            } else {
+                tooltipText = `Garantía vencida`;
+                garantiaHtml = `
+                    <div class="garantia-icon" data-tooltip="${tooltipText}">
+                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#e74c3c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                            <line x1="15" y1="9" x2="9" y2="15"></line>
+                            <line x1="9" y1="9" x2="15" y2="15"></line>
+                        </svg>
+                    </div>`;
+            }
+
             const ventaJSON = JSON.stringify(venta).replace(/'/g, "\\'");
             tableHTML += `<tr data-sale-id="${doc.id}" data-sale-item='${ventaJSON}'>
-                <td>${fechaFormateada}</td><td>${venta.producto.modelo || ''} ${venta.producto.color || ''}</td><td>${venta.vendedor}</td><td>${formatearUSD(venta.precio_venta_usd)}</td>
-                <td>${venta.metodo_pago}</td><td>${pagoDetalle}</td><td style="text-align: center;">${canjeIcon}</td>
+                <td>${fechaFormateada}</td>
+                <td>${venta.producto.modelo || ''} ${venta.producto.color || ''}</td>
+                <td>${venta.nombre_cliente || venta.vendedor.replace('Mayorista: ', '')}</td>
+                <td>${venta.vendedor}</td>
+                <td>${formatearUSD(venta.precio_venta_usd)}</td>
+                <td>${venta.metodo_pago}</td>
+                <td class="garantia-cell">${garantiaHtml}</td>
                 <td class="actions-cell"><button class="edit-btn btn-edit-sale" title="Editar Venta"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button><button class="delete-btn btn-delete-sale" title="Eliminar Venta"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button></td>
             </tr>`;
         });
         s.salesTableContainer.innerHTML = tableHTML + `</tbody></table>`;
+
+        // --- Lógica para los tooltips ---
+        document.querySelectorAll('.garantia-icon').forEach(icon => {
+            let tooltip = null;
+            icon.addEventListener('mouseenter', (e) => {
+                const text = e.currentTarget.dataset.tooltip;
+                tooltip = document.createElement('div');
+                tooltip.className = 'garantia-tooltip';
+                tooltip.textContent = text;
+                e.currentTarget.appendChild(tooltip);
+                
+                // Forzar un reflow para que la transición funcione
+                setTimeout(() => {
+                    tooltip.classList.add('visible');
+                }, 10);
+            });
+
+            icon.addEventListener('mouseleave', () => {
+                if (tooltip) {
+                    tooltip.classList.remove('visible');
+                    // Esperar a que termine la transición para eliminarlo
+                    tooltip.addEventListener('transitionend', () => tooltip.remove());
+                }
+            });
+        });
+
         document.querySelectorAll('.btn-edit-sale').forEach(button => button.addEventListener('click', e => { const row = e.currentTarget.closest('tr'); const saleItem = JSON.parse(row.dataset.saleItem.replace(/\\'/g, "'")); promptToEditSale(saleItem, row.dataset.saleId); }));
         document.querySelectorAll('.btn-delete-sale').forEach(button => button.addEventListener('click', e => { const row = e.currentTarget.closest('tr'); const saleItem = JSON.parse(row.dataset.saleItem.replace(/\\'/g, "'")); const message = `Producto: ${saleItem.producto.modelo}\nIMEI: ${saleItem.imei_vendido}\n\nEsta acción NO devolverá el equipo al stock y la eliminará permanentemente.`; showConfirmationModal('¿Seguro que quieres eliminar esta venta?', message, () => deleteSale(row.dataset.saleId, saleItem.imei_vendido, saleItem.id_canje_pendiente)); }));
-    } catch (error) { handleDBError(error, s.salesTableContainer, "ventas"); }
-    finally { toggleSpinner(s.btnApplySalesFilters, false); }
+    
+    } catch (error) { 
+        handleDBError(error, s.salesTableContainer, "ventas"); 
+    } finally { 
+        toggleSpinner(s.btnApplySalesFilters, false); 
+    }
 }
 
 function promptToEditSale(sale, saleId) {
@@ -3451,11 +3518,13 @@ function showAddProductForm(e, imei = '', modelo = '', canjeId = null) {
     else document.getElementById('precio-costo-form').focus();
 }
 
+// REEMPLAZA ESTA FUNCIÓN
 function promptToSell(imei, details) {
     const vendedoresOptions = vendedores.map(v => `<option value="${v}">${v}</option>`).join('');
     const pagoOptions = metodosDePago.map(p => `<option value="${p}">${p}</option>`).join('');
     const modelosOptions = modelos.map(m => `<option value="${m}">${m}</option>`).join('');
-    s.promptContainer.innerHTML = `<div class="container container-sm" style="margin:auto;"><div class="prompt-box"><h3>Registrar Venta</h3><form id="sell-form"><div class="details-box"><div class="detail-item"><span>Vendiendo:</span> <strong>${details.modelo || ''}</strong></div><div class="detail-item"><span>IMEI:</span> <strong>${imei}</strong></div></div><div class="form-group"><label>Precio Venta (USD)</label><input type="number" name="precioVenta" required></div><div class="form-group"><label>Método de Pago</label><select name="metodoPago" required><option value="">Seleccione...</option>${pagoOptions}</select></div><div id="pesos-efectivo-fields" class="payment-details-group hidden"><div class="form-group"><label>Monto Efectivo (ARS)</label><input type="number" name="monto_efectivo"></div></div><div id="pesos-transferencia-fields" class="payment-details-group hidden"><div class="form-group"><label>Monto Transferido (ARS)</label><input type="number" name="monto_transferencia"></div><div class="form-group"><label>Obs. Transferencia</label><textarea name="observaciones_transferencia" rows="2"></textarea></div></div><div id="cotizacion-dolar-field" class="form-group hidden"><label>Cotización Dólar</label><input type="number" name="cotizacion_dolar"></div><div class="form-group"><label>Vendedor</label><select name="vendedor" required><option value="">Seleccione...</option>${vendedoresOptions}</select></div><div id="comision-vendedor-field" class="form-group hidden"><label>Comisión Vendedor (USD)</label><input type="number" name="comision_vendedor_usd"></div><hr style="border-color:var(--border-dark);margin:1rem 0;"><div class="checkbox-group"><input type="checkbox" id="acepta-canje" name="acepta-canje"><label for="acepta-canje">Acepta Plan Canje</label></div><div id="plan-canje-fields" class="hidden"><h4>Detalles del Equipo Recibido</h4><div class="form-group"><label>Modelo Recibido</label><select name="canje-modelo">${modelosOptions}</select></div><div class="form-group"><label>Valor Toma (USD)</label><input type="number" name="canje-valor"></div><div class="form-group"><label>Observaciones</label><textarea name="canje-observaciones" rows="2"></textarea></div></div><div class="prompt-buttons"><button type="submit" class="prompt-button confirm spinner-btn"><span class="btn-text">Registrar Venta</span><div class="spinner"></div></button><button type="button" class="prompt-button cancel">Cancelar</button></div></form></div></div>`;
+    // Se añade un nuevo form-group para el nombre del cliente
+    s.promptContainer.innerHTML = `<div class="container container-sm" style="margin:auto;"><div class="prompt-box"><h3>Registrar Venta</h3><form id="sell-form"><div class="details-box"><div class="detail-item"><span>Vendiendo:</span> <strong>${details.modelo || ''}</strong></div><div class="detail-item"><span>IMEI:</span> <strong>${imei}</strong></div></div><div class="form-group"><label>Nombre del Cliente (Opcional)</label><input type="text" name="nombre_cliente"></div><div class="form-group"><label>Precio Venta (USD)</label><input type="number" name="precioVenta" required></div><div class="form-group"><label>Método de Pago</label><select name="metodoPago" required><option value="">Seleccione...</option>${pagoOptions}</select></div><div id="pesos-efectivo-fields" class="payment-details-group hidden"><div class="form-group"><label>Monto Efectivo (ARS)</label><input type="number" name="monto_efectivo"></div></div><div id="pesos-transferencia-fields" class="payment-details-group hidden"><div class="form-group"><label>Monto Transferido (ARS)</label><input type="number" name="monto_transferencia"></div><div class="form-group"><label>Obs. Transferencia</label><textarea name="observaciones_transferencia" rows="2"></textarea></div></div><div id="cotizacion-dolar-field" class="form-group hidden"><label>Cotización Dólar</label><input type="number" name="cotizacion_dolar"></div><div class="form-group"><label>Vendedor</label><select name="vendedor" required><option value="">Seleccione...</option>${vendedoresOptions}</select></div><div id="comision-vendedor-field" class="form-group hidden"><label>Comisión Vendedor (USD)</label><input type="number" name="comision_vendedor_usd"></div><hr style="border-color:var(--border-dark);margin:1rem 0;"><div class="checkbox-group"><input type="checkbox" id="acepta-canje" name="acepta-canje"><label for="acepta-canje">Acepta Plan Canje</label></div><div id="plan-canje-fields" class="hidden"><h4>Detalles del Equipo Recibido</h4><div class="form-group"><label>Modelo Recibido</label><select name="canje-modelo">${modelosOptions}</select></div><div class="form-group"><label>Valor Toma (USD)</label><input type="number" name="canje-valor"></div><div class="form-group"><label>Observaciones</label><textarea name="canje-observaciones" rows="2"></textarea></div></div><div class="prompt-buttons"><button type="submit" class="prompt-button confirm spinner-btn"><span class="btn-text">Registrar Venta</span><div class="spinner"></div></button><button type="button" class="prompt-button cancel">Cancelar</button></div></form></div></div>`;
     const form = document.getElementById('sell-form');
     const metodoPagoSelect = form.querySelector('[name="metodoPago"]');
     const vendedorSelect = form.querySelector('[name="vendedor"]');
@@ -3471,15 +3540,22 @@ function promptToSell(imei, details) {
     form.addEventListener('submit', (e) => { e.preventDefault(); registerSale(imei, details, e.target.querySelector('button[type="submit"]')); });
 }
 
+// REEMPLAZA ESTA FUNCIÓN
 async function registerSale(imei, productDetails, btn) {
     toggleSpinner(btn, true);
     const form = btn.form;
     const formData = new FormData(form);
     const metodoPago = formData.get('metodoPago');
     const saleData = {
-        imei_vendido: imei, producto: productDetails, precio_venta_usd: parseFloat(formData.get('precioVenta')) || 0,
-        metodo_pago: metodoPago, vendedor: formData.get('vendedor'), comision_vendedor_usd: parseFloat(formData.get('comision_vendedor_usd')) || 0,
-        fecha_venta: firebase.firestore.FieldValue.serverTimestamp(), hubo_canje: formData.get('acepta-canje') === 'on',
+        imei_vendido: imei, 
+        producto: productDetails, 
+        precio_venta_usd: parseFloat(formData.get('precioVenta')) || 0,
+        nombre_cliente: formData.get('nombre_cliente').trim() || null, // Se añade el nombre del cliente
+        metodo_pago: metodoPago, 
+        vendedor: formData.get('vendedor'), 
+        comision_vendedor_usd: parseFloat(formData.get('comision_vendedor_usd')) || 0,
+        fecha_venta: firebase.firestore.FieldValue.serverTimestamp(), 
+        hubo_canje: formData.get('acepta-canje') === 'on',
         comision_pagada: false
     };
     if (metodoPago.startsWith('Pesos')) {
