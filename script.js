@@ -1469,6 +1469,8 @@ async function loadProviders() {
     }
 }
 
+// REEMPLAZA ESTA FUNCIÓN EN TU SCRIPT.JS
+
 function renderProviders(providers) {
     s.providersListContainer.innerHTML = providers.map(provider => {
         const debt = provider.deuda_usd || 0;
@@ -1481,6 +1483,7 @@ function renderProviders(providers) {
                     <h3>${provider.nombre}</h3>
                     <p>Contacto: ${provider.contacto || 'No especificado'}</p>
                 </div>
+                <!-- === ESTE ES EL BOTÓN CORREGIDO === -->
                 <button class="delete-icon-btn btn-delete-provider" title="${deleteTitle}" ${debt !== 0 ? 'disabled' : ''}>
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <polyline points="3 6 5 6 21 6"></polyline>
@@ -1726,6 +1729,10 @@ async function promptToRegisterPayment(providerName, currentDebt) {
 }
 
 // REEMPLAZA ESTA FUNCIÓN
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
+
 async function saveProviderPayment(form) {
     const btn = form.querySelector('button[type="submit"]');
     toggleSpinner(btn, true);
@@ -1752,27 +1759,7 @@ async function saveProviderPayment(form) {
     const arsEfectivoAmount = parseFloat(formData.get('efectivo')) || 0;
     const arsTransferAmount = parseFloat(formData.get('transferencia')) || 0;
     
-    const pagosParaHistorial = [];
-    const gastosParaCaja = [];
-    const fecha = firebase.firestore.FieldValue.serverTimestamp();
-    const descripcionBase = `Pago a ${providerName}${loteAsociado ? ` (Lote: ${loteAsociado})` : ' (Pago General)'}`;
-    
-    const pagoId = db.collection('pagos_proveedores').doc().id; // Generamos el ID por adelantado
-
-    if (usdAmount > 0) {
-        pagosParaHistorial.push({ monto: usdAmount, moneda: 'USD' });
-        gastosParaCaja.push({ categoria: 'Pago a Proveedor', descripcion: descripcionBase, monto: usdAmount, metodo_pago: 'Dólares', fecha: fecha, pagoId: pagoId });
-    }
-    if (arsEfectivoAmount > 0) {
-        pagosParaHistorial.push({ monto: arsEfectivoAmount, moneda: 'ARS (Efectivo)' });
-        gastosParaCaja.push({ categoria: 'Pago a Proveedor', descripcion: descripcionBase, monto: arsEfectivoAmount, metodo_pago: 'Pesos (Efectivo)', fecha: fecha, pagoId: pagoId });
-    }
-    if (arsTransferAmount > 0) {
-        pagosParaHistorial.push({ monto: arsTransferAmount, moneda: 'ARS (Transferencia)' });
-        gastosParaCaja.push({ categoria: 'Pago a Proveedor', descripcion: descripcionBase, monto: arsTransferAmount, metodo_pago: 'Pesos (Transferencia)', fecha: fecha, pagoId: pagoId });
-    }
-
-    if (gastosParaCaja.length === 0) {
+    if ((usdAmount + arsEfectivoAmount + arsTransferAmount) === 0) {
         showGlobalFeedback("Debes especificar al menos un método de pago con su monto.", "error");
         toggleSpinner(btn, false);
         return;
@@ -1780,16 +1767,50 @@ async function saveProviderPayment(form) {
     
     try {
         await db.runTransaction(async t => {
-            const providerRef = db.collection('proveedores').doc(providerId);
-            t.update(providerRef, { deuda_usd: firebase.firestore.FieldValue.increment(-totalPaymentUSD) });
+            const fecha = firebase.firestore.FieldValue.serverTimestamp();
+            const descripcionBase = `Pago a ${providerName}${loteAsociado ? ` (Lote: ${loteAsociado})` : ' (Pago General)'}`;
 
-            const paymentRef = db.collection('pagos_proveedores').doc(pagoId); // Usamos el ID generado
-            t.set(paymentRef, { providerId, proveedorNombre: providerName, monto_total_usd: totalPaymentUSD, lote_asociado: loteAsociado || null, detalle_pago: pagosParaHistorial, fecha, notas: notas });
+            // --- LÓGICA CORREGIDA ---
 
+            const paymentRef = db.collection('pagos_proveedores').doc();
+            const newPagoId = paymentRef.id;
+
+            const gastosParaCaja = [];
+            const pagosParaHistorial = [];
+            
+            if (usdAmount > 0) {
+                pagosParaHistorial.push({ monto: usdAmount, moneda: 'USD' });
+                gastosParaCaja.push({ categoria: 'Pago a Proveedor', descripcion: descripcionBase, monto: usdAmount, metodo_pago: 'Dólares', fecha: fecha, pagoId: newPagoId, providerId: providerId });
+            }
+            if (arsEfectivoAmount > 0) {
+                pagosParaHistorial.push({ monto: arsEfectivoAmount, moneda: 'ARS (Efectivo)' });
+                gastosParaCaja.push({ categoria: 'Pago a Proveedor', descripcion: descripcionBase, monto: arsEfectivoAmount, metodo_pago: 'Pesos (Efectivo)', fecha: fecha, pagoId: newPagoId, providerId: providerId });
+            }
+            if (arsTransferAmount > 0) {
+                pagosParaHistorial.push({ monto: arsTransferAmount, moneda: 'ARS (Transferencia)' });
+                gastosParaCaja.push({ categoria: 'Pago a Proveedor', descripcion: descripcionBase, monto: arsTransferAmount, metodo_pago: 'Pesos (Transferencia)', fecha: fecha, pagoId: newPagoId, providerId: providerId });
+            }
+
+            // Guardamos el historial
+            t.set(paymentRef, {
+                providerId: providerId, // Aseguramos que el ID esté aquí
+                proveedorNombre: providerName,
+                monto_total_usd: totalPaymentUSD,
+                lote_asociado: loteAsociado || null,
+                detalle_pago: pagosParaHistorial,
+                fecha,
+                notas: notas
+            });
+
+            // Guardamos los gastos
             gastosParaCaja.forEach(gasto => {
                 const gastoRef = db.collection('gastos').doc();
                 t.set(gastoRef, gasto);
             });
+            
+            // Actualizamos la deuda
+            const providerRef = db.collection('proveedores').doc(providerId);
+            t.update(providerRef, { deuda_usd: firebase.firestore.FieldValue.increment(-totalPaymentUSD) });
         });
         
         showGlobalFeedback('Pago a proveedor registrado y descontado de caja.', 'success');
@@ -1808,32 +1829,48 @@ async function saveProviderPayment(form) {
 
 // AÑADE ESTA NUEVA FUNCIÓN
 // REEMPLAZA ESTA FUNCIÓN
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 async function revertProviderPayment(gastoId, pagoId, kpiType, period) {
     try {
         await db.runTransaction(async t => {
+            // --- FASE 1: LEER TODOS LOS DATOS PRIMERO ---
+            // Preparamos las referencias a los documentos que podríamos necesitar.
             const gastoRef = db.collection('gastos').doc(gastoId);
-            t.delete(gastoRef); // Siempre eliminamos el gasto
+            let pagoRef, providerRef;
+            let pagoData = null;
+            let providerExists = false;
 
             if (pagoId) {
-                const pagoRef = db.collection('pagos_proveedores').doc(pagoId);
-                const pagoDoc = await t.get(pagoRef);
+                pagoRef = db.collection('pagos_proveedores').doc(pagoId);
+                const pagoDoc = await t.get(pagoRef); // Primera lectura
 
                 if (pagoDoc.exists) {
-                    const pagoData = pagoDoc.data();
-                    const providerRef = db.collection('proveedores').doc(pagoData.providerId);
-                    const providerDoc = await t.get(providerRef);
-
-                    if (providerDoc.exists) {
-                        // El proveedor existe, le devolvemos la deuda
-                        t.update(providerRef, {
-                            deuda_usd: firebase.firestore.FieldValue.increment(pagoData.monto_total_usd)
-                        });
-                    } else {
-                        // El proveedor no existe, no hacemos nada con la deuda
-                        console.warn(`Proveedor con ID ${pagoData.providerId} no encontrado. No se restaurará la deuda.`);
-                    }
-                    t.delete(pagoRef); // Eliminamos el registro de pago
+                    pagoData = pagoDoc.data();
+                    providerRef = db.collection('proveedores').doc(pagoData.providerId);
+                    const providerDoc = await t.get(providerRef); // Segunda lectura
+                    providerExists = providerDoc.exists;
                 }
+            }
+
+            // --- FASE 2: EJECUTAR TODAS LAS ESCRITURAS DESPUÉS ---
+            // Ahora que todas las lecturas terminaron, podemos escribir.
+
+            // 1. Siempre eliminamos el registro de gasto.
+            t.delete(gastoRef);
+
+            // 2. Si encontramos el registro de pago, lo procesamos.
+            if (pagoData) {
+                // Si el proveedor todavía existe, le devolvemos la deuda.
+                if (providerExists) {
+                    t.update(providerRef, {
+                        deuda_usd: firebase.firestore.FieldValue.increment(pagoData.monto_total_usd)
+                    });
+                } else {
+                    console.warn(`Proveedor con ID ${pagoData.providerId} no encontrado. No se puede restaurar la deuda.`);
+                }
+                // Eliminamos el registro de pago.
+                t.delete(pagoRef);
             }
         });
         
@@ -1847,6 +1884,8 @@ async function revertProviderPayment(gastoId, pagoId, kpiType, period) {
         showGlobalFeedback(error.message || "Error al revertir el pago.", "error");
     }
 }
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
 
 async function showPaymentHistory(providerId, providerName) {
     s.promptContainer.innerHTML = `
@@ -1862,8 +1901,10 @@ async function showPaymentHistory(providerId, providerName) {
 
     const contentDiv = document.getElementById('payment-history-content');
     try {
+        // --- ESTA ES LA CORRECCIÓN CLAVE ---
+        // Buscamos directamente por el campo 'providerId' que ahora nos aseguramos de guardar.
         const snapshot = await db.collection('pagos_proveedores')
-            .where('proveedorId', '==', providerId)
+            .where('providerId', '==', providerId)
             .orderBy('fecha', 'desc')
             .get();
         
@@ -1905,6 +1946,8 @@ async function showPaymentHistory(providerId, providerName) {
 }
 
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
+
 async function showBatchHistory(providerId, providerName) {
     s.promptContainer.innerHTML = `
     <div class="container batch-history-modal">
@@ -1912,12 +1955,11 @@ async function showBatchHistory(providerId, providerName) {
         <div id="batch-list-container">
             <p class="dashboard-loader">Cargando historial...</p>
         </div>
-        <hr style="border-color:var(--border-dark);margin:1.5rem 0;">
         <div id="batch-detail-container">
             <h4>Selecciona un lote para ver el detalle</h4>
         </div>
-        <div class="prompt-buttons" style="justify-content: center;">
-            <button class="prompt-button cancel">Cerrar</button>
+        <div class="prompt-buttons" style="justify-content: flex-end; margin-top: 1.5rem;">
+            <button class="prompt-button cancel" style="width: auto; flex: 0 1 120px;">Cerrar</button>
         </div>
     </div>`;
 
@@ -1935,21 +1977,21 @@ async function showBatchHistory(providerId, providerName) {
 
         const lotes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         
-        batchListContainer.innerHTML = '<div class="batch-list">' + lotes.map(lote => `
+        batchListContainer.innerHTML = lotes.map(lote => `
             <div class="batch-list-item" data-batch-id="${lote.id}">
-                <div class="list-item-content">
-                    <div class="batch-info">Lote #${lote.numero_lote} <span>(${new Date(lote.fecha_carga.seconds * 1000).toLocaleDateString()})</span></div>
+                <div class="list-item-content" style="flex-grow: 1; display: flex; justify-content: space-between; align-items: center;">
+                    <div class="batch-info">Lote #${lote.numero_lote} <span>(${new Date(lote.fecha_carga.seconds * 1000).toLocaleDateString('es-AR')})</span></div>
                     <div class="batch-cost">${formatearUSD(lote.costo_total_usd)}</div>
                 </div>
                 <button class="delete-icon-btn btn-delete-batch" title="Eliminar Lote">
                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
                 </button>
             </div>
-        `).join('') + '</div>';
+        `).join('');
 
         batchListContainer.querySelectorAll('.list-item-content').forEach(itemContent => {
             itemContent.addEventListener('click', async (e) => {
-                const parentItem = e.currentTarget.parentElement;
+                const parentItem = e.currentTarget.closest('.batch-list-item');
                 document.querySelectorAll('.batch-list-item').forEach(i => i.classList.remove('selected'));
                 parentItem.classList.add('selected');
                 const batchId = parentItem.dataset.batchId;
@@ -1964,7 +2006,7 @@ async function showBatchHistory(providerId, providerName) {
             const loteData = lotes.find(l => l.id === batchId);
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                deleteBatch(loteData.id, loteData.numero_lote, providerId, providerName);
+                deleteBatch(loteData.id, loteData.numero_lote, providerId, providerName, loteData.costo_total_usd);
             });
         });
 
@@ -2007,13 +2049,30 @@ async function showBatchDetail(lote) {
     }
 }
 
-function deleteBatch(batchId, batchNumber, providerId, providerName) {
-    const message = `¿Estás seguro de que quieres eliminar el Lote #${batchNumber}?\n\nEsta acción NO eliminará los equipos del stock, solo borrará el registro de este lote.\n\nEsta acción es irreversible.`;
+// REEMPLAZA ESTA FUNCIÓN
+
+function deleteBatch(batchId, batchNumber, providerId, providerName, batchCost) {
+    const message = `¿Estás seguro de que quieres eliminar el Lote #${batchNumber}?\n\nEsta acción hará lo siguiente:\n- Se eliminará el registro del lote.\n- Se restaurará la deuda de ${formatearUSD(batchCost)} al proveedor.\n- ¡NO se eliminarán los equipos ya cargados al stock!`;
+    
     showConfirmationModal('Confirmar Eliminación de Lote', message, async () => {
         try {
-            await db.collection('lotes').doc(batchId).delete();
-            showGlobalFeedback(`Lote #${batchNumber} eliminado correctamente.`, 'success');
-            showBatchHistory(providerId, providerName);
+            await db.runTransaction(async t => {
+                const loteRef = db.collection('lotes').doc(batchId);
+                const providerRef = db.collection('proveedores').doc(providerId);
+
+                // Restaurar la deuda al proveedor
+                t.update(providerRef, {
+                    deuda_usd: firebase.firestore.FieldValue.increment(batchCost)
+                });
+                // Eliminar el lote
+                t.delete(loteRef);
+            });
+            
+            showGlobalFeedback(`Lote #${batchNumber} eliminado y deuda restaurada.`, 'success');
+            s.promptContainer.innerHTML = ''; // Cierra el modal actual
+            loadProviders(); // Recarga la lista de proveedores para ver la deuda actualizada
+            updateReports(); // Actualiza los informes
+
         } catch (error) {
             console.error("Error al eliminar el lote:", error);
             showGlobalFeedback('No se pudo eliminar el lote.', 'error');

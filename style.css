@@ -678,13 +678,12 @@ td.actions-cell {
     text-decoration: underline;
 }
 
-/* === ESTILOS PARA EL NUEVO LOGIN === */
+/* === ESTILOS PARA EL NUEVO LOGIN (VERSIÓN CORREGIDA) === */
 #login-container {
     max-width: 450px;
     margin: 2rem auto;
-    /* --- CAMBIOS --- */
-    background: transparent; /* Fondo transparente */
-    backdrop-filter: blur(10px); /* Efecto vidrio (opcional, pero queda bien) */
+    background: transparent;
+    backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.1);
     box-shadow: none;
@@ -699,53 +698,44 @@ td.actions-cell {
 
 #login-container .form-group {
     position: relative;
-    margin-bottom: 2.5rem;
+    margin-bottom: 3rem;
 }
 
-#login-container label {
+#login-container .form-group label {
     position: absolute;
     top: 10px;
     left: 0;
-    font-size: 1.1rem; /* Más grande para que se vea bien al inicio */
+    font-size: 1.1rem;
     color: var(--text-muted);
     transition: all 0.2s ease-in-out;
     pointer-events: none;
+    background-color: transparent;
 }
 
 #login-container input {
-    background-color: transparent !important; /* !important para forzar */
+    background-color: transparent !important;
     border: none;
     border-bottom: 2px solid #444;
     border-radius: 0;
     padding: 10px 0;
     font-size: 1.1rem;
-    color: var(--text-light) !important; /* !important para forzar */
+    color: var(--text-light) !important;
     width: 100%;
     transition: border-color 0.2s ease-in-out;
-    -webkit-box-shadow: 0 0 0 30px var(--background-dark) inset !important; /* Truco para quitar autofill de Chrome */
-    box-shadow: 0 0 0 30px var(--background-dark) inset !important; /* Truco para quitar autofill de Chrome */
-    -webkit-text-fill-color: var(--text-light) !important; /* Forzar color de texto en autofill */
 }
 
-/* Cuando el input está enfocado o el placeholder no se muestra */
-#login-container input:focus,
-#login-container input:not(:placeholder-shown) {
-    outline: none;
-    border-bottom-color: var(--brand-yellow);
+#login-container input:-webkit-autofill,
+#login-container input:-webkit-autofill:hover, 
+#login-container input:-webkit-autofill:focus, 
+#login-container input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 30px rgba(13, 13, 13, 0) inset !important;
+    box-shadow: 0 0 0 30px rgba(13, 13, 13, 0) inset !important;
+    -webkit-text-fill-color: var(--text-light) !important;
 }
 
-/* REEMPLAZA el bloque anterior por ESTE */
-
-/* :focus -> cuando el usuario hace clic
-   :not(:placeholder-shown) -> cuando el usuario escribe algo
-   :-webkit-autofill -> CUANDO EL NAVEGADOR AUTOCOMPLETA (LA SOLUCIÓN)
-*/
-
-#login-container input:focus + label,
-#login-container input:not(:placeholder-shown) + label,
-#login-container input:-webkit-autofill + label,
-#login-container .password-wrapper input:focus + label,
-#login-container .password-wrapper input:not(:placeholder-shown) + label {
+#login-container .form-group input:focus + label,
+#login-container .form-group input:not(:placeholder-shown) + label,
+#login-container .form-group input:-webkit-autofill + label {
     top: -20px;
     left: 0;
     font-size: 0.8rem;
@@ -765,7 +755,7 @@ td.actions-cell {
 }
 
 .password-wrapper input {
-    padding-right: 40px; /* Espacio para el ojo */
+    padding-right: 40px; 
 }
 
 .password-toggle-btn {
@@ -1546,94 +1536,76 @@ td.actions-cell {
     color: var(--text-muted);
 }
 
-.ingreso-modal-box {
-    background-color: var(--container-dark);
-    padding: 2.5rem;
+/* === ESTILOS PARA FORMULARIOS MODERNOS EN POP-UPS === */
+#prompt-container .ingreso-modal-box {
+    background-color: rgba(29, 29, 29, 0.7);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: var(--border-radius);
-    max-width: 550px;
-    width: 100%;
+    padding: 2.5rem;
 }
 
-.ingreso-modal-box h3 {
-    text-align: center;
+#prompt-container .ingreso-modal-box h3 {
     color: var(--brand-yellow);
-    margin-bottom: 2.5rem;
-    font-size: 1.6rem;
+    margin-bottom: 3rem;
+    font-size: 1.8rem;
 }
 
-.ingreso-modal-box .form-group {
+#prompt-container .ingreso-modal-box .form-group {
     position: relative;
-    margin-bottom: 2.5rem;
+    margin-bottom: 3rem;
 }
 
-.ingreso-modal-box label {
+#prompt-container .ingreso-modal-box label {
     position: absolute;
     top: 10px;
     left: 0;
-    font-size: 1rem;
+    font-size: 1.1rem;
     color: var(--text-muted);
     transition: all 0.2s ease-in-out;
     pointer-events: none;
 }
 
-.ingreso-modal-box input,
-.ingreso-modal-box select,
-.ingreso-modal-box textarea {
-    background-color: transparent;
+#prompt-container .ingreso-modal-box input[type="text"],
+#prompt-container .ingreso-modal-box input[type="number"],
+#prompt-container .ingreso-modal-box textarea {
+    background-color: transparent !important;
     border: none;
     border-bottom: 2px solid #444;
     border-radius: 0;
     padding: 10px 0;
     font-size: 1.1rem;
-    color: var(--text-light);
+    color: var(--text-light) !important;
+    width: 100%;
     transition: border-color 0.2s ease-in-out;
 }
 
-.ingreso-modal-box input:focus,
-.ingreso-modal-box select:focus,
-.ingreso-modal-box textarea:focus {
-    outline: none;
-    border-bottom-color: var(--brand-yellow);
+#prompt-container .ingreso-modal-box input:-webkit-autofill,
+#prompt-container .ingreso-modal-box input:-webkit-autofill:hover, 
+#prompt-container .ingreso-modal-box input:-webkit-autofill:focus, 
+#prompt-container .ingreso-modal-box input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 30px rgba(13, 13, 13, 0) inset !important;
+    box-shadow: 0 0 0 30px rgba(13, 13, 13, 0) inset !important;
+    -webkit-text-fill-color: var(--text-light) !important;
 }
 
-.ingreso-modal-box input:focus + label,
-.ingreso-modal-box input:not(:placeholder-shown) + label,
-.ingreso-modal-box select:focus + label,
-.ingreso-modal-box select:not([value=""]):not(:focus) + label,
-.ingreso-modal-box textarea:focus + label,
-.ingreso-modal-box textarea:not(:placeholder-shown) + label {
-    top: -16px;
+#prompt-container .ingreso-modal-box input:focus + label,
+#prompt-container .ingreso-modal-box input:not(:placeholder-shown) + label,
+#prompt-container .ingreso-modal-box input:-webkit-autofill + label,
+#prompt-container .ingreso-modal-box textarea:focus + label,
+#prompt-container .ingreso-modal-box textarea:not(:placeholder-shown) + label {
+    top: -20px;
     left: 0;
     font-size: 0.8rem;
     color: var(--brand-yellow);
 }
 
-.ingreso-modal-box select + label {
-     top: -16px;
-    left: 0;
-    font-size: 0.8rem;
-    color: var(--text-muted);
-}
-.ingreso-modal-box select:focus + label {
-    color: var(--brand-yellow);
-}
-
-
-.ingreso-modal-box select {
-    padding-right: 2rem;
-    background-position: right 0 center;
-}
-
-.ingreso-modal-box textarea {
-    padding-bottom: 8px;
+#prompt-container .ingreso-modal-box textarea {
     resize: none;
     overflow-y: hidden;
+    padding-bottom: 8px;
 }
-
-.ingreso-modal-box .prompt-buttons {
-    margin-top: 2.5rem;
-}
-
 .kpi-card.expenses-breakdown {
     padding: 1rem 1.5rem;
 }
@@ -1703,4 +1675,143 @@ td.actions-cell {
     padding: 0.5rem 1rem;
     width: auto;
     font-size: 0.8rem;
+}
+
+/* === ESTILOS PARA EL MODAL DE HISTORIAL DE LOTES === */
+.batch-history-modal {
+    max-width: 800px;
+    width: 100%;
+}
+
+.batch-history-modal h3 {
+    text-align: center;
+    color: var(--brand-yellow);
+    margin-bottom: 2rem;
+}
+
+#batch-list-container {
+    max-height: 250px;
+    overflow-y: auto;
+    padding-right: 10px;
+    margin-bottom: 1.5rem;
+}
+
+.batch-list-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.25rem;
+    background-color: #252525;
+    border: 1px solid var(--border-dark);
+    border-radius: 10px;
+    margin-bottom: 0.75rem;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+.batch-list-item:hover {
+    background-color: #333;
+    border-color: var(--brand-yellow);
+}
+
+.batch-list-item.selected {
+    background-color: var(--brand-yellow);
+    color: #000;
+}
+.batch-list-item.selected .batch-info,
+.batch-list-item.selected .batch-info span,
+.batch-list-item.selected .batch-cost {
+    color: #000;
+}
+
+
+.batch-info {
+    font-weight: 600;
+    color: var(--text-light);
+}
+
+.batch-info span {
+    font-weight: 400;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin-left: 0.5rem;
+}
+
+.batch-cost {
+    font-weight: bold;
+    color: var(--brand-yellow);
+    font-size: 1.1rem;
+}
+
+.batch-list-item .delete-icon-btn {
+    background-color: transparent;
+    border: none;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 1rem;
+}
+
+.batch-list-item .delete-icon-btn svg {
+    stroke: var(--text-muted);
+    transition: stroke 0.2s;
+}
+
+.batch-list-item:hover .delete-icon-btn svg {
+    stroke: var(--error-bg);
+}
+
+.batch-list-item.selected .delete-icon-btn svg {
+    stroke: #000;
+}
+
+#batch-detail-container {
+    min-height: 150px;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border-dark);
+}
+
+#batch-detail-container h4 {
+    text-align: center;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+/* === ESTILOS PARA EL BOTÓN DE ICONO DE ELIMINAR === */
+.delete-icon-btn {
+    background-color: var(--error-bg) !important;
+    border-radius: 50% !important;
+    width: 36px !important;
+    height: 36px !important;
+    padding: 0 !important;
+    min-width: 36px !important;
+    flex-shrink: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    transition: transform 0.2s, background-color 0.2s !important;
+}
+
+.delete-icon-btn:hover {
+    transform: scale(1.1);
+    background-color: #e04342 !important;
+}
+
+.delete-icon-btn svg {
+    stroke: white !important;
+    width: 18px !important;
+    height: 18px !important;
+}
+
+.delete-icon-btn:disabled {
+    background-color: #555 !important;
+    cursor: not-allowed !important;
+    transform: scale(1) !important;
+}
+
+.delete-icon-btn:disabled svg {
+    stroke: #888 !important;
 }
