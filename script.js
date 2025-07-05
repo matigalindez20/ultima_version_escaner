@@ -11,7 +11,7 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
 
-const vendedores = ["Agustin", "Vendedor C"];
+const vendedores = ["Vendedor C"];
 const colores = ["Negro espacial", "Plata", "Dorado", "Púrpura oscuro", "Rojo (Product RED)", "Azul", "Verde", "Blanco estelar", "Medianoche", "Titanio Natural", "Titanio Azul", "Otro"];
 const almacenamientos = ["64GB", "128GB", "256GB", "512GB", "1TB"];
 const detallesEsteticos = ["Como Nuevo (Sin detalles)", "Excelente (Mínimos detalles)", "Bueno (Detalles de uso visibles)", "Regular (Marcas o rayones notorios)"];
@@ -360,6 +360,7 @@ function moveNavSlider(activeTab) {
     s.navSlider.style.width = `${offsetWidth}px`;
 }
 
+// REEMPLAZA ESTA FUNCIÓN
 async function updateReports() {
     const kpiElements = [
         s.kpiStockValue, s.kpiStockCount,
@@ -386,6 +387,7 @@ async function updateReports() {
             salesDaySnap, salesMonthSnap,
             expensesDaySnap, expensesMonthSnap,
             miscIncomesDaySnap, miscIncomesMonthSnap,
+            wholesaleSalesDaySnap, wholesaleSalesMonthSnap,
         ] = await Promise.all([
             db.collection('stock_individual').where('estado', '==', 'en_stock').get(),
             fetchData('ventas', 'fecha_venta', startOfDay, endOfDay),
@@ -394,6 +396,8 @@ async function updateReports() {
             fetchData('gastos', 'fecha', startOfMonth, endOfMonth),
             fetchData('ingresos_caja', 'fecha', startOfDay, endOfDay),
             fetchData('ingresos_caja', 'fecha', startOfMonth, endOfMonth),
+            fetchData('ventas_mayoristas', 'fecha_venta', startOfDay, endOfDay),
+            fetchData('ventas_mayoristas', 'fecha_venta', startOfMonth, endOfMonth),
         ]);
         
         let totalStockValue = 0;
@@ -401,12 +405,13 @@ async function updateReports() {
         s.kpiStockValue.textContent = formatearUSD(totalStockValue);
         s.kpiStockCount.textContent = stockSnap.size;
 
-        const processEntries = async (salesSnapshot, miscIncomesSnap, expensesSnap) => {
-            let incomes = { usd: 0, cash: 0, transfer: 0, profit: 0 };
-            let expenses = { usd: 0, cash: 0, transfer: 0 };
+        const processEntries = async (salesSnapshot, miscIncomesSnap, expensesSnap, wholesaleSalesSnapshot) => {
+            let totalIncomes = { usd: 0, cash: 0, transfer: 0 };
+            let totalExpenses = { usd: 0, cash: 0, transfer: 0 };
+            let totalProfit = 0;
         
             if (!salesSnapshot.empty) {
-                const costPromises = salesSnapshot.docs.map(saleDoc => 
+                const costPromises = salesSnapshot.docs.map(saleDoc =>
                     db.collection("stock_individual").doc(saleDoc.data().imei_vendido).get()
                 );
                 const costDocs = await Promise.all(costPromises);
@@ -416,52 +421,56 @@ async function updateReports() {
                     const venta = doc.data();
                     const cost = costMap.get(venta.imei_vendido) || 0;
                     const commission = venta.comision_vendedor_usd || 0;
-                    incomes.profit += (venta.precio_venta_usd || 0) - cost - commission; // CÁLCULO DE PROFIT CORREGIDO
-                    
-                    if (venta.metodo_pago === 'Dólares') incomes.usd += venta.precio_venta_usd || 0;
-                    if (venta.metodo_pago === 'Pesos (Efectivo)') incomes.cash += venta.monto_efectivo || 0;
-                    if (venta.metodo_pago === 'Pesos (Transferencia)') incomes.transfer += venta.monto_transferencia || 0;
+                    totalProfit += (venta.precio_venta_usd || 0) - cost - commission;
+
+                    if (venta.metodo_pago === 'Dólares') totalIncomes.usd += venta.precio_venta_usd || 0;
+                    if (venta.metodo_pago === 'Pesos (Efectivo)') totalIncomes.cash += venta.monto_efectivo || 0;
+                    if (venta.metodo_pago === 'Pesos (Transferencia)') totalIncomes.transfer += venta.monto_transferencia || 0;
                 });
             }
-        
+            wholesaleSalesSnapshot.forEach(doc => {
+                const sale = doc.data().pago_recibido || {};
+                totalIncomes.usd += sale.usd || 0;
+                totalIncomes.cash += sale.ars_efectivo || 0;
+                totalIncomes.transfer += sale.ars_transferencia || 0;
+            });
             miscIncomesSnap.forEach(doc => {
                 const ingreso = doc.data();
-                if (ingreso.metodo === 'Dólares') incomes.usd += ingreso.monto || 0;
-                if (ingreso.metodo === 'Pesos (Efectivo)') incomes.cash += ingreso.monto || 0;
-                if (ingreso.metodo === 'Pesos (Transferencia)') incomes.transfer += ingreso.monto || 0;
+                if (ingreso.metodo === 'Dólares') totalIncomes.usd += ingreso.monto || 0;
+                if (ingreso.metodo === 'Pesos (Efectivo)') totalIncomes.cash += ingreso.monto || 0;
+                if (ingreso.metodo === 'Pesos (Transferencia)') totalIncomes.transfer += ingreso.monto || 0;
             });
             
             expensesSnap.forEach(doc => {
                 const gasto = doc.data();
-                if (gasto.metodo_pago === 'Dólares') expenses.usd += gasto.monto || 0;
-                if (gasto.metodo_pago === 'Pesos (Efectivo)') expenses.cash += gasto.monto || 0;
-                if (gasto.metodo_pago === 'Pesos (Transferencia)') expenses.transfer += gasto.monto || 0;
+                if (gasto.metodo_pago === 'Dólares') totalExpenses.usd += gasto.monto || 0;
+                if (gasto.metodo_pago === 'Pesos (Efectivo)') totalExpenses.cash += gasto.monto || 0;
+                if (gasto.metodo_pago === 'Pesos (Transferencia)') totalExpenses.transfer += gasto.monto || 0;
             });
-        
+            
             const netIncomes = {
-                usd: incomes.usd - expenses.usd,
-                cash: incomes.cash - expenses.cash,
-                transfer: incomes.transfer - expenses.transfer,
-                profit: incomes.profit
+                usd: totalIncomes.usd - totalExpenses.usd,
+                cash: totalIncomes.cash - totalExpenses.cash,
+                transfer: totalIncomes.transfer - totalExpenses.transfer,
             };
         
-            return { netIncomes, expenses };
+            return { netIncomes, expenses: totalExpenses, profit: totalProfit };
         };
 
-        const daily = await processEntries(salesDaySnap, miscIncomesDaySnap, expensesDaySnap);
+        const daily = await processEntries(salesDaySnap, miscIncomesDaySnap, expensesDaySnap, wholesaleSalesDaySnap);
         s.kpiDollarsDay.textContent = formatearUSD(daily.netIncomes.usd);
         s.kpiCashDay.textContent = formatearARS(daily.netIncomes.cash);
         s.kpiTransferDay.textContent = formatearARS(daily.netIncomes.transfer);
-        s.kpiProfitDay.textContent = formatearUSD(daily.netIncomes.profit);
+        s.kpiProfitDay.textContent = formatearUSD(daily.profit);
         s.kpiExpensesDayUsd.textContent = formatearUSD(daily.expenses.usd);
         s.kpiExpensesDayCash.textContent = formatearARS(daily.expenses.cash);
         s.kpiExpensesDayTransfer.textContent = formatearARS(daily.expenses.transfer);
 
-        const monthly = await processEntries(salesMonthSnap, miscIncomesMonthSnap, expensesMonthSnap);
+        const monthly = await processEntries(salesMonthSnap, miscIncomesMonthSnap, expensesMonthSnap, wholesaleSalesMonthSnap);
         s.kpiDollarsMonth.textContent = formatearUSD(monthly.netIncomes.usd);
         s.kpiCashMonth.textContent = formatearARS(monthly.netIncomes.cash);
         s.kpiTransferMonth.textContent = formatearARS(monthly.netIncomes.transfer);
-        s.kpiProfitMonth.textContent = formatearUSD(monthly.netIncomes.profit);
+        s.kpiProfitMonth.textContent = formatearUSD(monthly.profit);
         s.kpiExpensesMonthUsd.textContent = formatearUSD(monthly.expenses.usd);
         s.kpiExpensesMonthCash.textContent = formatearARS(monthly.expenses.cash);
         s.kpiExpensesMonthTransfer.textContent = formatearARS(monthly.expenses.transfer);
@@ -469,6 +478,150 @@ async function updateReports() {
     } catch (error) {
         console.error("Error al actualizar los informes:", error);
         kpiElements.forEach(el => { if(el) el.textContent = 'Error'; });
+    }
+}
+
+// REEMPLAZA ESTA FUNCIÓN
+async function showKpiDetail(kpiType, period) {
+    const now = new Date();
+    let startDate, endDate;
+    let title = '';
+
+    if (period === 'dia') {
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+        title = `Detalle de Caja del Día - ${kpiType.replace(/_/g, ' ').toUpperCase()}`;
+    } else {
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+        title = `Detalle de Caja del Mes - ${kpiType.replace(/_/g, ' ').toUpperCase()}`;
+    }
+
+    s.promptContainer.innerHTML = `
+        <div class="container kpi-detail-modal">
+            <h3>${title}</h3>
+            <div id="kpi-detail-content">
+                <p class="dashboard-loader">Cargando transacciones...</p>
+            </div>
+            <div class="prompt-buttons" style="justify-content: center;">
+                <button class="prompt-button cancel">Cerrar</button>
+            </div>
+        </div>`;
+
+    const detailContent = document.getElementById('kpi-detail-content');
+
+    try {
+        const transactions = [];
+        let kpiMoneda, kpiMetodo, kpiMontoField;
+
+        if (kpiType === 'dolares') {
+            kpiMoneda = 'USD';
+            kpiMetodo = 'Dólares';
+            kpiMontoField = 'precio_venta_usd';
+        } else if (kpiType === 'efectivo_ars') {
+            kpiMoneda = 'ARS';
+            kpiMetodo = 'Pesos (Efectivo)';
+            kpiMontoField = 'monto_efectivo';
+        } else if (kpiType === 'transferencia_ars') {
+            kpiMoneda = 'ARS';
+            kpiMetodo = 'Pesos (Transferencia)';
+            kpiMontoField = 'monto_transferencia';
+        }
+        
+        const salesSnapPromise = db.collection('ventas').where('fecha_venta', '>=', startDate).where('fecha_venta', '<=', endDate).where('metodo_pago', '==', kpiMetodo).get();
+        const miscIncomesSnapPromise = db.collection('ingresos_caja').where('fecha', '>=', startDate).where('fecha', '<=', endDate).where('metodo', '==', kpiMetodo).get();
+        const expensesSnapPromise = db.collection('gastos').where('fecha', '>=', startDate).where('fecha', '<=', endDate).where('metodo_pago', '==', kpiMetodo).get();
+        const wholesaleSalesSnapPromise = db.collection('ventas_mayoristas').where('fecha_venta', '>=', startDate).where('fecha_venta', '<=', endDate).get();
+
+        const [salesSnap, miscIncomesSnap, expensesSnap, wholesaleSalesSnap] = await Promise.all([salesSnapPromise, miscIncomesSnapPromise, expensesSnapPromise, wholesaleSalesSnapPromise]);
+        
+        salesSnap.forEach(doc => {
+            const venta = doc.data();
+            transactions.push({ id: doc.id, fecha: venta.fecha_venta.toDate(), tipo: 'Ingreso', concepto: `Venta: ${venta.producto.modelo}`, monto: venta[kpiMontoField], moneda: kpiMoneda, data: venta, collection: 'ventas' });
+        });
+
+        miscIncomesSnap.forEach(doc => {
+            const ingreso = doc.data();
+            transactions.push({ id: doc.id, fecha: ingreso.fecha.toDate(), tipo: 'Ingreso', concepto: `Ingreso: ${ingreso.categoria}`, monto: ingreso.monto, moneda: kpiMoneda, data: ingreso, collection: 'ingresos_caja' });
+        });
+        
+        expensesSnap.forEach(doc => {
+            const gasto = doc.data();
+            transactions.push({ id: doc.id, fecha: gasto.fecha.toDate(), tipo: 'Egreso', concepto: `Gasto: ${gasto.categoria} (${gasto.descripcion})`, monto: gasto.monto, moneda: kpiMoneda, data: gasto, collection: 'gastos' });
+        });
+
+        wholesaleSalesSnap.forEach(doc => {
+            const sale = doc.data();
+            const payment = sale.pago_recibido || {};
+            let monto = 0;
+            const concepto = `Venta Mayorista: ${sale.venta_id_manual} a ${sale.clienteNombre}`;
+
+            if (kpiType === 'dolares' && payment.usd > 0) monto = payment.usd;
+            else if (kpiType === 'efectivo_ars' && payment.ars_efectivo > 0) monto = payment.ars_efectivo;
+            else if (kpiType === 'transferencia_ars' && payment.ars_transferencia > 0) monto = payment.ars_transferencia;
+
+            if (monto > 0) {
+                transactions.push({ id: doc.id, fecha: sale.fecha_venta.toDate(), tipo: 'Ingreso', concepto: concepto, monto: monto, moneda: kpiMoneda, data: sale, collection: 'ventas_mayoristas' });
+            }
+        });
+        
+        transactions.sort((a, b) => b.fecha - a.fecha);
+
+        if (transactions.length === 0) {
+            detailContent.innerHTML = `<p class="dashboard-loader">No hay movimientos para este período.</p>`;
+            return;
+        }
+
+        const tableHTML = `
+            <div class="table-container">
+                <table>
+                    <thead><tr><th>Fecha</th><th>Tipo</th><th>Concepto</th><th>Monto</th><th>Acciones</th></tr></thead>
+                    <tbody>
+                        ${transactions.map(t => {
+                            return `
+                                <tr data-id="${t.id}" data-type="${t.tipo}" data-collection="${t.collection}" data-item='${JSON.stringify(t.data).replace(/'/g, "\\'")}'>
+                                    <td>${t.fecha.toLocaleString('es-AR')}</td>
+                                    <td>${t.tipo}</td>
+                                    <td>${t.concepto}</td>
+                                    <td class="${t.tipo === 'Ingreso' ? 'income' : 'outcome'}">
+                                        ${t.tipo === 'Egreso' ? '-' : ''}${t.moneda === 'USD' ? formatearUSD(t.monto) : formatearARS(t.monto)}
+                                    </td>
+                                    <td class="actions-cell">
+                                        <button class="delete-btn btn-delete-kpi-item" title="Eliminar/Revertir">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                                        </button>
+                                    </td>
+                                </tr>`;
+                        }).join('')}
+                    </tbody>
+                </table>
+            </div>`;
+        detailContent.innerHTML = tableHTML;
+
+        detailContent.querySelectorAll('.btn-delete-kpi-item').forEach(btn => btn.addEventListener('click', (e) => {
+            const row = e.currentTarget.closest('tr');
+            const id = row.dataset.id;
+            const collection = row.dataset.collection;
+            const data = JSON.parse(row.dataset.item.replace(/\\'/g, "'"));
+            
+            if (collection === 'ventas') {
+                const message = `¿Seguro que quieres revertir esta venta?\n\n- La venta se eliminará.\n- El equipo (IMEI: ${data.imei_vendido}) volverá al stock.`;
+                showConfirmationModal('Revertir Venta', message, () => reverseSaleTransaction(id, data, kpiType, period));
+            } else if (collection === 'ingresos_caja') {
+                 showConfirmationModal('Eliminar Ingreso Vario', `¿Seguro que quieres eliminar este ingreso?`, () => deleteSimpleTransaction(id, 'ingresos_caja', kpiType, period));
+            } else if (collection === 'gastos') {
+                if (data.categoria === 'Pago a Proveedor') {
+                    showConfirmationModal('Revertir Pago a Proveedor', `Esto devolverá la deuda al proveedor y eliminará el gasto. ¿Continuar?`, () => revertProviderPayment(id, data.pagoId, kpiType, period));
+                } else {
+                    showConfirmationModal('Eliminar Gasto', `¿Seguro que quieres eliminar este gasto?`, () => deleteSimpleTransaction(id, 'gastos', kpiType, period));
+                }
+            } else if (collection === 'ventas_mayoristas') {
+                revertWholesaleSale(id, data, () => { showKpiDetail(kpiType, period); });
+            }
+        }));
+
+    } catch (error) {
+        handleDBError(error, detailContent, `el detalle de ${kpiType}`);
     }
 }
 
@@ -854,7 +1007,12 @@ function renderWholesaleLoader() {
     s.productForm.classList.remove('hidden');
 }
 
+// =======================================================
+// ============= INICIO CÓDIGO ACTUALIZADO ===============
+// =======================================================
+
 async function finalizeWholesaleSale() {
+    // 1. Verificación inicial de seguridad
     if (!wholesaleSaleContext) {
         showGlobalFeedback("Error: El contexto de venta mayorista se perdió. Por favor, inicia nuevamente la venta.", "error", 6000);
         console.error("[Venta Mayorista] wholesaleSaleContext es null al finalizar la venta");
@@ -863,19 +1021,24 @@ async function finalizeWholesaleSale() {
         return;
     }
     if (!Array.isArray(wholesaleSaleContext.items) || wholesaleSaleContext.items.length === 0) {
-        showGlobalFeedback("No hay equipos agregados a la venta. Debes escanear y agregar al menos un equipo antes de finalizar.", "warning", 6000);
+        showGlobalFeedback("No hay equipos agregados a la venta. Debes escanear al menos un equipo antes de finalizar.", "warning", 6000);
         console.warn("[Venta Mayorista] Se intentó finalizar sin equipos agregados", wholesaleSaleContext);
-        resetManagementView(false, false, true); // Mantener el modo mayorista
+        resetManagementView(false, false, true); // Mantener el modo mayorista para poder agregar equipos
         return;
     }
 
+    // Muestra un feedback al usuario de que el proceso ha comenzado
+    showGlobalFeedback("Registrando venta mayorista, por favor espera...", "loading", 10000);
+    
     try {
-        console.log("[Venta Mayorista] Finalizando venta:", JSON.stringify(wholesaleSaleContext));
-        await db.runTransaction(async t => {
-            const saleDate = firebase.firestore.FieldValue.serverTimestamp();
-            const { clientId, clientName, saleId, payment, items, totalSaleValue } = wholesaleSaleContext;
+        // Desestructuramos el contexto para un código más limpio
+        const { clientId, clientName, saleId, payment, items, totalSaleValue } = wholesaleSaleContext;
 
-            // 1. Crear el registro maestro de la venta mayorista
+        // 2. Ejecutar toda la lógica dentro de una transacción de Firestore
+        await db.runTransaction(async (t) => {
+            const saleDate = firebase.firestore.FieldValue.serverTimestamp(); // Usar la misma marca de tiempo para todos los documentos
+
+            // 3. Crear el registro maestro de la venta mayorista
             const wholesaleSaleRef = db.collection('ventas_mayoristas').doc();
             t.set(wholesaleSaleRef, {
                 clienteId: clientId,
@@ -887,51 +1050,59 @@ async function finalizeWholesaleSale() {
                 cantidad_equipos: items.length
             });
 
-            // 2. Crear un registro de venta individual por cada equipo
+            // 4. Recorrer cada equipo para procesarlo
             for (const item of items) {
+                // 4a. Crear un registro de venta individual para contabilidad detallada
                 const ventaIndividualRef = db.collection('ventas').doc();
                 const ventaData = {
                     imei_vendido: item.imei,
-                    producto: item.details,
+                    producto: item.details, // Guardamos todos los detalles del producto
                     precio_venta_usd: item.precio_venta_usd,
-                    metodo_pago: 'Venta Mayorista',
-                    vendedor: `Mayorista: ${clientName}`,
+                    metodo_pago: 'Venta Mayorista', // Método de pago específico
+                    vendedor: `Mayorista: ${clientName}`, // Vendedor específico
                     fecha_venta: saleDate,
-                    venta_mayorista_ref: wholesaleSaleRef.id,
+                    venta_mayorista_ref: wholesaleSaleRef.id, // Referencia al registro maestro
                     id_venta_mayorista_manual: saleId,
-                    comision_vendedor_usd: 0,
-                    hubo_canje: false
+                    comision_vendedor_usd: 0, // Las ventas mayoristas no generan comisión
+                    hubo_canje: false // No se maneja canje en este flujo
                 };
                 t.set(ventaIndividualRef, ventaData);
 
-                // 3. Actualizar el estado de cada equipo en el stock
+                // 4b. Actualizar el estado de cada equipo en el stock
                 const stockRef = db.collection('stock_individual').doc(item.imei);
                 t.update(stockRef, { estado: 'vendido' });
             }
 
-            // 4. Actualizar las estadísticas del cliente
+            // 5. Actualizar las estadísticas del cliente mayorista
             const clientRef = db.collection('clientes_mayoristas').doc(clientId);
+            // Usamos FieldValue.increment para evitar problemas de concurrencia
             t.update(clientRef, {
                 total_comprado_usd: firebase.firestore.FieldValue.increment(totalSaleValue),
                 fecha_ultima_compra: saleDate
             });
         });
-        showGlobalFeedback(`Venta mayorista ${wholesaleSaleContext.saleId} registrada con éxito!`, 'success', 5000);
+
+        // 6. Si la transacción fue exitosa, mostrar feedback positivo
+        showGlobalFeedback(`¡Venta mayorista ${saleId} registrada con éxito!`, 'success', 5000);
         console.log("[Venta Mayorista] Venta registrada correctamente", wholesaleSaleContext);
+
     } catch (error) {
+        // 7. Si la transacción falla, notificar al usuario
         console.error("Error al finalizar la venta mayorista:", error, wholesaleSaleContext);
-        showGlobalFeedback("Error crítico al registrar la venta. Revisa la consola.", "error", 6000);
+        showGlobalFeedback("Error crítico al registrar la venta. Los cambios no se guardaron. Revisa la consola.", "error", 8000);
     } finally {
+        // 8. Limpiar el estado y volver a la vista principal, sin importar si hubo éxito o error
         wholesaleSaleContext = null;
         resetManagementView();
         switchView('wholesale', s.tabWholesale);
-        updateReports();
+        updateReports(); // Actualizar los KPIs
     }
 }
 
 // =======================================================
-// ============= FIN VENTA MAYORISTA =====================
+// ============= FIN CÓDIGO ACTUALIZADO ==================
 // =======================================================
+
 
 async function loadIngresos() {
     s.ingresosList.innerHTML = `<p class="dashboard-loader" style="grid-column: 1 / -1;">Cargando ingresos...</p>`;
@@ -1506,6 +1677,7 @@ async function promptToRegisterPayment(providerName, currentDebt) {
     });
 }
 
+// REEMPLAZA ESTA FUNCIÓN
 async function saveProviderPayment(form) {
     const btn = form.querySelector('button[type="submit"]');
     toggleSpinner(btn, true);
@@ -1517,11 +1689,10 @@ async function saveProviderPayment(form) {
     }
     const providerId = paymentContext.id;
     const providerName = paymentContext.name;
-
     const formData = new FormData(form);
     const totalPaymentUSD = parseFloat(formData.get('total'));
     const loteAsociado = formData.get('loteAsociado');
-    const notas = (formData.get('notas') || '').trim(); 
+    const notas = (formData.get('notas') || '').trim();
     
     if (isNaN(totalPaymentUSD) || totalPaymentUSD <= 0) {
         showGlobalFeedback("El monto total del pago debe ser un número válido y mayor a cero.", "error");
@@ -1533,24 +1704,27 @@ async function saveProviderPayment(form) {
     const arsEfectivoAmount = parseFloat(formData.get('efectivo')) || 0;
     const arsTransferAmount = parseFloat(formData.get('transferencia')) || 0;
     
-    const egresos = [];
-    const pagos = [];
+    const pagosParaHistorial = [];
+    const gastosParaCaja = [];
     const fecha = firebase.firestore.FieldValue.serverTimestamp();
+    const descripcionBase = `Pago a ${providerName}${loteAsociado ? ` (Lote: ${loteAsociado})` : ' (Pago General)'}`;
+    
+    const pagoId = db.collection('pagos_proveedores').doc().id; // Generamos el ID por adelantado
 
     if (usdAmount > 0) {
-        egresos.push({ monto: usdAmount, moneda: 'USD', fecha, descripcion: `Pago a ${providerName}`, providerId, monto_total_usd: totalPaymentUSD });
-        pagos.push({ monto: usdAmount, moneda: 'USD' });
+        pagosParaHistorial.push({ monto: usdAmount, moneda: 'USD' });
+        gastosParaCaja.push({ categoria: 'Pago a Proveedor', descripcion: descripcionBase, monto: usdAmount, metodo_pago: 'Dólares', fecha: fecha, pagoId: pagoId });
     }
     if (arsEfectivoAmount > 0) {
-        egresos.push({ monto: arsEfectivoAmount, moneda: 'ARS_Efectivo', fecha, descripcion: `Pago a ${providerName}`, providerId, monto_total_usd: totalPaymentUSD });
-        pagos.push({ monto: arsEfectivoAmount, moneda: 'ARS (Efectivo)' });
+        pagosParaHistorial.push({ monto: arsEfectivoAmount, moneda: 'ARS (Efectivo)' });
+        gastosParaCaja.push({ categoria: 'Pago a Proveedor', descripcion: descripcionBase, monto: arsEfectivoAmount, metodo_pago: 'Pesos (Efectivo)', fecha: fecha, pagoId: pagoId });
     }
     if (arsTransferAmount > 0) {
-        egresos.push({ monto: arsTransferAmount, moneda: 'ARS_Transferencia', fecha, descripcion: `Pago a ${providerName}`, providerId, monto_total_usd: totalPaymentUSD });
-        pagos.push({ monto: arsTransferAmount, moneda: 'ARS (Transferencia)' });
+        pagosParaHistorial.push({ monto: arsTransferAmount, moneda: 'ARS (Transferencia)' });
+        gastosParaCaja.push({ categoria: 'Pago a Proveedor', descripcion: descripcionBase, monto: arsTransferAmount, metodo_pago: 'Pesos (Transferencia)', fecha: fecha, pagoId: pagoId });
     }
 
-    if (pagos.length === 0) {
+    if (gastosParaCaja.length === 0) {
         showGlobalFeedback("Debes especificar al menos un método de pago con su monto.", "error");
         toggleSpinner(btn, false);
         return;
@@ -1559,25 +1733,14 @@ async function saveProviderPayment(form) {
     try {
         await db.runTransaction(async t => {
             const providerRef = db.collection('proveedores').doc(providerId);
-            const paymentRef = db.collection('pagos_proveedores').doc();
+            t.update(providerRef, { deuda_usd: firebase.firestore.FieldValue.increment(-totalPaymentUSD) });
 
-            t.update(providerRef, {
-                deuda_usd: firebase.firestore.FieldValue.increment(-totalPaymentUSD)
-            });
+            const paymentRef = db.collection('pagos_proveedores').doc(pagoId); // Usamos el ID generado
+            t.set(paymentRef, { providerId, proveedorNombre: providerName, monto_total_usd: totalPaymentUSD, lote_asociado: loteAsociado || null, detalle_pago: pagosParaHistorial, fecha, notas: notas });
 
-            t.set(paymentRef, {
-                providerId,
-                proveedorNombre: providerName,
-                monto_total_usd: totalPaymentUSD,
-                lote_asociado: loteAsociado || null,
-                detalle_pago: pagos,
-                fecha,
-                notas: notas 
-            });
-
-            egresos.forEach(egreso => {
-                const egresoRef = db.collection('egresos_caja').doc();
-                t.set(egresoRef, egreso);
+            gastosParaCaja.forEach(gasto => {
+                const gastoRef = db.collection('gastos').doc();
+                t.set(gastoRef, gasto);
             });
         });
         
@@ -1595,6 +1758,47 @@ async function saveProviderPayment(form) {
     }
 }
 
+// AÑADE ESTA NUEVA FUNCIÓN
+// REEMPLAZA ESTA FUNCIÓN
+async function revertProviderPayment(gastoId, pagoId, kpiType, period) {
+    try {
+        await db.runTransaction(async t => {
+            const gastoRef = db.collection('gastos').doc(gastoId);
+            t.delete(gastoRef); // Siempre eliminamos el gasto
+
+            if (pagoId) {
+                const pagoRef = db.collection('pagos_proveedores').doc(pagoId);
+                const pagoDoc = await t.get(pagoRef);
+
+                if (pagoDoc.exists) {
+                    const pagoData = pagoDoc.data();
+                    const providerRef = db.collection('proveedores').doc(pagoData.providerId);
+                    const providerDoc = await t.get(providerRef);
+
+                    if (providerDoc.exists) {
+                        // El proveedor existe, le devolvemos la deuda
+                        t.update(providerRef, {
+                            deuda_usd: firebase.firestore.FieldValue.increment(pagoData.monto_total_usd)
+                        });
+                    } else {
+                        // El proveedor no existe, no hacemos nada con la deuda
+                        console.warn(`Proveedor con ID ${pagoData.providerId} no encontrado. No se restaurará la deuda.`);
+                    }
+                    t.delete(pagoRef); // Eliminamos el registro de pago
+                }
+            }
+        });
+        
+        showGlobalFeedback("Pago a proveedor revertido/eliminado con éxito.", "success");
+        updateReports();
+        loadProviders();
+        showKpiDetail(kpiType, period);
+
+    } catch (error) {
+        console.error("Error al revertir el pago a proveedor:", error);
+        showGlobalFeedback(error.message || "Error al revertir el pago.", "error");
+    }
+}
 
 async function showPaymentHistory(providerId, providerName) {
     s.promptContainer.innerHTML = `
@@ -1770,6 +1974,9 @@ function deleteBatch(batchId, batchNumber, providerId, providerName) {
 }
 
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
+
+// REEMPLAZA ESTA FUNCIÓN
 async function showKpiDetail(kpiType, period) {
     const now = new Date();
     let startDate, endDate;
@@ -1800,37 +2007,28 @@ async function showKpiDetail(kpiType, period) {
 
     try {
         const transactions = [];
-        let kpiMoneda, kpiMetodo, kpiMontoField, egresoMoneda, ingresoMetodo, gastoMetodo;
+        let kpiMoneda, kpiMetodo, kpiMontoField;
 
         if (kpiType === 'dolares') {
             kpiMoneda = 'USD';
             kpiMetodo = 'Dólares';
             kpiMontoField = 'precio_venta_usd';
-            egresoMoneda = 'USD';
-            ingresoMetodo = 'Dólares';
-            gastoMetodo = 'Dólares';
         } else if (kpiType === 'efectivo_ars') {
             kpiMoneda = 'ARS';
             kpiMetodo = 'Pesos (Efectivo)';
             kpiMontoField = 'monto_efectivo';
-            egresoMoneda = 'ARS_Efectivo';
-            ingresoMetodo = 'Pesos (Efectivo)';
-            gastoMetodo = 'Pesos (Efectivo)';
         } else if (kpiType === 'transferencia_ars') {
             kpiMoneda = 'ARS';
             kpiMetodo = 'Pesos (Transferencia)';
             kpiMontoField = 'monto_transferencia';
-            egresoMoneda = 'ARS_Transferencia';
-            ingresoMetodo = 'Pesos (Transferencia)';
-            gastoMetodo = 'Pesos (Transferencia)';
         }
         
         const salesSnapPromise = db.collection('ventas').where('fecha_venta', '>=', startDate).where('fecha_venta', '<=', endDate).where('metodo_pago', '==', kpiMetodo).get();
-        const outflowsSnapPromise = db.collection('egresos_caja').where('fecha', '>=', startDate).where('fecha', '<=', endDate).where('moneda', '==', egresoMoneda).get();
-        const miscIncomesSnapPromise = db.collection('ingresos_caja').where('fecha', '>=', startDate).where('fecha', '<=', endDate).where('metodo', '==', ingresoMetodo).get();
-        const expensesSnapPromise = db.collection('gastos').where('fecha', '>=', startDate).where('fecha', '<=', endDate).where('metodo_pago', '==', gastoMetodo).get();
+        const miscIncomesSnapPromise = db.collection('ingresos_caja').where('fecha', '>=', startDate).where('fecha', '<=', endDate).where('metodo', '==', kpiMetodo).get();
+        const expensesSnapPromise = db.collection('gastos').where('fecha', '>=', startDate).where('fecha', '<=', endDate).where('metodo_pago', '==', kpiMetodo).get();
+        const wholesaleSalesSnapPromise = db.collection('ventas_mayoristas').where('fecha_venta', '>=', startDate).where('fecha_venta', '<=', endDate).get();
 
-        const [salesSnap, outflowsSnap, miscIncomesSnap, expensesSnap] = await Promise.all([salesSnapPromise, outflowsSnapPromise, miscIncomesSnapPromise, expensesSnapPromise]);
+        const [salesSnap, miscIncomesSnap, expensesSnap, wholesaleSalesSnap] = await Promise.all([salesSnapPromise, miscIncomesSnapPromise, expensesSnapPromise, wholesaleSalesSnapPromise]);
         
         salesSnap.forEach(doc => {
             const venta = doc.data();
@@ -1842,14 +2040,24 @@ async function showKpiDetail(kpiType, period) {
             transactions.push({ id: doc.id, fecha: ingreso.fecha.toDate(), tipo: 'Ingreso', concepto: `Ingreso: ${ingreso.categoria}`, monto: ingreso.monto, moneda: kpiMoneda, data: ingreso, collection: 'ingresos_caja' });
         });
         
-        outflowsSnap.forEach(doc => {
-            const egreso = doc.data();
-            transactions.push({ id: doc.id, fecha: egreso.fecha.toDate(), tipo: 'Egreso', concepto: egreso.descripcion, monto: egreso.monto, moneda: egreso.moneda.startsWith('ARS') ? 'ARS' : 'USD', data: egreso, collection: 'egresos_caja' });
-        });
-
         expensesSnap.forEach(doc => {
             const gasto = doc.data();
-            transactions.push({ id: doc.id, fecha: gasto.fecha.toDate(), tipo: 'Egreso', concepto: `Gasto: ${gasto.categoria}`, monto: gasto.monto, moneda: kpiMoneda, data: gasto, collection: 'gastos' });
+            transactions.push({ id: doc.id, fecha: gasto.fecha.toDate(), tipo: 'Egreso', concepto: `Gasto: ${gasto.descripcion || gasto.categoria}`, monto: gasto.monto, moneda: kpiMoneda, data: gasto, collection: 'gastos' });
+        });
+
+        wholesaleSalesSnap.forEach(doc => {
+            const sale = doc.data();
+            const payment = sale.pago_recibido || {};
+            let monto = 0;
+            const concepto = `Venta Mayorista: ${sale.venta_id_manual} a ${sale.clienteNombre}`;
+
+            if (kpiType === 'dolares' && payment.usd > 0) monto = payment.usd;
+            else if (kpiType === 'efectivo_ars' && payment.ars_efectivo > 0) monto = payment.ars_efectivo;
+            else if (kpiType === 'transferencia_ars' && payment.ars_transferencia > 0) monto = payment.ars_transferencia;
+
+            if (monto > 0) {
+                transactions.push({ id: doc.id, fecha: sale.fecha_venta.toDate(), tipo: 'Ingreso', concepto: concepto, monto: monto, moneda: kpiMoneda, data: sale, collection: 'ventas_mayoristas' });
+            }
         });
         
         transactions.sort((a, b) => b.fecha - a.fecha);
@@ -1890,24 +2098,21 @@ async function showKpiDetail(kpiType, period) {
             const id = row.dataset.id;
             const collection = row.dataset.collection;
             const data = JSON.parse(row.dataset.item.replace(/\\'/g, "'"));
-            const monto = data.monto || (data.metodo_pago === kpiMetodo ? data[kpiMontoField] : 0);
-            const montoFormateado = kpiMoneda === 'USD' ? formatearUSD(monto) : formatearARS(monto);
             
             if (collection === 'ventas') {
                 const message = `¿Seguro que quieres revertir esta venta?\n\n- La venta se eliminará.\n- El equipo (IMEI: ${data.imei_vendido}) volverá al stock.`;
                 showConfirmationModal('Revertir Venta', message, () => reverseSaleTransaction(id, data, kpiType, period));
             } else if (collection === 'ingresos_caja') {
-                 const message = `¿Seguro que quieres eliminar este ingreso?\n\n- Concepto: ${data.categoria}\n- Monto: ${montoFormateado}`;
-                 showConfirmationModal('Eliminar Ingreso Vario', message, () => deleteSimpleTransaction(id, 'ingresos_caja', kpiType, period));
+                 showConfirmationModal('Eliminar Ingreso Vario', `¿Seguro que quieres eliminar este ingreso?`, () => deleteSimpleTransaction(id, 'ingresos_caja', kpiType, period));
             } else if (collection === 'gastos') {
-                 const message = `¿Seguro que quieres eliminar este gasto?\n\n- Concepto: ${data.categoria}\n- Monto: ${montoFormateado}`;
-                 showConfirmationModal('Eliminar Gasto', message, () => deleteSimpleTransaction(id, 'gastos', kpiType, period));
-            } else if (collection === 'egresos_caja') {
-                const isRevertible = data.proveedorId && typeof data.monto_total_usd === 'number';
-                if (isRevertible) {
-                    const message = `¿Seguro que quieres revertir este pago a proveedor?\n\n- El egreso de caja se eliminará.\n- La deuda con el proveedor se incrementará en ${formatearUSD(data.monto_total_usd)}.`;
-                    showConfirmationModal('Revertir Pago a Proveedor', message, () => reverseEgresoTransaction(id, data, kpiType, period));
+                if (data.categoria === 'Pago a Proveedor') {
+                    const message = `Esto eliminará el registro de Gasto y el registro de Pago. Si el proveedor original fue borrado, la deuda NO se podrá restaurar. ¿Continuar?`;
+                    showConfirmationModal('Revertir/Eliminar Pago a Proveedor', message, () => revertProviderPayment(id, data.pagoId, kpiType, period));
+                } else {
+                    showConfirmationModal('Eliminar Gasto', `¿Seguro que quieres eliminar este gasto?`, () => deleteSimpleTransaction(id, 'gastos', kpiType, period));
                 }
+            } else if (collection === 'ventas_mayoristas') {
+                revertWholesaleSale(id, data, () => { showKpiDetail(kpiType, period); });
             }
         }));
 
@@ -3319,6 +3524,11 @@ function resetManagementView(isBatchLoad = false, isCanje = false, isWholesaleSa
 
     const existingEndBtn = s.managementView.querySelector('#btn-end-process');
     if (existingEndBtn) existingEndBtn.remove();
+
+    const existingTitleBtn = s.managementTitle.nextElementSibling;
+    if (existingTitleBtn && existingTitleBtn.id === 'btn-end-process') {
+        existingTitleBtn.remove();
+    }
     
     if (!isBatchLoad) batchLoadContext = null;
     if (!isCanje) canjeContext = null;
@@ -3514,11 +3724,16 @@ async function resyncWholesaleClientTotal(clientId, clientName) {
         }
     });
 }
+
+// REEMPLAZA ESTA FUNCIÓN EN TU SCRIPT.JS
+
 function renderWholesaleClients(clients) {
     s.wholesaleClientsListContainer.innerHTML = clients.map(client => {
         const totalComprado = client.total_comprado_usd || 0;
         const ultimaCompra = client.fecha_ultima_compra ? new Date(client.fecha_ultima_compra.seconds * 1000).toLocaleDateString('es-AR') : 'Nunca';
-        const deleteTitle = totalComprado > 0 ? 'No se puede eliminar un cliente con compras' : 'Eliminar Cliente';
+        
+        // === CAMBIO 1: El título ahora siempre es el mismo. Ya no hay condición. ===
+        const deleteTitle = 'Eliminar Cliente';
 
         return `
         <div class="wholesale-client-item" data-client-id="${client.id}">
@@ -3542,7 +3757,9 @@ function renderWholesaleClients(clients) {
                     <button class="icon-btn btn-resync-client" title="Recalcular Total Comprado" style="background-color: #3498db;">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
                     </button>
-                    <button class="delete-icon-btn btn-delete-wholesale-client" title="${deleteTitle}" ${totalComprado > 0 ? 'disabled' : ''}>
+                    
+                    <!-- === CAMBIO 2: Quité la lógica del 'disabled' del botón. Ahora siempre está activo. === -->
+                    <button class="delete-icon-btn btn-delete-wholesale-client" title="${deleteTitle}">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                     </button>
                 </div>
