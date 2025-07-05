@@ -678,10 +678,123 @@ td.actions-cell {
     text-decoration: underline;
 }
 
+/* === ESTILOS PARA EL NUEVO LOGIN === */
 #login-container {
     max-width: 450px;
     margin: 2rem auto;
+    /* --- CAMBIOS --- */
+    background: transparent; /* Fondo transparente */
+    backdrop-filter: blur(10px); /* Efecto vidrio (opcional, pero queda bien) */
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: none;
+    padding: 3rem;
 }
+
+#login-container h1 {
+    font-size: 2.2rem;
+    color: var(--brand-yellow);
+    margin-bottom: 3rem;
+}
+
+#login-container .form-group {
+    position: relative;
+    margin-bottom: 2.5rem;
+}
+
+#login-container label {
+    position: absolute;
+    top: 10px;
+    left: 0;
+    font-size: 1.1rem; /* Más grande para que se vea bien al inicio */
+    color: var(--text-muted);
+    transition: all 0.2s ease-in-out;
+    pointer-events: none;
+}
+
+#login-container input {
+    background-color: transparent !important; /* !important para forzar */
+    border: none;
+    border-bottom: 2px solid #444;
+    border-radius: 0;
+    padding: 10px 0;
+    font-size: 1.1rem;
+    color: var(--text-light) !important; /* !important para forzar */
+    width: 100%;
+    transition: border-color 0.2s ease-in-out;
+    -webkit-box-shadow: 0 0 0 30px var(--background-dark) inset !important; /* Truco para quitar autofill de Chrome */
+    box-shadow: 0 0 0 30px var(--background-dark) inset !important; /* Truco para quitar autofill de Chrome */
+    -webkit-text-fill-color: var(--text-light) !important; /* Forzar color de texto en autofill */
+}
+
+/* Cuando el input está enfocado o el placeholder no se muestra */
+#login-container input:focus,
+#login-container input:not(:placeholder-shown) {
+    outline: none;
+    border-bottom-color: var(--brand-yellow);
+}
+
+/* REEMPLAZA el bloque anterior por ESTE */
+
+/* :focus -> cuando el usuario hace clic
+   :not(:placeholder-shown) -> cuando el usuario escribe algo
+   :-webkit-autofill -> CUANDO EL NAVEGADOR AUTOCOMPLETA (LA SOLUCIÓN)
+*/
+
+#login-container input:focus + label,
+#login-container input:not(:placeholder-shown) + label,
+#login-container input:-webkit-autofill + label,
+#login-container .password-wrapper input:focus + label,
+#login-container .password-wrapper input:not(:placeholder-shown) + label {
+    top: -20px;
+    left: 0;
+    font-size: 0.8rem;
+    color: var(--brand-yellow);
+}
+
+#login-container #login-form button[type="submit"] {
+    background-color: var(--brand-yellow);
+    color: #000;
+    margin-top: 2rem;
+}
+
+.password-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.password-wrapper input {
+    padding-right: 40px; /* Espacio para el ojo */
+}
+
+.password-toggle-btn {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    width: 40px;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.password-toggle-btn svg {
+    width: 22px;
+    height: 22px;
+    stroke: var(--text-muted);
+    transition: stroke 0.2s;
+}
+
+.password-toggle-btn:hover svg {
+    stroke: var(--brand-yellow);
+}
+/* === FIN DE ESTILOS PARA EL LOGIN === */
 
 @media (max-width: 767px) {
     .dashboard-controls {
