@@ -1569,6 +1569,7 @@ td.actions-cell {
 
 #prompt-container .ingreso-modal-box input[type="text"],
 #prompt-container .ingreso-modal-box input[type="number"],
+#prompt-container .ingreso-modal-box select,
 #prompt-container .ingreso-modal-box textarea {
     background-color: transparent !important;
     border: none;
@@ -1594,7 +1595,9 @@ td.actions-cell {
 #prompt-container .ingreso-modal-box input:not(:placeholder-shown) + label,
 #prompt-container .ingreso-modal-box input:-webkit-autofill + label,
 #prompt-container .ingreso-modal-box textarea:focus + label,
-#prompt-container .ingreso-modal-box textarea:not(:placeholder-shown) + label {
+#prompt-container .ingreso-modal-box textarea:not(:placeholder-shown) + label,
+#prompt-container .ingreso-modal-box select:focus + label,
+#prompt-container .ingreso-modal-box select:valid + label {
     top: -20px;
     left: 0;
     font-size: 0.8rem;
@@ -1821,44 +1824,17 @@ td.actions-cell {
     stroke: #888 !important;
 }
 
-/* === ESTILOS PARA LA COLUMNA DE GARANTÍA === */
-.garantia-cell {
-    text-align: center;
-    font-weight: bold;
-    white-space: nowrap; /* Evita que se parta en dos líneas */
-}
-
-.garantia-activa {
-    color: var(--success-bg); /* Verde */
-    background-color: rgba(29, 106, 60, 0.15);
-    padding: 4px 8px;
-    border-radius: 6px;
-}
-
-.garantia-vencida {
-    color: var(--error-bg); /* Rojo */
-    background-color: rgba(177, 42, 41, 0.15);
-    padding: 4px 8px;
-    border-radius: 6px;
-}
-
-.garantia-venciendo {
-    color: #f39c12; /* Naranja/Amarillo */
-    background-color: rgba(243, 156, 18, 0.15);
-    padding: 4px 8px;
-    border-radius: 6px;
-}
-
-/* === NUEVOS ESTILOS PARA GARANTÍA CON ICONOS Y TOOLTIP === */
-
+/* === ESTILOS PARA GARANTÍA CON ICONOS Y TOOLTIP (VERSIÓN FINAL) === */
 .garantia-cell {
     text-align: center;
     vertical-align: middle;
-    position: relative; /* Clave para el posicionamiento del tooltip */
+    position: relative;
 }
 
 .garantia-icon {
     cursor: pointer;
+    display: inline-block;
+    line-height: 1;
     transition: transform 0.2s;
 }
 
@@ -1869,11 +1845,12 @@ td.actions-cell {
 .garantia-icon svg {
     width: 28px;
     height: 28px;
+    vertical-align: middle;
 }
 
 .garantia-tooltip {
     position: absolute;
-    bottom: 110%; /* Aparece arriba del icono */
+    bottom: 110%; 
     left: 50%;
     transform: translateX(-50%);
     background-color: #333;
@@ -1886,7 +1863,7 @@ td.actions-cell {
     opacity: 0;
     visibility: hidden;
     transition: opacity 0.2s, visibility 0.2s;
-    pointer-events: none; /* Para que no interfiera con el mouse */
+    pointer-events: none; 
 }
 
 .garantia-tooltip.visible {
@@ -1894,7 +1871,6 @@ td.actions-cell {
     visibility: visible;
 }
 
-/* Flechita para el tooltip */
 .garantia-tooltip::after {
     content: "";
     position: absolute;
@@ -1904,4 +1880,40 @@ td.actions-cell {
     border-width: 5px;
     border-style: solid;
     border-color: #333 transparent transparent transparent;
+}
+
+/* === ESTILOS PARA ELIMINAR CATEGORÍAS DE INGRESO === */
+
+.category-option-wrapper {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    /* Esto es para que el navegador lo renderice correctamente dentro del select */
+    padding: 8px 12px; 
+}
+
+/* El span simula el texto de la opción */
+.category-option-wrapper .option-text {
+    flex-grow: 1;
+    pointer-events: none; /* Evita que el texto interfiera con el clic */
+}
+
+/* Botón de eliminar dentro de la opción */
+.delete-category-btn {
+    background-color: transparent;
+    border: none;
+    color: var(--error-bg);
+    cursor: pointer;
+    margin-left: 1rem;
+    padding: 2px 5px;
+    font-size: 1.2rem; /* Tamaño del icono */
+    line-height: 1;
+    font-weight: bold;
+    border-radius: 4px;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.delete-category-btn:hover {
+    background-color: var(--error-bg);
+    color: white;
 }

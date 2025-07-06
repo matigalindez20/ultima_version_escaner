@@ -360,7 +360,12 @@ function moveNavSlider(activeTab) {
     s.navSlider.style.width = `${offsetWidth}px`;
 }
 
-// REEMPLAZA ESTA FUNCIÓN
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 async function updateReports() {
     const kpiElements = [
         s.kpiStockValue, s.kpiStockCount,
@@ -423,9 +428,19 @@ async function updateReports() {
                     const commission = venta.comision_vendedor_usd || 0;
                     totalProfit += (venta.precio_venta_usd || 0) - cost - commission;
 
-                    if (venta.metodo_pago === 'Dólares') totalIncomes.usd += venta.precio_venta_usd || 0;
-                    if (venta.metodo_pago === 'Pesos (Efectivo)') totalIncomes.cash += venta.monto_efectivo || 0;
-                    if (venta.metodo_pago === 'Pesos (Transferencia)') totalIncomes.transfer += venta.monto_transferencia || 0;
+                    // --- INICIO DE LA LÓGICA CORREGIDA PARA KPIs ---
+                    const valorCanje = venta.hubo_canje ? (venta.valor_toma_canje_usd || 0) : 0;
+                    
+                    if (venta.metodo_pago === 'Dólares') {
+                        totalIncomes.usd += (venta.precio_venta_usd || 0) - valorCanje;
+                    } else if (venta.metodo_pago === 'Pesos (Efectivo)') {
+                        // El monto guardado ya es el neto, simplemente lo sumamos.
+                        totalIncomes.cash += venta.monto_efectivo || 0;
+                    } else if (venta.metodo_pago === 'Pesos (Transferencia)') {
+                        // El monto guardado ya es el neto, simplemente lo sumamos.
+                        totalIncomes.transfer += venta.monto_transferencia || 0;
+                    }
+                    // --- FIN DE LA LÓGICA CORREGIDA PARA KPIs ---
                 });
             }
             wholesaleSalesSnapshot.forEach(doc => {
@@ -437,8 +452,8 @@ async function updateReports() {
             miscIncomesSnap.forEach(doc => {
                 const ingreso = doc.data();
                 if (ingreso.metodo === 'Dólares') totalIncomes.usd += ingreso.monto || 0;
-                if (ingreso.metodo === 'Pesos (Efectivo)') totalIncomes.cash += ingreso.monto || 0;
-                if (ingreso.metodo === 'Pesos (Transferencia)') totalIncomes.transfer += ingreso.monto || 0;
+                if (ingreso.metodo === 'Pesos (Efectivo)') totalIncomes.cash += ingreso.monto;
+                if (ingreso.metodo === 'Pesos (Transferencia)') totalIncomes.transfer += ingreso.monto;
             });
             
             expensesSnap.forEach(doc => {
@@ -481,7 +496,10 @@ async function updateReports() {
     }
 }
 
-// REEMPLAZA ESTA FUNCIÓN
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 async function showKpiDetail(kpiType, period) {
     const now = new Date();
     let startDate, endDate;
@@ -537,7 +555,41 @@ async function showKpiDetail(kpiType, period) {
         
         salesSnap.forEach(doc => {
             const venta = doc.data();
-            transactions.push({ id: doc.id, fecha: venta.fecha_venta.toDate(), tipo: 'Ingreso', concepto: `Venta: ${venta.producto.modelo}`, monto: venta[kpiMontoField], moneda: kpiMoneda, data: venta, collection: 'ventas' });
+            
+            // --- INICIO DE LA LÓGICA CORREGIDA Y FINAL ---
+            const valorCanjeUSD = venta.hubo_canje ? (venta.valor_toma_canje_usd || 0) : 0;
+            const montoBruto = venta[kpiMontoField] || 0;
+            let montoNeto = montoBruto;
+
+            if (valorCanjeUSD > 0) {
+                if (kpiMoneda === 'USD') {
+                    montoNeto = montoBruto - valorCanjeUSD;
+                } else if (kpiMoneda === 'ARS') {
+                    const cotizacion = venta.cotizacion_dolar || 1;
+                    const valorCanjeARS = valorCanjeUSD * cotizacion;
+                    montoNeto = montoBruto - valorCanjeARS;
+                }
+            }
+
+            let conceptoVenta = `Venta: ${venta.producto.modelo}`;
+            if (valorCanjeUSD > 0) {
+                conceptoVenta += ` (Canje)`;
+            }
+
+            // Solo mostrar la transacción si el monto neto es relevante para esta caja
+            if (montoNeto !== 0) {
+                 transactions.push({ 
+                    id: doc.id, 
+                    fecha: venta.fecha_venta.toDate(), 
+                    tipo: 'Ingreso', 
+                    concepto: conceptoVenta,
+                    monto: montoNeto,
+                    moneda: kpiMoneda, 
+                    data: venta, 
+                    collection: 'ventas',
+                });
+            }
+            // --- FIN DE LA LÓGICA CORREGIDA Y FINAL ---
         });
 
         miscIncomesSnap.forEach(doc => {
@@ -547,7 +599,7 @@ async function showKpiDetail(kpiType, period) {
         
         expensesSnap.forEach(doc => {
             const gasto = doc.data();
-            transactions.push({ id: doc.id, fecha: gasto.fecha.toDate(), tipo: 'Egreso', concepto: `Gasto: ${gasto.categoria} (${gasto.descripcion})`, monto: gasto.monto, moneda: kpiMoneda, data: gasto, collection: 'gastos' });
+            transactions.push({ id: doc.id, fecha: gasto.fecha.toDate(), tipo: 'Egreso', concepto: `Gasto: ${gasto.descripcion || gasto.categoria}`, monto: gasto.monto, moneda: kpiMoneda, data: gasto, collection: 'gastos' });
         });
 
         wholesaleSalesSnap.forEach(doc => {
@@ -578,6 +630,12 @@ async function showKpiDetail(kpiType, period) {
                     <thead><tr><th>Fecha</th><th>Tipo</th><th>Concepto</th><th>Monto</th><th>Acciones</th></tr></thead>
                     <tbody>
                         ${transactions.map(t => {
+                            const deleteButtonHtml = `
+                                <button class="delete-btn btn-delete-kpi-item" title="Eliminar/Revertir">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                                </button>
+                            `;
+
                             return `
                                 <tr data-id="${t.id}" data-type="${t.tipo}" data-collection="${t.collection}" data-item='${JSON.stringify(t.data).replace(/'/g, "\\'")}'>
                                     <td>${t.fecha.toLocaleString('es-AR')}</td>
@@ -586,11 +644,7 @@ async function showKpiDetail(kpiType, period) {
                                     <td class="${t.tipo === 'Ingreso' ? 'income' : 'outcome'}">
                                         ${t.tipo === 'Egreso' ? '-' : ''}${t.moneda === 'USD' ? formatearUSD(t.monto) : formatearARS(t.monto)}
                                     </td>
-                                    <td class="actions-cell">
-                                        <button class="delete-btn btn-delete-kpi-item" title="Eliminar/Revertir">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                                        </button>
-                                    </td>
+                                    <td class="actions-cell">${deleteButtonHtml}</td>
                                 </tr>`;
                         }).join('')}
                     </tbody>
@@ -624,11 +678,6 @@ async function showKpiDetail(kpiType, period) {
         handleDBError(error, detailContent, `el detalle de ${kpiType}`);
     }
 }
-
-
-// REEMPLAZA ESTA FUNCIÓN COMPLETA
-
-// REEMPLAZA ESTA FUNCIÓN COMPLETA
 
 async function handleAuthStateChange(user) {
     if (user) {
@@ -1257,10 +1306,18 @@ function renderIngresosList(ingresos) {
 }
 
 
+// REEMPLAZA ESTA FUNCIÓN
+
 async function promptToAddIngreso() {
     await loadAndPopulateSelects(); 
 
-    const categoriaOptions = ingresosCategorias.map(c => `<option value="${c}">${c}</option>`).join('');
+    // Generamos las opciones de categoría con el botón de eliminar
+    const categoriaOptions = ingresosCategorias.map(c => `
+        <option value="${c}">
+            ${c}
+        </option>
+    `).join('');
+
     const metodoOptions = metodosDePago.map(m => `<option value="${m}">${m}</option>`).join('');
 
     s.promptContainer.innerHTML = `
@@ -1272,7 +1329,10 @@ async function promptToAddIngreso() {
                 <label for="ingreso-monto">Monto</label>
             </div>
             <div class="form-group">
-                <select id="ingreso-metodo" name="metodo" required>${metodoOptions}</select>
+                <select id="ingreso-metodo" name="metodo" required>
+                    <option value="" disabled selected></option>
+                    ${metodoOptions}
+                </select>
                 <label for="ingreso-metodo">Método de Ingreso</label>
             </div>
             <div class="form-group">
@@ -1282,6 +1342,10 @@ async function promptToAddIngreso() {
                     <option value="--nueva--">** Crear Nueva Categoría **</option>
                 </select>
                 <label for="ingreso-categoria-select">Categoría</label>
+                <!-- Botón para eliminar la categoría seleccionada -->
+                <button type="button" id="btn-delete-category" class="delete-icon-btn" title="Eliminar categoría seleccionada" style="position: absolute; right: 40px; top: 0; display: none;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                </button>
             </div>
             <div id="nueva-categoria-group" class="form-group hidden">
                 <input type="text" id="ingreso-categoria-nueva" name="categoria_nueva" placeholder=" ">
@@ -1303,10 +1367,27 @@ async function promptToAddIngreso() {
 
     const categoriaSelect = document.getElementById('ingreso-categoria-select');
     const nuevaCategoriaGroup = document.getElementById('nueva-categoria-group');
+    const deleteCategoryBtn = document.getElementById('btn-delete-category');
+
     categoriaSelect.addEventListener('change', () => {
-        const isNew = categoriaSelect.value === '--nueva--';
+        const selectedValue = categoriaSelect.value;
+        const isNew = selectedValue === '--nueva--';
         nuevaCategoriaGroup.classList.toggle('hidden', !isNew);
         document.getElementById('ingreso-categoria-nueva').required = isNew;
+
+        // Muestra u oculta el botón de eliminar
+        if (selectedValue && !isNew) {
+            deleteCategoryBtn.style.display = 'flex';
+        } else {
+            deleteCategoryBtn.style.display = 'none';
+        }
+    });
+
+    deleteCategoryBtn.addEventListener('click', () => {
+        const categoryToDelete = categoriaSelect.value;
+        if (categoryToDelete && categoryToDelete !== '--nueva--') {
+            deleteIngresoCategoria(categoryToDelete);
+        }
     });
 
     const textarea = document.getElementById('ingreso-descripcion');
@@ -1316,6 +1397,35 @@ async function promptToAddIngreso() {
             textarea.style.height = (textarea.scrollHeight) + 'px';
         });
     }
+}
+
+// AÑADE ESTA NUEVA FUNCIÓN A TU SCRIPT.JS
+
+async function deleteIngresoCategoria(categoryName) {
+    const message = `¿Estás seguro de que quieres eliminar la categoría "${categoryName}"?\n\nEsta acción es irreversible y la eliminará de la lista para siempre.`;
+    showConfirmationModal('Confirmar Eliminación de Categoría', message, async () => {
+        try {
+            // Buscamos el documento por su nombre para obtener su ID
+            const querySnapshot = await db.collection('ingresos_categorias').where('nombre', '==', categoryName).get();
+            if (querySnapshot.empty) {
+                throw new Error("La categoría no fue encontrada. Puede que ya haya sido eliminada.");
+            }
+            
+            // Borramos el documento usando su ID
+            const docId = querySnapshot.docs[0].id;
+            await db.collection('ingresos_categorias').doc(docId).delete();
+
+            showGlobalFeedback(`Categoría "${categoryName}" eliminada con éxito.`, 'success');
+            
+            // Cerramos y volvemos a abrir el modal para que se refresque la lista de categorías
+            s.promptContainer.innerHTML = '';
+            promptToAddIngreso();
+
+        } catch (error) {
+            console.error("Error al eliminar la categoría:", error);
+            showGlobalFeedback(error.message || 'No se pudo eliminar la categoría.', 'error');
+        }
+    });
 }
 
 async function promptToEditIngreso(ingreso, ingresoId) {
@@ -1365,6 +1475,7 @@ async function promptToEditIngreso(ingreso, ingresoId) {
 }
 
 
+// REEMPLAZA ESTA FUNCIÓN
 async function saveIngreso(btn) {
     toggleSpinner(btn, true);
     const form = btn.form;
@@ -1374,7 +1485,9 @@ async function saveIngreso(btn) {
     if (categoria === '--nueva--') {
         categoria = formData.get('categoria_nueva').trim();
         if (categoria) {
+            // Guardamos la nueva categoría en su colección
             await db.collection('ingresos_categorias').add({ nombre: categoria });
+            // La añadimos a la lista local para no tener que recargar todo
             ingresosCategorias.push(categoria);
             ingresosCategorias.sort();
         }
@@ -2080,10 +2193,8 @@ function deleteBatch(batchId, batchNumber, providerId, providerName, batchCost) 
     });
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA
-
-// REEMPLAZA ESTA FUNCIÓN
 async function showKpiDetail(kpiType, period) {
     const now = new Date();
     let startDate, endDate;
@@ -2139,7 +2250,32 @@ async function showKpiDetail(kpiType, period) {
         
         salesSnap.forEach(doc => {
             const venta = doc.data();
-            transactions.push({ id: doc.id, fecha: venta.fecha_venta.toDate(), tipo: 'Ingreso', concepto: `Venta: ${venta.producto.modelo}`, monto: venta[kpiMontoField], moneda: kpiMoneda, data: venta, collection: 'ventas' });
+            
+            // --- INICIO DE LA LÓGICA SIMPLIFICADA FINAL ---
+            const valorCanjeUSD = venta.hubo_canje ? (venta.valor_toma_canje_usd || 0) : 0;
+            const montoBruto = venta[kpiMontoField] || 0;
+            
+            // Para USD, calculamos el neto. Para ARS, mostramos el valor ya guardado, que es el neto.
+            const montoNeto = (kpiMoneda === 'USD') ? (montoBruto - valorCanjeUSD) : montoBruto;
+            
+            let conceptoVenta = `Venta: ${venta.producto.modelo}`;
+            if (valorCanjeUSD > 0) {
+                conceptoVenta += ` (Canje)`;
+            }
+
+            if (montoNeto > 0) {
+                 transactions.push({ 
+                    id: doc.id, 
+                    fecha: venta.fecha_venta.toDate(), 
+                    tipo: 'Ingreso', 
+                    concepto: conceptoVenta,
+                    monto: montoNeto,
+                    moneda: kpiMoneda, 
+                    data: venta, 
+                    collection: 'ventas',
+                });
+            }
+            // --- FIN DE LA LÓGICA SIMPLIFICADA FINAL ---
         });
 
         miscIncomesSnap.forEach(doc => {
@@ -2180,6 +2316,12 @@ async function showKpiDetail(kpiType, period) {
                     <thead><tr><th>Fecha</th><th>Tipo</th><th>Concepto</th><th>Monto</th><th>Acciones</th></tr></thead>
                     <tbody>
                         ${transactions.map(t => {
+                            const deleteButtonHtml = `
+                                <button class="delete-btn btn-delete-kpi-item" title="Eliminar/Revertir">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                                </button>
+                            `;
+
                             return `
                                 <tr data-id="${t.id}" data-type="${t.tipo}" data-collection="${t.collection}" data-item='${JSON.stringify(t.data).replace(/'/g, "\\'")}'>
                                     <td>${t.fecha.toLocaleString('es-AR')}</td>
@@ -2188,11 +2330,7 @@ async function showKpiDetail(kpiType, period) {
                                     <td class="${t.tipo === 'Ingreso' ? 'income' : 'outcome'}">
                                         ${t.tipo === 'Egreso' ? '-' : ''}${t.moneda === 'USD' ? formatearUSD(t.monto) : formatearARS(t.monto)}
                                     </td>
-                                    <td class="actions-cell">
-                                        <button class="delete-btn btn-delete-kpi-item" title="Eliminar/Revertir">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                                        </button>
-                                    </td>
+                                    <td class="actions-cell">${deleteButtonHtml}</td>
                                 </tr>`;
                         }).join('')}
                     </tbody>
@@ -2213,8 +2351,7 @@ async function showKpiDetail(kpiType, period) {
                  showConfirmationModal('Eliminar Ingreso Vario', `¿Seguro que quieres eliminar este ingreso?`, () => deleteSimpleTransaction(id, 'ingresos_caja', kpiType, period));
             } else if (collection === 'gastos') {
                 if (data.categoria === 'Pago a Proveedor') {
-                    const message = `Esto eliminará el registro de Gasto y el registro de Pago. Si el proveedor original fue borrado, la deuda NO se podrá restaurar. ¿Continuar?`;
-                    showConfirmationModal('Revertir/Eliminar Pago a Proveedor', message, () => revertProviderPayment(id, data.pagoId, kpiType, period));
+                    showConfirmationModal('Revertir Pago a Proveedor', `Esto devolverá la deuda al proveedor y eliminará el gasto. ¿Continuar?`, () => revertProviderPayment(id, data.pagoId, kpiType, period));
                 } else {
                     showConfirmationModal('Eliminar Gasto', `¿Seguro que quieres eliminar este gasto?`, () => deleteSimpleTransaction(id, 'gastos', kpiType, period));
                 }
@@ -2440,6 +2577,8 @@ async function loadCommissions() {
 }
 
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
+
 function renderCommissions(vendorData, salesByVendor) {
     if (Object.keys(vendorData).length === 0) {
         s.commissionsResultsContainer.innerHTML = `<p class="dashboard-loader">No hay datos de comisiones para mostrar.</p>`;
@@ -2450,7 +2589,14 @@ function renderCommissions(vendorData, salesByVendor) {
     for (const vendorName in vendorData) {
         const vendor = vendorData[vendorName];
         const sales = salesByVendor[vendorName] || [];
-        const pendingAmount = vendor.comision_pendiente_usd || 0;
+
+        // --- LÓGICA CORREGIDA PARA EL TOTAL ---
+        // 1. Sumamos las comisiones del período actual
+        const currentPeriodCommission = sales.reduce((sum, sale) => sum + (sale.comision_vendedor_usd || 0), 0);
+        
+        // 2. Sumamos la deuda histórica con las nuevas comisiones
+        const totalPendingAmount = (vendor.comision_pendiente_usd || 0) + currentPeriodCommission;
+        // --- FIN DE LA LÓGICA CORREGIDA ---
 
         const salesListHtml = sales.map(sale => `
             <div class="commission-sale-item">
@@ -2467,8 +2613,9 @@ function renderCommissions(vendorData, salesByVendor) {
                 <div class="vendor-card-header">
                     <h3>${vendorName}</h3>
                     <div class="vendor-commission-details">
-                         <span class="vendor-total-commission" title="Comisión PENDIENTE de pago">${formatearUSD(pendingAmount)}</span>
-                         <button class="btn-pay-commission" data-pending-amount="${pendingAmount}" title="Registrar un pago de comisión a este vendedor" ${pendingAmount <= 0 ? 'disabled' : ''}>Pagar Comisión</button>
+                         <!-- Ahora usamos el nuevo total calculado -->
+                         <span class="vendor-total-commission" title="Comisión PENDIENTE de pago">${formatearUSD(totalPendingAmount)}</span>
+                         <button class="btn-pay-commission" data-pending-amount="${totalPendingAmount}" title="Registrar un pago de comisión a este vendedor" ${totalPendingAmount <= 0 ? 'disabled' : ''}>Pagar Comisión</button>
                     </div>
                 </div>
                 ${salesListHtml ? `<div class="commission-sales-list">${salesListHtml}</div>` : '<p class="dashboard-loader" style="font-size:0.9rem; padding: 1rem 0;">No hay nuevas comisiones en este período.</p>'}
@@ -2482,6 +2629,13 @@ function renderCommissions(vendorData, salesByVendor) {
         showCommissionPaymentHistory(vendorName);
     });
 }
+
+// REEMPLAZA ESTA FUNCIÓN EN TU SCRIPT.JS
+
+// REEMPLAZA ESTA FUNCIÓN EN TU SCRIPT.JS
+
+// REEMPLAZA ESTA FUNCIÓN
+
 async function promptToPayCommission(vendorName, pendingAmount) {
     const metodoOptions = metodosDePago.map(m => `<option value="${m}">${m}</option>`).join('');
 
@@ -2494,11 +2648,16 @@ async function promptToPayCommission(vendorName, pendingAmount) {
                <input type="number" id="payment-monto-usd" name="monto_usd" required placeholder=" " step="0.01" max="${pendingAmount}" value="${pendingAmount > 0 ? pendingAmount : ''}">
                <label for="payment-monto-usd">Monto a Pagar (USD)</label>
            </div>
+           
            <div class="form-group">
-               <select id="payment-metodo" name="metodo_pago" required>${metodoOptions}</select>
+               <select id="payment-metodo" name="metodo_pago" required>
+                   <option value="" disabled selected></option>
+                   ${metodoOptions}
+               </select>
                <label for="payment-metodo">Pagar Con</label>
            </div>
 
+           <!-- ESTE DIV AHORA APARECERÁ SOLO CUANDO SE PAGUE EN PESOS -->
            <div id="ars-payment-fields" class="payment-details-group hidden">
                <div class="form-group">
                    <input type="number" id="payment-cotizacion" name="cotizacion_dolar" placeholder=" ">
@@ -2510,10 +2669,6 @@ async function promptToPayCommission(vendorName, pendingAmount) {
                </div>
            </div>
 
-           <div class="form-group">
-               <textarea id="payment-descripcion" name="descripcion" rows="1" placeholder=" ">Ej: Adelanto comisiones Junio</textarea>
-               <label for="payment-descripcion">Descripción (opcional)</label>
-           </div>
            <div class="prompt-buttons">
                <button type="submit" class="prompt-button confirm spinner-btn">
                    <span class="btn-text">Registrar Pago</span>
@@ -2532,21 +2687,12 @@ async function promptToPayCommission(vendorName, pendingAmount) {
    const montoArsInput = form.querySelector('#payment-monto-ars');
 
    const toggleArsFields = () => {
-       const show = metodoSelect.value.startsWith('Pesos') || metodoSelect.value === 'Dólares';
+       // --- LÓGICA CORREGIDA ---
+       const show = metodoSelect.value.startsWith('Pesos');
        arsFields.classList.toggle('hidden', !show);
        
-       if (metodoSelect.value.startsWith('Pesos')) {
-           cotizacionInput.required = true;
-           montoArsInput.required = true;
-           arsFields.querySelector('label[for="payment-cotizacion"]').textContent = "Cotización del Dólar";
-       } else if (metodoSelect.value === 'Dólares') {
-           cotizacionInput.required = true; // Se pide igual para el gráfico
-           montoArsInput.required = true;
-           arsFields.querySelector('label[for="payment-cotizacion"]').textContent = "Cotización (para gráfico)";
-       } else {
-           cotizacionInput.required = false;
-           montoArsInput.required = false;
-       }
+       cotizacionInput.required = show; // Solo es requerido si se muestran los campos
+       montoArsInput.required = show;
    };
 
    const calculateArs = () => {
@@ -2563,15 +2709,11 @@ async function promptToPayCommission(vendorName, pendingAmount) {
    montoUsdInput.addEventListener('input', calculateArs);
    cotizacionInput.addEventListener('input', calculateArs);
    toggleArsFields();
-
-   const textarea = document.getElementById('payment-descripcion');
-   if (textarea) {
-       textarea.addEventListener('input', () => {
-           textarea.style.height = 'auto';
-           textarea.style.height = (textarea.scrollHeight) + 'px';
-       });
-   }
 }
+
+// REEMPLAZA ESTA FUNCIÓN TAMBIÉN
+
+// REEMPLAZA ESTA FUNCIÓN
 
 async function saveCommissionPayment(form) {
     const btn = form.querySelector('button[type="submit"]');
@@ -2581,7 +2723,7 @@ async function saveCommissionPayment(form) {
     const formData = new FormData(form);
     const montoUsd = parseFloat(formData.get('monto_usd'));
     const metodoPago = formData.get('metodo_pago');
-    const descripcion = formData.get('descripcion') || `Pago de comisión a ${vendorName}`;
+    const descripcion = `Pago de comisión a ${vendorName}`;
 
     if (isNaN(montoUsd) || montoUsd <= 0) {
         showGlobalFeedback("El monto a pagar en USD debe ser válido y mayor a cero.", "error");
@@ -2597,27 +2739,27 @@ async function saveCommissionPayment(form) {
         monto_usd_original: montoUsd 
     };
 
-    const cotizacion = parseFloat(formData.get('cotizacion_dolar'));
-    if (isNaN(cotizacion) || cotizacion <= 0) {
-        showGlobalFeedback("La cotización del dólar es requerida para registrar el gasto.", "error");
-        toggleSpinner(btn, false);
-        return;
-    }
-    
-    gastoData.cotizacion_dolar = cotizacion;
-
+    // --- LÓGICA CORREGIDA ---
     if (metodoPago.startsWith('Pesos')) {
+        const cotizacion = parseFloat(formData.get('cotizacion_dolar'));
+        if (isNaN(cotizacion) || cotizacion <= 0) {
+            showGlobalFeedback("La cotización del dólar es requerida para pagos en pesos.", "error");
+            toggleSpinner(btn, false);
+            return;
+        }
         const montoArs = parseFloat(formData.get('monto_ars'));
         if (isNaN(montoArs) || montoArs <= 0) {
             showGlobalFeedback("El monto en ARS es inválido.", "error");
             toggleSpinner(btn, false);
             return;
         }
+        gastoData.cotizacion_dolar = cotizacion;
         gastoData.monto = montoArs;
         gastoData.metodo_pago = metodoPago;
-    } else { // Dólares
+    } else { // Pago en Dólares
         gastoData.monto = montoUsd;
         gastoData.metodo_pago = 'Dólares';
+        // No se guarda cotización si se paga en dólares
     }
 
     const vendorRef = db.collection('vendedores').doc(vendorName);
@@ -2626,12 +2768,15 @@ async function saveCommissionPayment(form) {
         await db.runTransaction(async (t) => {
             const vendorDoc = await t.get(vendorRef);
             if (!vendorDoc.exists) {
-                throw new Error(`El vendedor ${vendorName} no existe en la base de datos.`);
+                t.set(vendorRef, { 
+                    nombre: vendorName, 
+                    comision_pendiente_usd: -montoUsd 
+                });
+            } else {
+                t.update(vendorRef, {
+                    comision_pendiente_usd: firebase.firestore.FieldValue.increment(-montoUsd)
+                });
             }
-
-            t.update(vendorRef, {
-                comision_pendiente_usd: firebase.firestore.FieldValue.increment(-montoUsd)
-            });
 
             const gastoRef = db.collection('gastos').doc();
             t.set(gastoRef, gastoData);
@@ -2659,7 +2804,6 @@ async function saveCommissionPayment(form) {
         toggleSpinner(btn, false);
     }
 }
-
 
 async function showCommissionPaymentHistory(vendorName) {
     const historyContainerId = `history-${vendorName.replace(/\s+/g, '')}`;
@@ -3181,6 +3325,8 @@ async function exportToExcel(type) {
 // REEMPLAZA ESTA FUNCIÓN
 // REEMPLAZA ESTA FUNCIÓN COMPLETA
 
+// REEMPLAZA ESTA FUNCIÓN EN TU SCRIPT.JS
+
 async function loadSales() {
     s.salesTableContainer.innerHTML = `<p class="dashboard-loader">Cargando ventas...</p>`;
     toggleSpinner(s.btnApplySalesFilters, true);
@@ -3233,7 +3379,7 @@ async function loadSales() {
             tableHTML += `<tr data-sale-id="${doc.id}" data-sale-item='${ventaJSON}'>
                 <td>${fechaFormateada}</td>
                 <td>${venta.producto.modelo || ''} ${venta.producto.color || ''}</td>
-                <td>${venta.nombre_cliente || venta.vendedor.replace('Mayorista: ', '')}</td>
+                <td>${venta.nombre_cliente || '-'}</td>
                 <td>${venta.vendedor}</td>
                 <td>${formatearUSD(venta.precio_venta_usd)}</td>
                 <td>${venta.metodo_pago}</td>
@@ -3243,7 +3389,6 @@ async function loadSales() {
         });
         s.salesTableContainer.innerHTML = tableHTML + `</tbody></table>`;
 
-        // --- Lógica para los tooltips ---
         document.querySelectorAll('.garantia-icon').forEach(icon => {
             let tooltip = null;
             icon.addEventListener('mouseenter', (e) => {
@@ -3253,7 +3398,6 @@ async function loadSales() {
                 tooltip.textContent = text;
                 e.currentTarget.appendChild(tooltip);
                 
-                // Forzar un reflow para que la transición funcione
                 setTimeout(() => {
                     tooltip.classList.add('visible');
                 }, 10);
@@ -3262,7 +3406,6 @@ async function loadSales() {
             icon.addEventListener('mouseleave', () => {
                 if (tooltip) {
                     tooltip.classList.remove('visible');
-                    // Esperar a que termine la transición para eliminarlo
                     tooltip.addEventListener('transitionend', () => tooltip.remove());
                 }
             });
@@ -3541,16 +3684,21 @@ function promptToSell(imei, details) {
 }
 
 // REEMPLAZA ESTA FUNCIÓN
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 async function registerSale(imei, productDetails, btn) {
     toggleSpinner(btn, true);
     const form = btn.form;
     const formData = new FormData(form);
     const metodoPago = formData.get('metodoPago');
+    
     const saleData = {
         imei_vendido: imei, 
         producto: productDetails, 
         precio_venta_usd: parseFloat(formData.get('precioVenta')) || 0,
-        nombre_cliente: formData.get('nombre_cliente').trim() || null, // Se añade el nombre del cliente
+        nombre_cliente: formData.get('nombre_cliente').trim() || null,
         metodo_pago: metodoPago, 
         vendedor: formData.get('vendedor'), 
         comision_vendedor_usd: parseFloat(formData.get('comision_vendedor_usd')) || 0,
@@ -3558,31 +3706,65 @@ async function registerSale(imei, productDetails, btn) {
         hubo_canje: formData.get('acepta-canje') === 'on',
         comision_pagada: false
     };
+
+    if (saleData.hubo_canje) {
+        saleData.valor_toma_canje_usd = parseFloat(formData.get('canje-valor')) || 0;
+    }
+
     if (metodoPago.startsWith('Pesos')) {
         saleData.cotizacion_dolar = parseFloat(formData.get('cotizacion_dolar')) || 0;
-        if (metodoPago === 'Pesos (Efectivo)') saleData.monto_efectivo = parseFloat(formData.get('monto_efectivo')) || 0;
-        else if (metodoPago === 'Pesos (Transferencia)') {
-            saleData.monto_transferencia = parseFloat(formData.get('monto_transferencia')) || 0;
+        
+        // --- INICIO DE LA CORRECCIÓN MÁS IMPORTANTE ---
+        // Aquí nos aseguramos de que el monto guardado sea el neto.
+        // El formulario debe contener el monto BRUTO, y aquí hacemos la resta.
+        const montoBrutoARS = metodoPago === 'Pesos (Efectivo)'
+            ? parseFloat(formData.get('monto_efectivo')) || 0
+            : parseFloat(formData.get('monto_transferencia')) || 0;
+
+        const valorCanjeARS = (saleData.valor_toma_canje_usd || 0) * (saleData.cotizacion_dolar || 1);
+        const montoNetoARS = montoBrutoARS - valorCanjeARS;
+
+        if (metodoPago === 'Pesos (Efectivo)') {
+            saleData.monto_efectivo = montoNetoARS;
+        } else if (metodoPago === 'Pesos (Transferencia)') {
+            saleData.monto_transferencia = montoNetoARS;
             saleData.observaciones_transferencia = formData.get('observaciones_transferencia');
         }
+        // --- FIN DE LA CORRECCIÓN MÁS IMPORTANTE ---
     }
-    if (saleData.hubo_canje) saleData.valor_toma_canje_usd = parseFloat(formData.get('canje-valor')) || 0;
+    
     try {
         await db.runTransaction(async (t) => {
             const saleRef = db.collection("ventas").doc();
             t.update(db.collection("stock_individual").doc(imei), { estado: 'vendido' });
+
             if (saleData.hubo_canje) {
                 const canjeRef = db.collection("plan_canje_pendientes").doc();
-                t.set(canjeRef, { modelo_recibido: formData.get('canje-modelo'), valor_toma_usd: saleData.valor_toma_canje_usd, observaciones_canje: formData.get('canje-observaciones'), producto_vendido: `${productDetails.modelo} ${productDetails.color}`, venta_asociada_id: saleRef.id, fecha_canje: firebase.firestore.FieldValue.serverTimestamp(), estado: 'pendiente_de_carga' });
+                t.set(canjeRef, { 
+                    modelo_recibido: formData.get('canje-modelo'), 
+                    valor_toma_usd: saleData.valor_toma_canje_usd, 
+                    observaciones_canje: formData.get('canje-observaciones'), 
+                    producto_vendido: `${productDetails.modelo} ${productDetails.color}`, 
+                    venta_asociada_id: saleRef.id, 
+                    fecha_canje: saleData.fecha_venta, 
+                    estado: 'pendiente_de_carga' 
+                });
                 saleData.id_canje_pendiente = canjeRef.id;
             }
             t.set(saleRef, saleData);
         });
-        s.promptContainer.innerHTML = ''; s.managementView.classList.add('hidden');
+
+        s.promptContainer.innerHTML = '';
+        s.managementView.classList.add('hidden');
         switchView('dashboard', s.tabDashboard);
         updateReports();
-    } catch (error) { console.error("Error al registrar la venta:", error); alert("Error al procesar la venta. Revisa la consola."); } 
-    finally { toggleSpinner(btn, false); }
+
+    } catch (error) { 
+        console.error("Error al registrar la venta:", error); 
+        alert("Error al procesar la venta. Revisa la consola."); 
+    } finally { 
+        toggleSpinner(btn, false); 
+    }
 }
 
 async function handleProductFormSubmit(e) {
