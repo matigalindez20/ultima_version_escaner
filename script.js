@@ -498,8 +498,6 @@ async function updateReports() {
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
 async function showKpiDetail(kpiType, period) {
     const now = new Date();
     let startDate, endDate;
@@ -3517,7 +3515,12 @@ async function loadCanjes() {
     } catch (error) { handleDBError(error, s.canjeTableContainer, "pendientes de canje"); }
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 function cargarCanje(docId, modelo) {
+    // Establecemos el contexto ANTES de mostrar cualquier opción.
+    canjeContext = { docId, modelo };
+
     s.promptContainer.innerHTML = `
         <div class="container container-sm" style="margin: auto;">
             <div class="prompt-box">
@@ -3534,18 +3537,21 @@ function cargarCanje(docId, modelo) {
         </div>`;
         
     document.getElementById('btn-canje-scan').onclick = () => {
-        canjeContext = { docId, modelo };
-        resetManagementView();
+        s.promptContainer.innerHTML = ''; // Limpiamos el prompt actual
         switchView('management', s.tabManagement);
         startScanner();
     };
     
     document.getElementById('btn-canje-manual').onclick = () => {
-        canjeContext = { docId, modelo };
-        resetManagementView();
+        s.promptContainer.innerHTML = ''; // Limpiamos el prompt actual
         switchView('management', s.tabManagement);
         promptForManualImeiInput();
     };
+
+    // Si el usuario cancela, limpiamos el contexto.
+    s.promptContainer.querySelector('.prompt-button.cancel').addEventListener('click', () => {
+        canjeContext = null;
+    });
 }
 
 function handleDBError(error, container, context) {
@@ -3614,11 +3620,15 @@ function promptForManualImeiInput(e) {
     });
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 async function onScanSuccess(imei) {
     s.feedbackMessage.classList.add('hidden');
+    
+    // Si existe el contexto de canje, lo usamos.
     if (canjeContext) {
         showAddProductForm(null, imei, canjeContext.modelo, canjeContext.docId);
-        canjeContext = null;
+        // NO LIMPIAMOS el contexto aquí, lo necesitamos para el submit.
     } else if (batchLoadContext) {
         showAddProductForm(null, imei, batchLoadContext.model);
     } else if (wholesaleSaleContext) {
@@ -3767,6 +3777,10 @@ async function registerSale(imei, productDetails, btn) {
     }
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 async function handleProductFormSubmit(e) {
     e.preventDefault();
     const btn = e.target.querySelector('button');
@@ -3776,48 +3790,45 @@ async function handleProductFormSubmit(e) {
     const formData = new FormData(form);
     const imei = formData.get('imei').trim();
     if (!imei) { showFeedback("El campo IMEI no puede estar vacío.", "error"); toggleSpinner(btn, false); return; }
+    
     const unitData = {
-        imei, estado: 'en_stock', precio_costo_usd: parseFloat(formData.get('precio_costo_usd')) || 0,
-        modelo: formData.get('modelo'), color: formData.get('color'), bateria: parseInt(formData.get('bateria')),
-        almacenamiento: formData.get('almacenamiento'), detalles_esteticos: formData.get('detalles'),
+        imei, 
+        estado: 'en_stock', 
+        precio_costo_usd: parseFloat(formData.get('precio_costo_usd')) || 0,
+        modelo: formData.get('modelo'), 
+        color: formData.get('color'), 
+        bateria: parseInt(formData.get('bateria')),
+        almacenamiento: formData.get('almacenamiento'), 
+        detalles_esteticos: formData.get('detalles'),
         proveedor: formData.get('proveedor')
     };
-    if (mode === 'create') unitData.fechaDeCarga = firebase.firestore.FieldValue.serverTimestamp();
     
+    if (mode === 'create') {
+        unitData.fechaDeCarga = firebase.firestore.FieldValue.serverTimestamp();
+    }
+    
+    // Se obtiene el ID del canje directamente del formulario.
+    const canjeId = form.dataset.canjeId; 
+
     try {
         if (mode === 'create') {
-            const canjeId = form.dataset.canjeId;
-            const productId = `${(unitData.modelo || '').toLowerCase().replace(/\s+/g, '-')}-${(unitData.color || '').toLowerCase().replace(/\s+/g, '-')}`;
-            
             await db.runTransaction(async (t) => {
                 const individualStockRef = db.collection("stock_individual").doc(imei);
-                const displayProductRef = db.collection("productos_display").doc(productId);
                 
                 const existingImei = await t.get(individualStockRef);
-                const displayDoc = await t.get(displayProductRef);
-
                 if (existingImei.exists && existingImei.data().estado === 'en_stock') {
                     throw new Error(`El IMEI ${imei} ya está en stock.`);
                 }
 
                 t.set(individualStockRef, unitData);
                 
-                if (!displayDoc.exists) {
-                    t.set(displayProductRef, { 
-                        nombre: unitData.modelo, 
-                        color: unitData.color, 
-                        stock_total: 1, 
-                        opciones_disponibles: [{ imei, gb: unitData.almacenamiento, bateria: unitData.bateria }] 
-                    });
-                } else {
-                    t.update(displayProductRef, { 
-                        stock_total: firebase.firestore.FieldValue.increment(1), 
-                        opciones_disponibles: firebase.firestore.FieldValue.arrayUnion({ imei, gb: unitData.almacenamiento, bateria: unitData.bateria }) 
-                    });
-                }
-                
+                // Si hay un canjeId, se actualiza el documento de pendientes.
                 if (canjeId) {
-                    t.update(db.collection("plan_canje_pendientes").doc(canjeId), { estado: 'cargado_en_stock', imei_asignado: imei });
+                    const canjeRef = db.collection("plan_canje_pendientes").doc(canjeId);
+                    t.update(canjeRef, { 
+                        estado: 'cargado_en_stock', 
+                        imei_asignado: imei 
+                    });
                 }
                 
                 if (batchLoadContext) {
@@ -3828,6 +3839,11 @@ async function handleProductFormSubmit(e) {
                 }
             });
             
+            // Limpiamos el contexto DESPUÉS de que la operación fue exitosa.
+            if (canjeId) {
+                canjeContext = null;
+            }
+
             if (batchLoadContext) {
                 batchLoadContext.count++;
                 showFeedback(`¡Éxito! ${unitData.modelo} añadido. Cargados: ${batchLoadContext.count}`, "success");
@@ -3841,6 +3857,8 @@ async function handleProductFormSubmit(e) {
                     switchView('dashboard', s.tabDashboard);
                     loadStock();
                     updateReports();
+                    loadCanjes();
+                    updateCanjeCount();
                 }, 1500);
             }
         } else { // modo 'update'
@@ -3858,9 +3876,11 @@ async function handleProductFormSubmit(e) {
         console.error("Error en handleProductFormSubmit:", error);
     } finally {
         toggleSpinner(btn, false);
+        if (form.dataset.canjeId) {
+             delete form.dataset.canjeId;
+        }
         if (!batchLoadContext) {
             delete form.dataset.mode;
-            delete form.dataset.canjeId;
         }
     }
 }
