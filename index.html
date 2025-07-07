@@ -5,16 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>iPhone Twins - Panel de Control</title>
     
-    <!-- =================================================================================== -->
-    <!-- ===== CÓDIGO DE FAVICON CORREGIDO ===== -->
-    <!-- =================================================================================== -->
     <link rel="apple-touch-icon" sizes="180x180" href="./logos/apple-touch-icon.png">
     <link rel="icon" type="image/png" sizes="32x32" href="./logos/web-app-manifest-512x512.png">
     <link rel="icon" type="image/png" sizes="16x16" href="./logos/web-app-manifest-192x192.png">
     <link rel="manifest" href="./logos/site.webmanifest">
     <meta name="msapplication-TileColor" content="#fdd100">
     <meta name="theme-color" content="#0d0d0d">
-    <!-- =================================================================================== -->
     
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -65,6 +61,7 @@
                     <button id="btn-show-stock" class="control-btn active">Stock</button>
                     <button id="btn-show-sales" class="control-btn">Ventas</button>
                     <button id="btn-show-canje" class="control-btn">Pendientes de Carga<span id="canje-badge" class="notification-badge hidden"></span></button>
+                    <button id="btn-show-reparacion" class="control-btn">Reparación<span id="reparacion-badge" class="notification-badge hidden"></span></button>
                     <button id="btn-show-commissions" class="control-btn">Comisiones</button>
                     <button id="btn-show-gastos" class="control-btn">Gastos</button>
                     <button id="btn-show-ingresos" class="control-btn">Ingresos</button>
@@ -185,6 +182,11 @@
             <div id="canje-section" class="hidden">
                  <h2>Equipos Pendientes de Carga (Plan Canje)</h2>
                  <div id="canje-table-container" class="table-container"></div>
+            </div>
+
+            <div id="reparacion-section" class="hidden">
+                 <h2>Equipos para Reparar</h2>
+                 <div id="reparacion-table-container" class="table-container"></div>
             </div>
         </div>
 
@@ -309,6 +311,25 @@
                  <div class="form-group"><label for="color-form">Color</label><select id="color-form" name="color" required></select></div>
                  <div class="form-group"><label for="almacenamiento-form">Almacenamiento</label><select id="almacenamiento-form" name="almacenamiento" required></select></div>
                  <div class="form-group"><label for="detalles-form">Detalles Estéticos</label><select id="detalles-form" name="detalles" required></select></div>
+                 
+                 <hr style="border-color:var(--border-dark);margin:1.5rem 0;">
+                 <label class="toggle-switch-group">
+                    <input type="checkbox" id="para-reparar-check" name="para-reparar">
+                    <span class="toggle-switch-label">Equipo Dañado (Enviar a Reparación)</span>
+                    <span class="toggle-switch-slider"></span>
+                 </label>
+                 <div id="reparacion-fields" class="hidden">
+                    <div class="form-group">
+                        <label for="defecto-form">Defecto del Equipo</label>
+                        <input type="text" id="defecto-form" name="defecto" placeholder="Ej: Pantalla rota, no enciende...">
+                    </div>
+                    <div class="form-group">
+                        <label for="repuesto-form">Repuesto Necesario</label>
+                        <input type="text" id="repuesto-form" name="repuesto" placeholder="Ej: Módulo de pantalla iPhone 12 Pro...">
+                    </div>
+                 </div>
+                 <hr style="border-color:var(--border-dark);margin:1.5rem 0;">
+
                  <div class="form-group">
                     <label for="proveedor-form">Proveedor</label>
                     <select id="proveedor-form" name="proveedor" required></select>

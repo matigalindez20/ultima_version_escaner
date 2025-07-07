@@ -11,7 +11,7 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
 
-const vendedores = ["Vendedor C"];
+const vendedores = ["Equipo Twins", "Pollo", "Victo", "Mili", "Hasha","Juan"];
 const colores = ["Negro espacial", "Plata", "Dorado", "Púrpura oscuro", "Rojo (Product RED)", "Azul", "Verde", "Blanco estelar", "Medianoche", "Titanio Natural", "Titanio Azul", "Otro"];
 const almacenamientos = ["64GB", "128GB", "256GB", "512GB", "1TB"];
 const detallesEsteticos = ["Como Nuevo (Sin detalles)", "Excelente (Mínimos detalles)", "Bueno (Detalles de uso visibles)", "Regular (Marcas o rayones notorios)"];
@@ -44,6 +44,8 @@ document.addEventListener('DOMContentLoaded', initApp);
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
 function initApp() {
     Object.assign(s, {
         loginContainer: document.getElementById('login-container'),
@@ -150,9 +152,13 @@ function initApp() {
         providersListContainer: document.getElementById('providers-list-container'),
         btnAddWholesaleClient: document.getElementById('btn-add-wholesale-client'),
         wholesaleClientsListContainer: document.getElementById('wholesale-clients-list-container'),
-        
-        // ===== REFERENCIA AL NUEVO BOTÓN AÑADIDA AQUÍ =====
         btnRefreshPage: document.getElementById('btn-refresh-page'),
+        btnShowReparacion: document.getElementById('btn-show-reparacion'),
+        reparacionSection: document.getElementById('reparacion-section'),
+        reparacionTableContainer: document.getElementById('reparacion-table-container'),
+
+        // ===== NUEVA REFERENCIA AÑADIDA AQUÍ =====
+        reparacionBadge: document.getElementById('reparacion-badge'),
     });
     
     addEventListeners();
@@ -201,20 +207,12 @@ function populateAllSelects() {
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
 function addEventListeners() {
     s.logoutButton.addEventListener('click', () => auth.signOut());
     
-    // ===== EVENTO DE CLIC PARA EL BOTÓN DE REFRESCO AÑADIDO AQUÍ =====
     if (s.btnRefreshPage) {
         s.btnRefreshPage.addEventListener('click', () => location.reload());
     }
-    // ================================================================
 
     if (s.navTabs) {
         s.navTabs.addEventListener('click', (e) => {
@@ -255,21 +253,16 @@ function addEventListeners() {
             s.exportMenu.classList.remove('show');
         }
 
-        // --- INICIO DE LA CORRECCIÓN ---
-        // Manejamos los clics dentro de #prompt-container aquí
         if (e.target.matches('#prompt-container .prompt-button.cancel')) {
              e.preventDefault();
              s.promptContainer.innerHTML = '';
-             paymentContext = null; // Limpiamos cualquier contexto de pago
+             paymentContext = null; 
+             canjeContext = null; // Limpiamos también el contexto de canje/reparación
         }
-        // --- FIN DE LA CORRECCIÓN ---
     });
 
-    // --- INICIO DE LA CORRECCIÓN ---
-    // Manejamos los submits dentro de #prompt-container aquí
     document.addEventListener('submit', (e) => {
         const form = e.target;
-        // Solo actuamos si el submit ocurrió dentro de nuestro contenedor de prompts
         if (s.promptContainer && s.promptContainer.contains(form)) {
             e.preventDefault();
             if (form.id === 'payment-form') {
@@ -297,6 +290,11 @@ function addEventListeners() {
                 showModelSelectionStep();
             } else if (form.id === 'lote-cost-form') {
                 promptToAssignLoteCost(form);
+            
+            // ===== ESTA ES LA CONDICIÓN AÑADIDA =====
+            } else if (form.id === 'finalize-reparacion-form') {
+                saveFinalizedReparacion(form);
+            
             } else if (form.id === 'wholesale-client-form') {
                 saveWholesaleClient(form.querySelector('button[type="submit"]'));
             } else if (form.id === 'wholesale-sale-start-form') {
@@ -304,7 +302,6 @@ function addEventListeners() {
             }
         }
     });
-    // --- FIN DE LA CORRECCIÓN ---
     
     s.btnCalculateCommissions.addEventListener('click', loadCommissions);
     s.btnApplyStockFilters.addEventListener('click', loadStock);
@@ -426,6 +423,7 @@ function addEventListeners() {
         });
     }
 }
+
 function moveDashboardSlider(activeButton) {
     if (!s.dashboardOptionsContainer || !activeButton) return;
     const { offsetLeft, offsetWidth } = activeButton;
@@ -448,6 +446,7 @@ function moveNavSlider(activeTab) {
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
 async function updateReports() {
     const kpiElements = [
         s.kpiStockValue, s.kpiStockCount,
@@ -508,29 +507,16 @@ async function updateReports() {
                     const venta = doc.data();
                     const cost = costMap.get(venta.imei_vendido) || 0;
                     const commission = venta.comision_vendedor_usd || 0;
+                    // El profit sigue siendo correcto: Precio total - costo - comisión
                     totalProfit += (venta.precio_venta_usd || 0) - cost - commission;
 
-                    // --- INICIO DE LA LÓGICA CORREGIDA ---
-                    const valorCanjeUSD = venta.hubo_canje ? (venta.valor_toma_canje_usd || 0) : 0;
-                    const cotizacion = venta.cotizacion_dolar || 1;
-                    
-                    // Sumamos los montos pagados a cada caja
+                    // ===== LÓGICA DE INGRESOS CORREGIDA =====
+                    // Simplemente sumamos los montos que se ingresaron en cada campo.
+                    // Ya no restamos el valor del canje.
                     totalIncomes.usd += venta.monto_dolares || 0;
                     totalIncomes.cash += venta.monto_efectivo || 0;
                     totalIncomes.transfer += venta.monto_transferencia || 0;
-
-                    // Si hubo canje, lo restamos de la caja correspondiente
-                    if (valorCanjeUSD > 0) {
-                        // Prioridad de descuento: Dólares > Efectivo > Transferencia
-                        if ((venta.monto_dolares || 0) > 0) {
-                            totalIncomes.usd -= valorCanjeUSD;
-                        } else if ((venta.monto_efectivo || 0) > 0) {
-                            totalIncomes.cash -= (valorCanjeUSD * cotizacion);
-                        } else if ((venta.monto_transferencia || 0) > 0) {
-                            totalIncomes.transfer -= (valorCanjeUSD * cotizacion);
-                        }
-                    }
-                    // --- FIN DE LA LÓGICA CORREGIDA ---
+                    // =========================================
                 });
             }
             wholesaleSalesSnapshot.forEach(doc => {
@@ -584,8 +570,7 @@ async function updateReports() {
         console.error("Error al actualizar los informes:", error);
         kpiElements.forEach(el => { if(el) el.textContent = 'Error'; });
     }
-}
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+}// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
@@ -772,6 +757,7 @@ async function showKpiDetail(kpiType, period) {
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
 async function handleAuthStateChange(user) {
     if (user) {
         s.loginContainer.innerHTML = ''; 
@@ -780,6 +766,10 @@ async function handleAuthStateChange(user) {
         await loadAndPopulateSelects();
         switchView('dashboard', s.tabDashboard);
         updateCanjeCount();
+        
+        // ===== LLAMADA A LA NUEVA FUNCIÓN AÑADIDA AQUÍ =====
+        updateReparacionCount();
+
         setTimeout(() => {
             moveDashboardSlider(document.querySelector('.control-btn.active'));
             moveNavSlider(document.querySelector('.nav-tab.active'));
@@ -833,7 +823,6 @@ async function handleAuthStateChange(user) {
         });
     }
 }
-
 const populateSelect = (selectEl, options, defaultText) => {
     if (selectEl) {
         selectEl.innerHTML = `<option value="">${defaultText}</option>` + options.map(opt => `<option value="${opt}">${opt}</option>`).join('');
@@ -893,6 +882,18 @@ async function updateCanjeCount() {
     }
 }
 
+// AÑADE ESTA FUNCIÓN NUEVA
+async function updateReparacionCount() {
+    try {
+        const snapshot = await db.collection('reparaciones').get();
+        const count = snapshot.size;
+        s.reparacionBadge.textContent = count;
+        s.reparacionBadge.classList.toggle('hidden', count === 0);
+    } catch (error) {
+        console.error("Error al obtener contador de reparaciones:", error);
+    }
+}
+
 async function handleLogin(e) {
     e.preventDefault();
     const btn = e.target.querySelector('button');
@@ -940,8 +941,9 @@ function switchView(view, tabElement) {
 }
 
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
 function switchDashboardView(viewName, button) {
-    const sections = ['stock', 'sales', 'canje', 'gastos', 'commissions', 'ingresos'];
+    const sections = ['stock', 'sales', 'canje', 'reparacion', 'commissions', 'gastos', 'ingresos'];
     
     s.dashboardOptionsContainer.querySelectorAll('.control-btn').forEach(btn => btn.classList.remove('active'));
     sections.forEach(v => {
@@ -960,11 +962,11 @@ function switchDashboardView(viewName, button) {
     if (viewName === 'stock') loadStock();
     else if (viewName === 'sales') loadSales();
     else if (viewName === 'canje') loadCanjes();
-    else if (viewName === 'gastos') loadGastos();
+    else if (viewName === 'reparacion') loadReparaciones();
     else if (viewName === 'commissions') loadCommissions();
+    else if (viewName === 'gastos') loadGastos();
     else if (viewName === 'ingresos') loadIngresos();
 }
-
 // =======================================================
 // ============= INICIO VENTA MAYORISTA ==================
 // =======================================================
@@ -2512,12 +2514,7 @@ function deleteBatch(batchId, batchNumber, providerId, providerName, batchCost) 
     });
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
 async function showKpiDetail(kpiType, period) {
     const now = new Date();
     let startDate, endDate;
@@ -2533,17 +2530,7 @@ async function showKpiDetail(kpiType, period) {
         title = `Detalle de Caja del Mes - ${kpiType.replace(/_/g, ' ').toUpperCase()}`;
     }
 
-    s.promptContainer.innerHTML = `
-        <div class="container kpi-detail-modal">
-            <h3>${title}</h3>
-            <div id="kpi-detail-content">
-                <p class="dashboard-loader">Cargando transacciones...</p>
-            </div>
-            <div class="prompt-buttons" style="justify-content: center;">
-                <button class="prompt-button cancel">Cerrar</button>
-            </div>
-        </div>`;
-
+    s.promptContainer.innerHTML = `<div class="container kpi-detail-modal"><h3>${title}</h3><div id="kpi-detail-content"><p class="dashboard-loader">Cargando transacciones...</p></div><div class="prompt-buttons" style="justify-content: center;"><button class="prompt-button cancel">Cerrar</button></div></div>`;
     const detailContent = document.getElementById('kpi-detail-content');
 
     try {
@@ -2561,46 +2548,30 @@ async function showKpiDetail(kpiType, period) {
 
         const [salesSnap, miscIncomesSnap, expensesSnap, wholesaleSalesSnap] = await Promise.all([salesSnapPromise, miscIncomesSnapPromise, expensesSnapPromise, wholesaleSalesSnapPromise]);
         
-        // --- INICIO DE LA LÓGICA CORREGIDA PARA EL DETALLE ---
+        // --- LÓGICA DE DETALLE CORREGIDA ---
         salesSnap.forEach(doc => {
             const venta = doc.data();
             let montoDeEstaCaja = 0;
             
-            // Verificamos qué monto corresponde a la caja actual
             if (kpiType === 'dolares') montoDeEstaCaja = venta.monto_dolares || 0;
             if (kpiType === 'efectivo_ars') montoDeEstaCaja = venta.monto_efectivo || 0;
             if (kpiType === 'transferencia_ars') montoDeEstaCaja = venta.monto_transferencia || 0;
             
+            // Solo añadimos la transacción si hubo un ingreso en esta caja específica
             if (montoDeEstaCaja > 0) {
-                const valorCanjeUSD = venta.hubo_canje ? (venta.valor_toma_canje_usd || 0) : 0;
-                let montoNeto = montoDeEstaCaja;
-                
-                // Aplicamos el descuento del canje solo si esta caja fue la que lo "absorbió"
-                if (valorCanjeUSD > 0) {
-                    if (kpiType === 'dolares' && (venta.monto_dolares || 0) > 0) {
-                        montoNeto -= valorCanjeUSD;
-                    } else if (kpiType === 'efectivo_ars' && (venta.monto_efectivo || 0) > 0) {
-                        montoNeto -= (valorCanjeUSD * (venta.cotizacion_dolar || 1));
-                    } else if (kpiType === 'transferencia_ars' && (venta.monto_transferencia || 0) > 0) {
-                         montoNeto -= (valorCanjeUSD * (venta.cotizacion_dolar || 1));
-                    }
-                }
+                let conceptoVenta = `Venta: ${venta.producto.modelo}`;
+                if (venta.hubo_canje) conceptoVenta += ` (Canje)`;
 
-                if (montoNeto > 0) {
-                    let conceptoVenta = `Venta: ${venta.producto.modelo}`;
-                    if (valorCanjeUSD > 0) conceptoVenta += ` (Canje)`;
-
-                    transactions.push({ 
-                        id: doc.id, 
-                        fecha: venta.fecha_venta.toDate(), 
-                        tipo: 'Ingreso', 
-                        concepto: conceptoVenta,
-                        monto: montoNeto,
-                        moneda: kpiMoneda, 
-                        data: venta, 
-                        collection: 'ventas',
-                    });
-                }
+                transactions.push({ 
+                    id: doc.id, 
+                    fecha: venta.fecha_venta.toDate(), 
+                    tipo: 'Ingreso', 
+                    concepto: conceptoVenta,
+                    monto: montoDeEstaCaja, // Usamos directamente el monto ingresado
+                    moneda: kpiMoneda, 
+                    data: venta, 
+                    collection: 'ventas',
+                });
             }
         });
 
@@ -2636,7 +2607,6 @@ async function showKpiDetail(kpiType, period) {
                 transactions.push({ id: doc.id, fecha: sale.fecha_venta.toDate(), tipo: 'Ingreso', concepto: concepto, monto: monto, moneda: kpiMoneda, data: sale, collection: 'ventas_mayoristas' });
             }
         });
-        // --- FIN DE LA LÓGICA CORREGIDA ---
         
         transactions.sort((a, b) => b.fecha - a.fecha);
 
@@ -2651,20 +2621,13 @@ async function showKpiDetail(kpiType, period) {
                     <thead><tr><th>Fecha</th><th>Tipo</th><th>Concepto</th><th>Monto</th><th>Acciones</th></tr></thead>
                     <tbody>
                         ${transactions.map(t => {
-                            const deleteButtonHtml = `
-                                <button class="delete-btn btn-delete-kpi-item" title="Eliminar/Revertir">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                                </button>
-                            `;
-
+                            const deleteButtonHtml = `<button class="delete-btn btn-delete-kpi-item" title="Eliminar/Revertir"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button>`;
                             return `
                                 <tr data-id="${t.id}" data-type="${t.tipo}" data-collection="${t.collection}" data-item='${JSON.stringify(t.data).replace(/'/g, "\\'")}'>
                                     <td>${t.fecha.toLocaleString('es-AR')}</td>
                                     <td>${t.tipo}</td>
                                     <td>${t.concepto}</td>
-                                    <td class="${t.tipo === 'Ingreso' ? 'income' : 'outcome'}">
-                                        ${t.tipo === 'Egreso' ? '-' : ''}${t.moneda === 'USD' ? formatearUSD(t.monto) : formatearARS(t.monto)}
-                                    </td>
+                                    <td class="${t.tipo === 'Ingreso' ? 'income' : 'outcome'}">${t.tipo === 'Egreso' ? '-' : ''}${t.moneda === 'USD' ? formatearUSD(t.monto) : formatearARS(t.monto)}</td>
                                     <td class="actions-cell">${deleteButtonHtml}</td>
                                 </tr>`;
                         }).join('')}
@@ -3577,6 +3540,7 @@ function deleteGasto(id, categoria, monto) {
     });
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
 async function loadStock() {
     s.stockTableContainer.innerHTML = `<p class="dashboard-loader">Cargando stock...</p>`;
     toggleSpinner(s.btnApplyStockFilters, true);
@@ -3589,15 +3553,32 @@ async function loadStock() {
         query = query.orderBy('modelo');
         const querySnapshot = await query.get();
         if (querySnapshot.empty) { s.stockTableContainer.innerHTML = `<p class="dashboard-loader">No se encontraron productos con esos filtros.</p>`; return; }
+        
         let tableHTML = `<table><thead><tr><th>Fecha Carga</th><th>Modelo</th><th>Proveedor</th><th>Color</th><th>GB</th><th>Batería</th><th>Costo (USD)</th><th>Acciones</th></tr></thead><tbody>`;
+        
         querySnapshot.forEach(doc => {
             const item = doc.data();
             const fechaObj = item.fechaDeCarga ? new Date(item.fechaDeCarga.seconds * 1000) : null;
             let fechaFormateada = fechaObj ? `${String(fechaObj.getDate()).padStart(2, '0')}/${String(fechaObj.getMonth() + 1).padStart(2, '0')}/${fechaObj.getFullYear()}<br><small class="time-muted">${String(fechaObj.getHours()).padStart(2, '0')}:${String(fechaObj.getMinutes()).padStart(2, '0')} hs</small>` : 'N/A';
             const itemJSON = JSON.stringify(item).replace(/'/g, "\\'");
+
+            // ===== LÓGICA PARA AÑADIR EL ÍCONO DE REPARADO =====
+            let reparadoIconHtml = '';
+            if (item.fueReparado) {
+                reparadoIconHtml = `
+                    <span class="reparado-badge" title="Equipo reparado">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
+                    </span>`;
+            }
+
             tableHTML += `<tr data-item='${itemJSON}'>
-                <td>${fechaFormateada}</td><td>${item.modelo || ''}</td><td>${item.proveedor || 'N/A'}</td><td>${item.color || ''}</td><td>${item.almacenamiento || ''}</td>
-                <td>${item.bateria || ''}%</td><td>${formatearUSD(item.precio_costo_usd)}</td>
+                <td>${fechaFormateada}</td>
+                <td>${item.modelo || ''} ${reparadoIconHtml}</td>
+                <td>${item.proveedor || 'N/A'}</td>
+                <td>${item.color || ''}</td>
+                <td>${item.almacenamiento || ''}</td>
+                <td>${item.bateria || ''}%</td>
+                <td>${formatearUSD(item.precio_costo_usd)}</td>
                 <td class="actions-cell">
                     <button class="edit-btn btn-edit-stock" title="Editar Producto"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
                     <button class="delete-btn btn-delete-stock" title="Eliminar Producto"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button>
@@ -3609,7 +3590,6 @@ async function loadStock() {
     } catch (error) { handleDBError(error, s.stockTableContainer, "stock"); }
     finally { toggleSpinner(s.btnApplyStockFilters, false); }
 }
-
 function promptToEditStock(item) {
     switchView('management', s.tabManagement);
     resetManagementView();
@@ -3674,6 +3654,8 @@ async function exportToExcel(type) {
 
 // REEMPLAZA ESTA FUNCIÓN EN TU SCRIPT.JS
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 async function loadSales() {
     s.salesTableContainer.innerHTML = `<p class="dashboard-loader">Cargando ventas...</p>`;
     toggleSpinner(s.btnApplySalesFilters, true);
@@ -3731,7 +3713,7 @@ async function loadSales() {
                 <td>${formatearUSD(venta.precio_venta_usd)}</td>
                 <td>${venta.metodo_pago}</td>
                 <td class="garantia-cell">${garantiaHtml}</td>
-                <td class="actions-cell"><button class="edit-btn btn-edit-sale" title="Editar Venta"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button><button class="delete-btn btn-delete-sale" title="Eliminar Venta"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button></td>
+                <td class="actions-cell"><button class="edit-btn btn-edit-sale" title="Editar Venta"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button><button class="delete-btn btn-delete-sale" title="Revertir Venta"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button></td>
             </tr>`;
         });
         s.salesTableContainer.innerHTML = tableHTML + `</tbody></table>`;
@@ -3759,7 +3741,15 @@ async function loadSales() {
         });
 
         document.querySelectorAll('.btn-edit-sale').forEach(button => button.addEventListener('click', e => { const row = e.currentTarget.closest('tr'); const saleItem = JSON.parse(row.dataset.saleItem.replace(/\\'/g, "'")); promptToEditSale(saleItem, row.dataset.saleId); }));
-        document.querySelectorAll('.btn-delete-sale').forEach(button => button.addEventListener('click', e => { const row = e.currentTarget.closest('tr'); const saleItem = JSON.parse(row.dataset.saleItem.replace(/\\'/g, "'")); const message = `Producto: ${saleItem.producto.modelo}\nIMEI: ${saleItem.imei_vendido}\n\nEsta acción NO devolverá el equipo al stock y la eliminará permanentemente.`; showConfirmationModal('¿Seguro que quieres eliminar esta venta?', message, () => deleteSale(row.dataset.saleId, saleItem.imei_vendido, saleItem.id_canje_pendiente)); }));
+        
+        document.querySelectorAll('.btn-delete-sale').forEach(button => button.addEventListener('click', e => { 
+            const row = e.currentTarget.closest('tr'); 
+            const saleItem = JSON.parse(row.dataset.saleItem.replace(/\\'/g, "'")); 
+            const message = `Producto: ${saleItem.producto.modelo}\nIMEI: ${saleItem.imei_vendido}\n\nEsta acción devolverá el equipo al stock y eliminará la venta permanentemente.`; 
+            
+            // ===== ESTA ES LA LÍNEA MODIFICADA =====
+            showConfirmationModal('¿Seguro que quieres revertir esta venta?', message, () => deleteSale(row.dataset.saleId)); 
+        }));
     
     } catch (error) { 
         handleDBError(error, s.salesTableContainer, "ventas"); 
@@ -3819,48 +3809,101 @@ async function updateSale(saleId, btn) {
     }
 }
 
-async function deleteSale(saleId, imei, canjeId) {
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
+async function deleteSale(saleId) {
     try {
         await db.runTransaction(async t => {
             const saleRef = db.collection("ventas").doc(saleId);
-            const stockRef = db.collection("stock_individual").doc(imei);
             
-            const stockDoc = await t.get(stockRef);
+            const saleDoc = await t.get(saleRef);
+            if (!saleDoc.exists) {
+                console.warn(`La venta con ID ${saleId} ya no existe. No se puede revertir.`);
+                return;
+            }
+            const saleData = saleDoc.data();
 
-            if (stockDoc.exists) {
-                t.update(stockRef, { estado: "eliminado_por_error_en_venta" });
-            } else {
-                console.warn(`Al eliminar la venta ${saleId}, no se encontró el documento de stock con IMEI ${imei}. Se omitirá su actualización.`);
+            // 1. Poner el equipo vendido de nuevo en stock
+            if (saleData.imei_vendido) {
+                const stockRef = db.collection("stock_individual").doc(saleData.imei_vendido);
+                t.update(stockRef, { estado: 'en_stock' });
             }
 
+            // 2. CORRECCIÓN CLAVE: Eliminar el registro pendiente correcto
+            if (saleData.hubo_canje) {
+                let pendienteRef;
+                // Si la venta tiene la bandera 'canje_a_reparacion', buscamos en 'reparaciones'
+                if (saleData.canje_a_reparacion && saleData.id_reparacion_pendiente) {
+                    pendienteRef = db.collection("reparaciones").doc(saleData.id_reparacion_pendiente);
+                } 
+                // Si no, buscamos en la lista normal de pendientes
+                else if (saleData.id_canje_pendiente) {
+                    pendienteRef = db.collection("plan_canje_pendientes").doc(saleData.id_canje_pendiente);
+                }
+                
+                // Si encontramos una referencia, la eliminamos
+                if (pendienteRef) {
+                    t.delete(pendienteRef);
+                }
+            }
+
+            // 3. Finalmente, eliminar la venta
             t.delete(saleRef);
-            
-            if (canjeId) {
-                const canjeRef = db.collection("plan_canje_pendientes").doc(canjeId);
-                t.delete(canjeRef);
-            }
         });
 
-        showGlobalFeedback("Venta eliminada con éxito.");
+        showGlobalFeedback("Venta revertida y registro pendiente eliminado con éxito.");
+        
+        // Actualizamos todas las vistas relevantes
         loadSales();
         updateCanjeCount();
+        updateReparacionCount();
         updateReports();
+
     } catch (error) {
         console.error("Error al eliminar la venta:", error);
-        showGlobalFeedback("No se pudo eliminar la venta.", "error");
+        showGlobalFeedback("No se pudo eliminar la venta. Revisa la consola.", "error");
     }
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
 async function loadCanjes() {
     s.canjeTableContainer.innerHTML = `<p class="dashboard-loader">Cargando pendientes...</p>`;
     try {
         const query = db.collection("plan_canje_pendientes").where("estado", "==", "pendiente_de_carga").orderBy("fecha_canje", "desc");
         const querySnapshot = await query.get();
         if (querySnapshot.empty) { s.canjeTableContainer.innerHTML = `<p class="dashboard-loader">No hay equipos pendientes de carga.</p>`; return; }
+        
         let tableHTML = `<table><thead><tr><th>Fecha Canje</th><th>Modelo Recibido</th><th>Info Venta Asociada</th><th>Valor Toma (USD)</th><th>Acción</th></tr></thead><tbody>`;
-        querySnapshot.forEach(doc => { const item = doc.data(); const fecha = item.fecha_canje ? new Date(item.fecha_canje.seconds * 1000).toLocaleDateString('es-AR') : 'N/A'; let ventaInfo = item.observaciones_canje || ''; if (item.producto_vendido) ventaInfo = `A cambio de ${item.producto_vendido}. ${ventaInfo}`; tableHTML += `<tr data-canje-id="${doc.id}" data-modelo="${item.modelo_recibido}"><td>${fecha}</td><td>${item.modelo_recibido}</td><td>${ventaInfo}</td><td>${formatearUSD(item.valor_toma_usd)}</td><td><button class="control-btn btn-cargar-canje" style="background-color: var(--success-bg);">Cargar a Stock</button></td></tr>`; });
+        
+        querySnapshot.forEach(doc => { 
+            const item = doc.data();
+            const fechaObj = item.fecha_canje ? item.fecha_canje.toDate() : null;
+            
+            // ===== LÍNEA MODIFICADA PARA INCLUIR LA HORA =====
+            let fechaFormateada = fechaObj ? `${String(fechaObj.getDate()).padStart(2, '0')}/${String(fechaObj.getMonth() + 1).padStart(2, '0')}/${fechaObj.getFullYear()}<br><small class="time-muted">${String(fechaObj.getHours()).padStart(2, '0')}:${String(fechaObj.getMinutes()).padStart(2, '0')} hs</small>` : 'N/A';
+            
+            let ventaInfo = item.observaciones_canje || '';
+            if (item.producto_vendido) ventaInfo = `A cambio de ${item.producto_vendido}. ${ventaInfo}`;
+            
+            const itemJSON = JSON.stringify(item).replace(/'/g, "\\'");
+            tableHTML += `<tr data-canje-id="${doc.id}" data-item='${itemJSON}'>
+                            <td>${fechaFormateada}</td>
+                            <td>${item.modelo_recibido}</td>
+                            <td>${ventaInfo}</td>
+                            <td>${formatearUSD(item.valor_toma_usd)}</td>
+                            <td><button class="control-btn btn-cargar-canje" style="background-color: var(--success-bg);">Cargar a Stock</button></td>
+                          </tr>`; 
+        });
+        
         s.canjeTableContainer.innerHTML = tableHTML + `</tbody></table>`;
-        document.querySelectorAll('.btn-cargar-canje').forEach(button => button.addEventListener('click', (e) => { const row = e.currentTarget.closest('tr'); cargarCanje(row.dataset.canjeId, row.dataset.modelo); }));
+        
+        document.querySelectorAll('.btn-cargar-canje').forEach(button => {
+            button.addEventListener('click', (e) => { 
+                const row = e.currentTarget.closest('tr');
+                const canjeItem = JSON.parse(row.dataset.item.replace(/\\'/g, "'"));
+                cargarCanje(row.dataset.canjeId, canjeItem); 
+            });
+        });
     } catch (error) { handleDBError(error, s.canjeTableContainer, "pendientes de canje"); }
 }
 
@@ -3872,32 +3915,19 @@ async function loadCanjes() {
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
-function cargarCanje(docId, modelo) {
-    const canjeItemRow = document.querySelector(`#canje-table-container tr[data-canje-id="${docId}"]`);
-    const valorTomaTexto = canjeItemRow.querySelector('td:nth-child(4)').textContent;
-    const valorTomaNumerico = parseFloat(valorTomaTexto.replace(/[^0-9,.-]+/g,"").replace(",", "."));
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
+function cargarCanje(docId, canjeData) {
+    const valorTomaNumerico = canjeData.valor_toma_usd || 0;
 
-    // Establecemos el contexto global con TODOS los datos necesarios.
     canjeContext = { 
         docId, 
-        modelo,
-        valorToma: valorTomaNumerico 
+        modelo: canjeData.modelo_recibido,
+        valorToma: valorTomaNumerico,
+        // Pasamos toda la data para que el siguiente paso la use
+        fullData: canjeData 
     };
 
-    s.promptContainer.innerHTML = `
-        <div class="container container-sm" style="margin: auto;">
-            <div class="prompt-box">
-                <h3>Cargar IMEI para ${modelo}</h3>
-                <p style="color: var(--text-muted); margin-bottom: 1.5rem; text-align: center;">¿Cómo deseas ingresar el IMEI del equipo de canje?</p>
-                <div class="prompt-buttons">
-                    <button id="btn-canje-scan" class="prompt-button confirm">Escanear IMEI</button>
-                    <button id="btn-canje-manual" class="prompt-button confirm" style="background-color: #555;">Ingresar Manualmente</button>
-                </div>
-                <div class="prompt-buttons" style="margin-top: 1rem;">
-                    <button class="prompt-button cancel">Cancelar</button>
-                </div>
-            </div>
-        </div>`;
+    s.promptContainer.innerHTML = `<div class="container container-sm" style="margin: auto;"><div class="prompt-box"><h3>Cargar IMEI para ${canjeData.modelo_recibido}</h3><p style="color: var(--text-muted); margin-bottom: 1.5rem; text-align: center;">¿Cómo deseas ingresar el IMEI del equipo de canje?</p><div class="prompt-buttons"><button id="btn-canje-scan" class="prompt-button confirm">Escanear IMEI</button><button id="btn-canje-manual" class="prompt-button confirm" style="background-color: #555;">Ingresar Manualmente</button></div><div class="prompt-buttons" style="margin-top: 1rem;"><button class="prompt-button cancel">Cancelar</button></div></div></div>`;
         
     document.getElementById('btn-canje-scan').onclick = () => {
         s.promptContainer.innerHTML = '';
@@ -3912,7 +3942,7 @@ function cargarCanje(docId, modelo) {
     };
 
     s.promptContainer.querySelector('.prompt-button.cancel').addEventListener('click', () => {
-        canjeContext = null; // Limpiamos el contexto si el usuario cancela
+        canjeContext = null;
     });
 }
 
@@ -4079,6 +4109,8 @@ async function onScanSuccess(imei) {
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
 function showAddProductForm(e, imei = '', modelo = '', canjeId = null, valorToma = null) {
     if(e) e.preventDefault();
     resetManagementView(batchLoadContext ? true : false); 
@@ -4087,8 +4119,6 @@ function showAddProductForm(e, imei = '', modelo = '', canjeId = null, valorToma
     s.imeiInput.readOnly = !!imei;
     s.imeiInput.value = imei;
 
-    // --- INICIO DE LA LÓGICA CORREGIDA Y ROBUSTA ---
-    // Volvemos a popular el select por si fue modificado
     populateSelect(s.modeloFormSelect, modelos, "Selecciona...");
 
     if (canjeId && valorToma !== null) {
@@ -4099,14 +4129,34 @@ function showAddProductForm(e, imei = '', modelo = '', canjeId = null, valorToma
     } 
     else if (batchLoadContext) {
         s.proveedorFormSelect.value = batchLoadContext.providerName;
-        s.modeloFormSelect.value = batchLoadContext.currentModel; // Usamos el modelo actual del lote
+        s.modeloFormSelect.value = batchLoadContext.currentModel;
         s.managementTitle.textContent = `Cargando ${batchLoadContext.currentModel} (${batchLoadContext.modelosCargados[batchLoadContext.currentModel]?.length || 0} cargados)`;
     }
     
-    // --- FIN DE LA LÓGICA CORREGIDA ---
-
     s.productForm.classList.remove('hidden');
     
+    const paraRepararCheck = document.getElementById('para-reparar-check');
+    const reparacionFields = document.getElementById('reparacion-fields');
+    const defectoInput = document.getElementById('defecto-form');
+    const repuestoInput = document.getElementById('repuesto-form');
+
+    // ===== LÓGICA CORREGIDA PARA PRE-RELLENAR SI EL CANJE ESTÁ DAÑADO =====
+    if (canjeContext && canjeContext.fullData && canjeContext.fullData.para_reparar) {
+        paraRepararCheck.checked = true;
+        reparacionFields.classList.remove('hidden');
+        defectoInput.value = canjeContext.fullData.defecto || '';
+        repuestoInput.value = canjeContext.fullData.repuesto_necesario || '';
+        defectoInput.required = true;
+        repuestoInput.required = true;
+    }
+
+    paraRepararCheck.addEventListener('change', (e) => {
+        const isChecked = e.target.checked;
+        reparacionFields.classList.toggle('hidden', !isChecked);
+        defectoInput.required = isChecked;
+        repuestoInput.required = isChecked;
+    });
+
     if (!imei) {
         s.imeiInput.focus();
     } else if (!document.getElementById('precio-costo-form').value) {
@@ -4116,55 +4166,23 @@ function showAddProductForm(e, imei = '', modelo = '', canjeId = null, valorToma
     }
 }// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
 function promptToSell(imei, details) {
     const vendedoresOptions = vendedores.map(v => `<option value="${v}">${v}</option>`).join('');
     const modelosOptions = modelos.map(m => `<option value="${m}">${m}</option>`).join('');
 
-    // Nueva estructura para los métodos de pago
     const metodosDePagoHtml = `
         <div class="form-group">
             <label>Método(s) de Pago</label>
             <div id="payment-methods-container">
-                <!-- Dólares -->
-                <div class="payment-option">
-                    <label class="toggle-switch-group">
-                        <input type="checkbox" name="metodo_pago_check" value="Dólares">
-                        <span class="toggle-switch-label">Dólares</span>
-                        <span class="toggle-switch-slider"></span>
-                    </label>
-                    <div class="payment-input-container hidden">
-                        <input type="number" name="monto_dolares" placeholder="Monto en USD" step="0.01">
-                    </div>
-                </div>
-                <!-- Pesos (Efectivo) -->
-                <div class="payment-option">
-                    <label class="toggle-switch-group">
-                        <input type="checkbox" name="metodo_pago_check" value="Pesos (Efectivo)">
-                        <span class="toggle-switch-label">Pesos (Efectivo)</span>
-                        <span class="toggle-switch-slider"></span>
-                    </label>
-                    <div class="payment-input-container hidden">
-                        <input type="number" name="monto_efectivo" placeholder="Monto en ARS" step="0.01">
-                    </div>
-                </div>
-                <!-- Pesos (Transferencia) -->
-                <div class="payment-option">
-                    <label class="toggle-switch-group">
-                        <input type="checkbox" name="metodo_pago_check" value="Pesos (Transferencia)">
-                        <span class="toggle-switch-label">Pesos (Transferencia)</span>
-                        <span class="toggle-switch-slider"></span>
-                    </label>
-                    <div class="payment-input-container hidden">
-                        <input type="number" name="monto_transferencia" placeholder="Monto en ARS" step="0.01">
-                        <textarea name="observaciones_transferencia" rows="2" placeholder="Obs. de transferencia (opcional)" style="margin-top: 10px;"></textarea>
-                    </div>
-                </div>
+                <div class="payment-option"><label class="toggle-switch-group"><input type="checkbox" name="metodo_pago_check" value="Dólares"><span class="toggle-switch-label">Dólares</span><span class="toggle-switch-slider"></span></label><div class="payment-input-container hidden"><input type="number" name="monto_dolares" placeholder="Monto en USD" step="0.01"></div></div>
+                <div class="payment-option"><label class="toggle-switch-group"><input type="checkbox" name="metodo_pago_check" value="Pesos (Efectivo)"><span class="toggle-switch-label">Pesos (Efectivo)</span><span class="toggle-switch-slider"></span></label><div class="payment-input-container hidden"><input type="number" name="monto_efectivo" placeholder="Monto en ARS" step="0.01"></div></div>
+                <div class="payment-option"><label class="toggle-switch-group"><input type="checkbox" name="metodo_pago_check" value="Pesos (Transferencia)"><span class="toggle-switch-label">Pesos (Transferencia)</span><span class="toggle-switch-slider"></span></label><div class="payment-input-container hidden"><input type="number" name="monto_transferencia" placeholder="Monto en ARS" step="0.01"><textarea name="observaciones_transferencia" rows="2" placeholder="Obs. de transferencia (opcional)" style="margin-top: 10px;"></textarea></div></div>
             </div>
         </div>
     `;
 
+    // ===== HTML DEL PLAN CANJE MODIFICADO =====
     const canjeHtml = `
         <hr style="border-color:var(--border-dark);margin:1.5rem 0;">
         <label class="toggle-switch-group">
@@ -4172,14 +4190,36 @@ function promptToSell(imei, details) {
             <span class="toggle-switch-label">Acepta Plan Canje</span>
             <span class="toggle-switch-slider"></span>
         </label>
+        <div id="plan-canje-fields" class="hidden">
+            <h4>Detalles del Equipo Recibido</h4>
+            <div class="form-group"><label>Modelo Recibido</label><select name="canje-modelo">${modelosOptions}</select></div>
+            <div class="form-group"><label>Valor Toma (USD)</label><input type="number" name="canje-valor"></div>
+            <div class="form-group"><label>Observaciones</label><textarea name="canje-observaciones" rows="2"></textarea></div>
+            
+            <!-- NUEVOS CAMPOS PARA REPARACIÓN DEL CANJE -->
+            <label class="toggle-switch-group">
+                <input type="checkbox" id="canje-para-reparar-check" name="canje-para-reparar">
+                <span class="toggle-switch-label">Equipo de Canje Dañado (Enviar a Reparación)</span>
+                <span class="toggle-switch-slider"></span>
+            </label>
+            <div id="canje-reparacion-fields" class="hidden" style="animation: fadeIn 0.4s;">
+                <div class="form-group">
+                    <label for="canje-defecto-form">Defecto del Equipo Recibido</label>
+                    <input type="text" id="canje-defecto-form" name="canje-defecto" placeholder="Ej: Pantalla rota, no enciende...">
+                </div>
+                <div class="form-group">
+                    <label for="canje-repuesto-form">Repuesto Necesario</label>
+                    <input type="text" id="canje-repuesto-form" name="canje-repuesto" placeholder="Ej: Módulo de pantalla iPhone 12 Pro...">
+                </div>
+            </div>
+        </div>
     `;
 
-    s.promptContainer.innerHTML = `<div class="container container-sm" style="margin:auto;"><div class="prompt-box"><h3>Registrar Venta</h3><form id="sell-form"><div class="details-box"><div class="detail-item"><span>Vendiendo:</span> <strong>${details.modelo || ''}</strong></div><div class="detail-item"><span>IMEI:</span> <strong>${imei}</strong></div></div><div class="form-group"><label>Nombre del Cliente (Opcional)</label><input type="text" name="nombre_cliente"></div><div class="form-group"><label>Precio Venta TOTAL (USD)</label><input type="number" name="precioVenta" required></div>${metodosDePagoHtml}<div class="form-group"><label for="cotizacion_dolar">Cotización Dólar (si aplica)</label><input type="number" name="cotizacion_dolar" placeholder="Ej: 1200"></div><div class="form-group"><label>Vendedor</label><select name="vendedor" required><option value="">Seleccione...</option>${vendedoresOptions}</select></div><div id="comision-vendedor-field" class="form-group hidden"><label>Comisión Vendedor (USD)</label><input type="number" name="comision_vendedor_usd"></div>${canjeHtml}<div id="plan-canje-fields" class="hidden"><h4>Detalles del Equipo Recibido</h4><div class="form-group"><label>Modelo Recibido</label><select name="canje-modelo">${modelosOptions}</select></div><div class="form-group"><label>Valor Toma (USD)</label><input type="number" name="canje-valor"></div><div class="form-group"><label>Observaciones</label><textarea name="canje-observaciones" rows="2"></textarea></div></div><div class="prompt-buttons"><button type="submit" class="prompt-button confirm spinner-btn"><span class="btn-text">Registrar Venta</span><div class="spinner"></div></button><button type="button" class="prompt-button cancel">Cancelar</button></div></form></div></div>`;
+    s.promptContainer.innerHTML = `<div class="container container-sm" style="margin:auto;"><div class="prompt-box"><h3>Registrar Venta</h3><form id="sell-form"><div class="details-box"><div class="detail-item"><span>Vendiendo:</span> <strong>${details.modelo || ''}</strong></div><div class="detail-item"><span>IMEI:</span> <strong>${imei}</strong></div></div><div class="form-group"><label>Nombre del Cliente (Opcional)</label><input type="text" name="nombre_cliente"></div><div class="form-group"><label>Precio Venta TOTAL (USD)</label><input type="number" name="precioVenta" required></div>${metodosDePagoHtml}<div class="form-group"><label for="cotizacion_dolar">Cotización Dólar (si aplica)</label><input type="number" name="cotizacion_dolar" placeholder="Ej: 1200"></div><div class="form-group"><label>Vendedor</label><select name="vendedor" required><option value="">Seleccione...</option>${vendedoresOptions}</select></div><div id="comision-vendedor-field" class="form-group hidden"><label>Comisión Vendedor (USD)</label><input type="number" name="comision_vendedor_usd"></div>${canjeHtml}<div class="prompt-buttons"><button type="submit" class="prompt-button confirm spinner-btn"><span class="btn-text">Registrar Venta</span><div class="spinner"></div></button><button type="button" class="prompt-button cancel">Cancelar</button></div></form></div></div>`;
     
     const form = document.getElementById('sell-form');
     const vendedorSelect = form.querySelector('[name="vendedor"]');
     
-    // Funcionalidad para mostrar/ocultar campos de monto
     form.querySelectorAll('input[name="metodo_pago_check"]').forEach(checkbox => {
         checkbox.addEventListener('change', (e) => {
             const container = e.target.closest('.payment-option').querySelector('.payment-input-container');
@@ -4194,13 +4234,16 @@ function promptToSell(imei, details) {
     document.getElementById('acepta-canje').addEventListener('change', (e) => { 
         document.getElementById('plan-canje-fields').classList.toggle('hidden', !e.target.checked); 
     });
+
+    // ===== NUEVO EVENT LISTENER PARA EL CHECKBOX DE REPARACIÓN =====
+    document.getElementById('canje-para-reparar-check').addEventListener('change', (e) => {
+        document.getElementById('canje-reparacion-fields').classList.toggle('hidden', !e.target.checked);
+    });
     
     form.addEventListener('submit', (e) => { e.preventDefault(); registerSale(imei, details, e.target.querySelector('button[type="submit"]')); });
 }
-// REEMPLAZA ESTA FUNCIÓN
-
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
 async function registerSale(imei, productDetails, btn) {
     toggleSpinner(btn, true);
     const form = btn.form;
@@ -4210,7 +4253,6 @@ async function registerSale(imei, productDetails, btn) {
     const valorCanjeUSD = formData.get('acepta-canje') === 'on' ? (parseFloat(formData.get('canje-valor')) || 0) : 0;
     const cotizacion = parseFloat(formData.get('cotizacion_dolar')) || 1;
 
-    // Recopilamos los pagos
     const montoDolares = parseFloat(formData.get('monto_dolares')) || 0;
     const montoEfectivo = parseFloat(formData.get('monto_efectivo')) || 0;
     const montoTransferencia = parseFloat(formData.get('monto_transferencia')) || 0;
@@ -4226,13 +4268,12 @@ async function registerSale(imei, productDetails, btn) {
     if (montoEfectivo > 0) pagosRecibidos.push('Pesos (Efectivo)');
     if (montoTransferencia > 0) pagosRecibidos.push('Pesos (Transferencia)');
 
-    // Creamos el objeto de la venta principal
     const saleData = {
         imei_vendido: imei, 
         producto: productDetails, 
         precio_venta_usd: ventaTotalUSD,
         nombre_cliente: formData.get('nombre_cliente').trim() || null,
-        metodo_pago: pagosRecibidos.join(' + '), // Ej: "Dólares + Pesos (Efectivo)"
+        metodo_pago: pagosRecibidos.join(' + '),
         vendedor: formData.get('vendedor'), 
         comision_vendedor_usd: parseFloat(formData.get('comision_vendedor_usd')) || 0,
         fecha_venta: firebase.firestore.FieldValue.serverTimestamp(), 
@@ -4252,22 +4293,46 @@ async function registerSale(imei, productDetails, btn) {
             t.update(db.collection("stock_individual").doc(imei), { estado: 'vendido' });
 
             if (saleData.hubo_canje) {
-                const canjeRef = db.collection("plan_canje_pendientes").doc();
-                t.set(canjeRef, { 
-                    modelo_recibido: formData.get('canje-modelo'), 
-                    valor_toma_usd: saleData.valor_toma_canje_usd, 
-                    observaciones_canje: formData.get('canje-observaciones'), 
-                    producto_vendido: `${productDetails.modelo} ${productDetails.color}`, 
-                    venta_asociada_id: saleRef.id, 
-                    fecha_canje: saleData.fecha_venta, 
-                    estado: 'pendiente_de_carga' 
-                });
-                saleData.id_canje_pendiente = canjeRef.id;
+                const canjeParaReparar = formData.get('canje-para-reparar') === 'on';
+
+                if (canjeParaReparar) {
+                    // SI ESTÁ DAÑADO, VA DIRECTO A LA COLECCIÓN DE REPARACIONES
+                    const reparacionRef = db.collection("reparaciones").doc(); // Usamos ID automático
+                    t.set(reparacionRef, {
+                        estado_reparacion: 'pendiente_asignar_imei', // Nuevo estado
+                        modelo: formData.get('canje-modelo'),
+                        precio_costo_usd: saleData.valor_toma_canje_usd,
+                        defecto: formData.get('canje-defecto'),
+                        repuesto_necesario: formData.get('canje-repuesto'),
+                        observaciones_canje: formData.get('canje-observaciones'),
+                        venta_asociada_id: saleRef.id,
+                        fechaDeCarga: saleData.fecha_venta,
+                        proveedor: "Usado (Plan Canje)"
+                    });
+                    saleData.id_reparacion_pendiente = reparacionRef.id;
+                    saleData.canje_a_reparacion = true;
+                } else {
+                    // SI ESTÁ SANO, VA A PENDIENTES DE CARGA
+                    const canjeRef = db.collection("plan_canje_pendientes").doc();
+                    t.set(canjeRef, { 
+                        modelo_recibido: formData.get('canje-modelo'), 
+                        valor_toma_usd: saleData.valor_toma_canje_usd, 
+                        observaciones_canje: formData.get('canje-observaciones'), 
+                        producto_vendido: `${productDetails.modelo} ${productDetails.color}`, 
+                        venta_asociada_id: saleRef.id, 
+                        fecha_canje: saleData.fecha_venta, 
+                        estado: 'pendiente_de_carga' 
+                    });
+                    saleData.id_canje_pendiente = canjeRef.id;
+                }
             }
-            // Guardamos la venta maestra
             t.set(saleRef, saleData);
         });
 
+        // Actualizamos ambos contadores por si acaso
+        updateCanjeCount();
+        updateReparacionCount();
+        
         s.promptContainer.innerHTML = '';
         s.managementView.classList.add('hidden');
         switchView('dashboard', s.tabDashboard);
@@ -4280,7 +4345,6 @@ async function registerSale(imei, productDetails, btn) {
         toggleSpinner(btn, false); 
     }
 }
-
 
 s.productForm.addEventListener('click', (e) => {
     if (e.target && e.target.id === 'btn-cancel-product-form') {
@@ -4299,61 +4363,86 @@ s.productForm.addEventListener('click', (e) => {
     }
 });
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
 async function handleProductFormSubmit(e) {
     e.preventDefault();
     const btn = e.target.querySelector('button');
     const form = e.target;
     const mode = form.dataset.mode || 'create';
     toggleSpinner(btn, true);
+
     const formData = new FormData(form);
     const imei = formData.get('imei').trim();
-    if (!imei) { showFeedback("El campo IMEI no puede estar vacío.", "error"); toggleSpinner(btn, false); return; }
-    
-    // --- INICIO DE LA CORRECCIÓN ---
-    // Ahora leemos el costo desde el formulario para CUALQUIER carga.
-    const costoIndividual = parseFloat(formData.get('precio_costo_usd')) || 0;
-    
-    const unitData = {
-        imei, 
-        estado: 'en_stock', 
-        precio_costo_usd: costoIndividual, // Usamos el costo ingresado
-        modelo: formData.get('modelo'), 
-        color: formData.get('color'), 
-        bateria: parseInt(formData.get('bateria')),
-        almacenamiento: formData.get('almacenamiento'), 
-        detalles_esteticos: formData.get('detalles'),
-        proveedor: batchLoadContext ? batchLoadContext.providerName : formData.get('proveedor')
-    };
-    // --- FIN DE LA CORRECCIÓN ---
-    
-    if (mode === 'create') {
-        unitData.fechaDeCarga = firebase.firestore.FieldValue.serverTimestamp();
+    if (!imei) {
+        showFeedback("El campo IMEI no puede estar vacío.", "error");
+        toggleSpinner(btn, false);
+        return;
     }
-    
-    const canjeId = form.dataset.canjeId; 
 
     try {
-        if (mode === 'create') {
+        if (mode === 'update') {
+            const unitData = {
+                precio_costo_usd: parseFloat(formData.get('precio_costo_usd')) || 0,
+                modelo: formData.get('modelo'),
+                color: formData.get('color'),
+                bateria: parseInt(formData.get('bateria')),
+                almacenamiento: formData.get('almacenamiento'),
+                detalles_esteticos: formData.get('detalles'),
+                proveedor: formData.get('proveedor')
+            };
+            await db.collection("stock_individual").doc(imei).update(unitData);
+            showGlobalFeedback("¡Producto actualizado con éxito!", "success");
+            setTimeout(() => {
+                resetManagementView();
+                switchView('dashboard', s.tabDashboard);
+                loadStock();
+                updateReports();
+            }, 1500);
+
+        } else {
+            const paraReparar = formData.get('para-reparar') === 'on';
+            const costoIndividual = parseFloat(formData.get('precio_costo_usd')) || 0;
+
+            const commonData = {
+                imei,
+                precio_costo_usd: costoIndividual,
+                modelo: formData.get('modelo'),
+                color: formData.get('color'),
+                bateria: parseInt(formData.get('bateria')),
+                almacenamiento: formData.get('almacenamiento'),
+                detalles_esteticos: formData.get('detalles'),
+                proveedor: batchLoadContext ? batchLoadContext.providerName : formData.get('proveedor'),
+                fechaDeCarga: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
             await db.runTransaction(async (t) => {
-                const individualStockRef = db.collection("stock_individual").doc(imei);
-                
-                const existingImei = await t.get(individualStockRef);
-                if (existingImei.exists && existingImei.data().estado === 'en_stock') {
-                    throw new Error(`El IMEI ${imei} ya está en stock.`);
+                const stockRef = db.collection("stock_individual").doc(imei);
+                const reparacionRef = db.collection("reparaciones").doc(imei);
+
+                const [stockDoc, reparacionDoc] = await Promise.all([t.get(stockRef), t.get(reparacionRef)]);
+                if (stockDoc.exists || reparacionDoc.exists) {
+                    throw new Error(`El IMEI ${imei} ya fue cargado previamente.`);
                 }
                 
-                t.set(individualStockRef, unitData);
-                
+                if (paraReparar) {
+                    const reparacionData = {
+                        ...commonData,
+                        estado_reparacion: 'en_proceso',
+                        defecto: formData.get('defecto'),
+                        repuesto_necesario: formData.get('repuesto')
+                    };
+                    t.set(reparacionRef, reparacionData);
+                } 
+                else {
+                    const unitData = { ...commonData, estado: 'en_stock' };
+                    t.set(stockRef, unitData);
+                }
+
+                const canjeId = form.dataset.canjeId;
                 if (canjeId) {
                     const canjeRef = db.collection("plan_canje_pendientes").doc(canjeId);
-                    t.update(canjeRef, { 
-                        estado: 'cargado_en_stock', 
-                        imei_asignado: imei 
-                    });
+                    t.update(canjeRef, { estado: 'cargado_en_stock', imei_asignado: imei });
                 }
             });
             
@@ -4365,45 +4454,47 @@ async function handleProductFormSubmit(e) {
                 batchLoadContext.modelosCargados[modeloActual].push(imei);
 
                 const count = batchLoadContext.modelosCargados[modeloActual].length;
-                showFeedback(`¡Éxito! ${modeloActual} añadido. Cargados de este modelo: ${count}`, "success");
+                let message = `¡Éxito! ${modeloActual} añadido. Cargados de este modelo: ${count}`;
+                if (paraReparar) {
+                    message += " (Enviado a Reparación)";
+                    // ===== ESTA ES LA LÍNEA AÑADIDA PARA CORREGIR EL BUG =====
+                    updateReparacionCount();
+                }
+                showFeedback(message, "success");
                 
-                setTimeout(() => {
-                    resetManagementView(true); 
-                }, 1500);
+                setTimeout(() => { resetManagementView(true); }, 1500);
 
-            } else { 
-                showFeedback(`¡Éxito! ${unitData.modelo} añadido al stock.`, "success");
-                setTimeout(() => { 
-                    resetManagementView(); 
+            } else {
+                let message = `¡Éxito! ${commonData.modelo} añadido.`;
+                if (paraReparar) {
+                    message = `¡Éxito! ${commonData.modelo} enviado a la lista de reparación.`;
+                    updateReparacionCount();
+                } else {
+                    message = `¡Éxito! ${commonData.modelo} añadido al stock.`;
+                    if (form.dataset.canjeId) updateCanjeCount();
+                }
+                
+                showFeedback(message, "success");
+
+                setTimeout(() => {
+                    resetManagementView();
                     switchView('dashboard', s.tabDashboard);
-                    updateReports();
-                    if(canjeId) {
-                        loadCanjes();
-                        updateCanjeCount();
+                    if (paraReparar) {
+                        switchDashboardView('reparacion', s.btnShowReparacion);
                     } else {
                         loadStock();
                     }
+                    updateReports();
                 }, 1500);
             }
-        } else { // modo 'update'
-            unitData.precio_costo_usd = parseFloat(formData.get('precio_costo_usd')) || 0;
-            await db.collection("stock_individual").doc(imei).update(unitData);
-            showGlobalFeedback("¡Producto actualizado con éxito!", "success");
-            setTimeout(() => { 
-                resetManagementView(); 
-                switchView('dashboard', s.tabDashboard);
-                loadStock();
-                updateReports();
-            }, 1500);
         }
     } catch (error) {
-        showFeedback(error.message || `Error al ${mode === 'create' ? 'guardar' : 'actualizar'}.`, "error");
+        showFeedback(error.message || `Error al guardar el producto.`, "error");
         console.error("Error en handleProductFormSubmit:", error);
     } finally {
         toggleSpinner(btn, false);
     }
-}// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
+}
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
 function resetManagementView(isBatchLoad = false, isCanje = false, isWholesaleSale = false) {
@@ -4855,4 +4946,189 @@ function deleteWholesaleClient(clientId, clientName) {
             showGlobalFeedback('Error crítico al eliminar el cliente. Revisa la consola.', 'error');
         }
     });
+}
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
+async function loadReparaciones() {
+    s.reparacionTableContainer.innerHTML = `<p class="dashboard-loader">Cargando equipos para reparar...</p>`;
+    try {
+        const querySnapshot = await db.collection("reparaciones").orderBy("fechaDeCarga", "desc").get();
+        if (querySnapshot.empty) {
+            s.reparacionTableContainer.innerHTML = `<p class="dashboard-loader">No hay equipos pendientes de reparación.</p>`;
+            return;
+        }
+
+        // ===== NUEVA COLUMNA "ORIGEN" AÑADIDA AQUÍ =====
+        let tableHTML = `<table><thead><tr><th>Fecha Carga</th><th>Modelo</th><th>Origen</th><th>Defecto</th><th>Repuesto Necesario</th><th>Costo (USD)</th><th>Acción</th></tr></thead><tbody>`;
+
+        querySnapshot.forEach(doc => {
+            const item = doc.data();
+            const fechaObj = item.fechaDeCarga ? new Date(item.fechaDeCarga.seconds * 1000) : null;
+            let fechaFormateada = fechaObj ? `${String(fechaObj.getDate()).padStart(2, '0')}/${String(fechaObj.getMonth() + 1).padStart(2, '0')}/${fechaObj.getFullYear()}` : 'N/A';
+            const itemJSON = JSON.stringify(item).replace(/'/g, "\\'");
+            
+            const accionHtml = `<label class="toggle-switch-group"><input type="checkbox" class="reparado-checkbox" data-item-id="${doc.id}" data-item-data='${itemJSON}'><span class="toggle-switch-label">Reparado</span><span class="toggle-switch-slider"></span></label>`;
+
+            tableHTML += `<tr>
+                <td>${fechaFormateada}</td>
+                <td>${item.modelo || ''} ${item.color || ''}<br><small class="time-muted">IMEI: ${item.imei || 'Pendiente'}</small></td>
+                <td>${item.proveedor || 'N/A'}</td> 
+                <td>${item.defecto || 'N/A'}</td>
+                <td>${item.repuesto_necesario || 'N/A'}</td>
+                <td>${formatearUSD(item.precio_costo_usd)}</td>
+                <td>${accionHtml}</td>
+            </tr>`;
+        });
+        s.reparacionTableContainer.innerHTML = tableHTML + `</tbody></table>`;
+
+        s.reparacionTableContainer.querySelectorAll('.reparado-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    const docId = e.target.dataset.itemId;
+                    const itemData = JSON.parse(e.target.dataset.itemData.replace(/\\'/g, "'"));
+                    promptToFinalizeReparacion(docId, itemData);
+                    e.target.checked = false; 
+                }
+            });
+        });
+
+    } catch (error) {
+        handleDBError(error, s.reparacionTableContainer, "equipos en reparación");
+    }
+}
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
+async function marcarComoReparado(itemId, itemData) {
+    showGlobalFeedback("Moviendo equipo a stock...", "loading");
+    try {
+        const stockData = { ...itemData };
+        delete stockData.defecto;
+        delete stockData.repuesto_necesario;
+        stockData.estado = 'en_stock';
+        stockData.fueReparado = true;
+        stockData.fechaDeCarga = firebase.firestore.FieldValue.serverTimestamp(); 
+
+        await db.runTransaction(async (t) => {
+            const reparacionRef = db.collection("reparaciones").doc(itemId);
+            const stockRef = db.collection("stock_individual").doc(itemId);
+
+            t.delete(reparacionRef);
+            t.set(stockRef, stockData);
+        });
+
+        showGlobalFeedback("¡Equipo movido a stock con éxito!", "success");
+        loadReparaciones();
+        
+        // ===== ACTUALIZAMOS EL CONTADOR AQUÍ =====
+        updateReparacionCount();
+        
+        updateReports();
+
+    } catch (error) {
+        console.error("Error al marcar como reparado:", error);
+        showGlobalFeedback("Error al mover el equipo a stock. Revisa la consola.", "error");
+    }
+}
+
+// AÑADE ESTAS DOS NUEVAS FUNCIONES AL FINAL DE TU SCRIPT.JS
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
+function promptToFinalizeReparacion(docId, itemData) {
+    const formHtml = `
+        <div class="container container-sm" style="margin: auto;">
+            <h3>Finalizar Reparación y Cargar a Stock</h3>
+            <p style="color:var(--text-muted); text-align: center; margin-bottom: 2rem;">Completa los datos finales del ${itemData.modelo}.</p>
+            <form id="finalize-reparacion-form" data-doc-id="${docId}">
+                <div class="form-group">
+                    <label for="imei-form">IMEI</label>
+                    <input type="text" id="imei-form" name="imei" value="${itemData.imei || ''}" required>
+                </div>
+                <div class="form-group">
+                    <label for="bateria">Condición de Batería (%)</label>
+                    <input type="number" id="bateria" name="bateria" placeholder="Ej: 89" min="1" max="100" value="${itemData.bateria || ''}" required>
+                </div>
+                <div class="form-group">
+                    <label for="color-form">Color</label>
+                    <select id="color-form" name="color" required>${colores.map(c => `<option value="${c}" ${itemData.color === c ? 'selected' : ''}>${c}</option>`).join('')}</select>
+                </div>
+                <div class="form-group">
+                    <label for="almacenamiento-form">Almacenamiento</label>
+                    <select id="almacenamiento-form" name="almacenamiento" required>${almacenamientos.map(a => `<option value="${a}" ${itemData.almacenamiento === a ? 'selected' : ''}>${a}</option>`).join('')}</select>
+                </div>
+                <div class="form-group">
+                    <label for="detalles-form">Detalles Estéticos</label>
+                    <select id="detalles-form" name="detalles" required>${detallesEsteticos.map(d => `<option value="${d}" ${itemData.detalles_esteticos === d ? 'selected' : ''}>${d}</option>`).join('')}</select>
+                </div>
+                <!-- ===== CAMPO PROVEEDOR (SOLO LECTURA) AÑADIDO AQUÍ ===== -->
+                <div class="form-group">
+                    <label for="proveedor-final-form">Origen del Equipo</label>
+                    <input type="text" id="proveedor-final-form" name="proveedor" value="${itemData.proveedor || 'N/A'}" readonly style="background-color: #222; cursor: not-allowed;">
+                </div>
+                <div class="prompt-buttons">
+                    <button type="submit" class="prompt-button confirm spinner-btn"><span class="btn-text">Mover a Stock</span><div class="spinner"></div></button>
+                    <button type="button" class="prompt-button cancel">Cancelar</button>
+                </div>
+            </form>
+        </div>`;
+    
+    s.promptContainer.innerHTML = formHtml;
+    document.getElementById('finalize-reparacion-form').dataset.originalData = JSON.stringify(itemData);
+}
+
+async function saveFinalizedReparacion(form) {
+    const btn = form.querySelector('button[type="submit"]');
+    toggleSpinner(btn, true);
+
+    const docId = form.dataset.docId;
+    const originalData = JSON.parse(form.dataset.originalData);
+    const formData = new FormData(form);
+    const imei = formData.get('imei').trim();
+
+    if (!imei) {
+        showGlobalFeedback("El IMEI es obligatorio.", "error");
+        toggleSpinner(btn, false);
+        return;
+    }
+
+    try {
+        // Combinamos los datos originales con los nuevos del formulario
+        const stockData = {
+            ...originalData,
+            imei: imei,
+            bateria: parseInt(formData.get('bateria')),
+            color: formData.get('color'),
+            almacenamiento: formData.get('almacenamiento'),
+            detalles_esteticos: formData.get('detalles'),
+            estado: 'en_stock',
+            fueReparado: true,
+            fechaDeCarga: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        // Eliminamos campos que no pertenecen al stock
+        delete stockData.defecto;
+        delete stockData.repuesto_necesario;
+        delete stockData.estado_reparacion;
+        delete stockData.venta_asociada_id;
+        delete stockData.observaciones_canje;
+
+        await db.runTransaction(async (t) => {
+            const reparacionRef = db.collection("reparaciones").doc(docId);
+            const stockRef = db.collection("stock_individual").doc(imei);
+
+            t.delete(reparacionRef);
+            t.set(stockRef, stockData);
+        });
+
+        s.promptContainer.innerHTML = '';
+        showGlobalFeedback("¡Equipo movido a stock con éxito!", "success");
+        loadReparaciones();
+        updateReparacionCount();
+        updateReports();
+
+    } catch (error) {
+        console.error("Error al finalizar la reparación:", error);
+        showGlobalFeedback("Error al mover el equipo a stock. Revisa la consola.", "error");
+    } finally {
+        toggleSpinner(btn, false);
+    }
 }

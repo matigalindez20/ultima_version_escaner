@@ -2153,3 +2153,27 @@ td.actions-cell {
     }
 }
 
+/* --- Añade esta regla a tu style.css --- */
+
+#reparacion-fields {
+    animation: fadeIn 0.4s;
+}
+
+/* --- Añade estas nuevas reglas a tu style.css --- */
+
+.reparado-badge {
+    display: inline-block;
+    margin-left: 8px;
+    vertical-align: middle; /* Alinea el ícono con el texto */
+    cursor: help; /* Muestra un cursor de ayuda al pasar el mouse */
+}
+
+.reparado-badge svg {
+    stroke: var(--text-muted); /* Color gris para que sea sutil */
+}
+
+/* --- Añade esta regla para la animación de los campos de reparación --- */
+
+#reparacion-fields {
+    animation: fadeIn 0.4s;
+}
