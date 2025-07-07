@@ -87,6 +87,33 @@ h2 { font-size: 1.5rem; }
     gap: 0.5rem; 
     z-index: 10; 
 }
+
+/* --- Añade estas nuevas reglas a tu style.css --- */
+
+.top-left-controls {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    display: flex;
+    gap: 0.5rem;
+    z-index: 10;
+}
+
+#btn-refresh-page {
+    background-color: transparent; /* Fondo transparente */
+    border: 1px solid var(--border-dark); /* Borde sutil para que se vea el botón */
+    color: white;
+    transition: background-color 0.2s; /* Transición suave */
+}
+
+#btn-refresh-page:hover {
+    background-color: rgba(255, 255, 255, 0.1); /* Efecto de brillo al pasar el mouse */
+}
+
+#btn-refresh-page svg {
+    stroke: white; /* Hacemos el ícono blanco */
+}
+
 .icon-btn { 
     padding: 0.5rem 0.75rem; 
     font-size: 0.8rem; 

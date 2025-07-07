@@ -6,12 +6,12 @@
     <title>iPhone Twins - Panel de Control</title>
     
     <!-- =================================================================================== -->
-    <!-- ===== CÓDIGO DE FAVICON MEJORADO (REEMPLAZA LA LÍNEA ANTERIOR POR TODO ESTO) ===== -->
+    <!-- ===== CÓDIGO DE FAVICON CORREGIDO ===== -->
     <!-- =================================================================================== -->
-    <link rel="apple-touch-icon" sizes="180x180" href="/logos/apple-touch-icon.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="/logos/web-app-manifest-192x192.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/logos/web-app-manifest-512x512.png">
-    <link rel="manifest" href="/logos/site.webmanifest">
+    <link rel="apple-touch-icon" sizes="180x180" href="./logos/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="./logos/web-app-manifest-512x512.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="./logos/web-app-manifest-192x192.png">
+    <link rel="manifest" href="./logos/site.webmanifest">
     <meta name="msapplication-TileColor" content="#fdd100">
     <meta name="theme-color" content="#0d0d0d">
     <!-- =================================================================================== -->
@@ -26,6 +26,13 @@
     </div>
     <div id="login-container" class="container container-sm"></div>
     <div id="app-container" class="container hidden">
+        
+        <div class="top-left-controls">
+            <button id="btn-refresh-page" class="icon-btn" title="Refrescar Página">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+            </button>
+        </div>
+
         <div class="top-right-controls">
             <div class="dropdown">
                 <button id="btn-export" class="icon-btn" title="Exportar a Excel">

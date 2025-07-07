@@ -150,6 +150,9 @@ function initApp() {
         providersListContainer: document.getElementById('providers-list-container'),
         btnAddWholesaleClient: document.getElementById('btn-add-wholesale-client'),
         wholesaleClientsListContainer: document.getElementById('wholesale-clients-list-container'),
+        
+        // ===== REFERENCIA AL NUEVO BOTÓN AÑADIDA AQUÍ =====
+        btnRefreshPage: document.getElementById('btn-refresh-page'),
     });
     
     addEventListeners();
@@ -207,6 +210,12 @@ function populateAllSelects() {
 function addEventListeners() {
     s.logoutButton.addEventListener('click', () => auth.signOut());
     
+    // ===== EVENTO DE CLIC PARA EL BOTÓN DE REFRESCO AÑADIDO AQUÍ =====
+    if (s.btnRefreshPage) {
+        s.btnRefreshPage.addEventListener('click', () => location.reload());
+    }
+    // ================================================================
+
     if (s.navTabs) {
         s.navTabs.addEventListener('click', (e) => {
             const tab = e.target.closest('.nav-tab');
@@ -417,7 +426,6 @@ function addEventListeners() {
         });
     }
 }
-
 function moveDashboardSlider(activeButton) {
     if (!s.dashboardOptionsContainer || !activeButton) return;
     const { offsetLeft, offsetWidth } = activeButton;
