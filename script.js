@@ -1080,6 +1080,8 @@ async function initiateWholesaleSale(form) {
     switchView('management', s.tabManagement);
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 async function processWholesaleItem(imei) {
     showFeedback("Buscando IMEI...", "loading");
     try {
@@ -1124,17 +1126,20 @@ async function processWholesaleItem(imei) {
             wholesaleSaleContext.totalSaleValue += price;
 
             s.promptContainer.innerHTML = '';
-            showFeedback(`${itemDetails.modelo} agregado. Escanea el siguiente.`, "success");
+            showFeedback(`${itemDetails.modelo} agregado. Escanea o ingresa el siguiente.`, "success");
             
+            // --- INICIO DE LA CORRECCIÓN CLAVE ---
+            // En lugar de llamar a startScanner(), reseteamos la vista.
+            // El 'true' final indica que estamos en una venta mayorista.
             resetManagementView(false, false, true);
-            setTimeout(() => startScanner(), 500);
+            // --- FIN DE LA CORRECCIÓN CLAVE ---
         });
         
     } catch (error) {
         showFeedback(error.message, "error");
         console.error(error);
+        // Si hay un error, también reseteamos la vista para poder continuar.
         resetManagementView(false, false, true);
-        setTimeout(() => startScanner(), 2000);
     }
 }
 
@@ -1767,35 +1772,192 @@ function deleteProvider(providerId, providerName) {
     });
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 function promptToStartBatchLoad(providerId, providerName) {
-    const modelosOptions = modelos.map(m => `<option value="${m}">${m}</option>`).join('');
     s.promptContainer.innerHTML = `
         <div class="container container-sm">
             <div class="prompt-box">
-                <h3>Carga de Lote para ${providerName}</h3>
-                <form id="batch-load-form" data-provider-id="${providerId}" data-provider-name="${providerName}">
+                <h3>Paso 1: Identificar Lote</h3>
+                <p style="color: var(--text-muted); margin-bottom: 1.5rem; text-align: center;">Ingresa un ID único para este lote de ${providerName}.</p>
+                <form id="batch-id-form">
                     <div class="form-group">
-                        <label for="batch-number">Número de Lote (ID)</label>
-                        <input type="text" id="batch-number" name="batchNumber" required placeholder="Ej: LOTE-00123">
-                    </div>
-                    <div class="form-group">
-                        <label for="batch-model">Modelo de iPhone</label>
-                        <select id="batch-model" name="modelo" required>
-                            <option value="">Seleccione un modelo...</option>
-                            ${modelosOptions}
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="batch-cost">Costo Total del Lote (USD)</label>
-                        <input type="number" id="batch-cost" name="costo" step="0.01" required placeholder="Ej: 5500.00">
+                        <label for="batch-number">ID del Lote</label>
+                        <input type="text" id="batch-number" name="batchNumber" required placeholder="Ej: LOTE-PROV-001">
                     </div>
                     <div class="prompt-buttons">
-                        <button type="submit" class="prompt-button confirm">Iniciar Carga</button>
+                        <button type="submit" class="prompt-button confirm">Siguiente</button>
                         <button type="button" class="prompt-button cancel">Cancelar</button>
                     </div>
                 </form>
             </div>
         </div>`;
+
+    document.getElementById('batch-id-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const batchIdManual = e.target.batchNumber.value.trim();
+        if (!batchIdManual) {
+            showGlobalFeedback("El ID del lote no puede estar vacío.", "error");
+            return;
+        }
+        // Iniciamos el contexto de carga de lote
+        batchLoadContext = {
+            providerId,
+            providerName,
+            batchIdManual,
+            modelosCargados: {} // Aquí guardaremos los equipos por modelo
+        };
+        // Pasamos al siguiente paso
+        showModelSelectionStep();
+    });
+}
+
+// AÑADE ESTA FUNCIÓN NUEVA A TU SCRIPT.JS
+
+function showModelSelectionStep() {
+    // Generamos los checkboxes para cada modelo
+    const modelosHtml = modelos.map(modelo => {
+        const equiposCargados = batchLoadContext.modelosCargados[modelo]?.length || 0;
+        const checkDisabled = equiposCargados > 0 ? 'disabled' : '';
+        const checkChecked = equiposCargados > 0 ? 'checked' : '';
+        const countBadge = equiposCargados > 0 ? `<span class="notification-badge" style="position: static; transform: translateX(5px); background-color: var(--success-bg);">${equiposCargados}</span>` : '';
+
+        return `
+            <div class="checkbox-group">
+                <input type="checkbox" id="modelo-${modelo.replace(/\s+/g, '-')}" value="${modelo}" ${checkDisabled} ${checkChecked}>
+                <label for="modelo-${modelo.replace(/\s+/g, '-')}">${modelo}</label>
+                ${countBadge}
+            </div>
+        `;
+    }).join('');
+
+    s.promptContainer.innerHTML = `
+        <div class="container container-sm">
+            <div class="prompt-box">
+                <h3>Paso 2: Cargar Equipos por Modelo</h3>
+                <p style="color: var(--text-muted); margin-bottom: 1.5rem;">Lote: <strong>${batchLoadContext.batchIdManual}</strong></p>
+                <div id="modelos-list-container" style="max-height: 300px; overflow-y: auto; padding: 5px; border: 1px solid var(--border-dark); border-radius: 8px; margin-bottom: 1rem;">
+                    ${modelosHtml}
+                </div>
+                <div class="prompt-buttons">
+                    <button id="btn-finalize-lote" class="prompt-button confirm">Finalizar Lote y Asignar Costo</button>
+                    <button id="btn-cancel-lote" class="prompt-button cancel">Cancelar Lote</button>
+                </div>
+            </div>
+        </div>`;
+
+    // Añadimos el listener para cada checkbox
+    document.querySelectorAll('#modelos-list-container input[type="checkbox"]').forEach(checkbox => {
+        checkbox.addEventListener('click', (e) => {
+            if (e.target.checked) {
+                const modeloSeleccionado = e.target.value;
+                // Iniciamos la carga para este modelo
+                batchLoadContext.currentModel = modeloSeleccionado;
+                switchView('management', s.tabManagement);
+                s.promptContainer.innerHTML = ''; // Limpiamos el prompt de selección
+            }
+        });
+    });
+
+    // Listener para el botón de finalizar
+    document.getElementById('btn-finalize-lote').addEventListener('click', promptToAssignLoteCost);
+    
+    // Listener para cancelar todo el lote
+    document.getElementById('btn-cancel-lote').addEventListener('click', () => {
+        showConfirmationModal('¿Cancelar Lote?', 'Se perderán todos los equipos cargados en este lote. ¿Estás seguro?', () => {
+            batchLoadContext = null;
+            s.promptContainer.innerHTML = '';
+            switchView('providers', s.tabProviders);
+        });
+    });
+}
+
+// AÑADE ESTA FUNCIÓN NUEVA A TU SCRIPT.JS
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
+function promptToAssignLoteCost() {
+    let totalEquiposCargados = 0;
+    for (const modelo in batchLoadContext.modelosCargados) {
+        totalEquiposCargados += batchLoadContext.modelosCargados[modelo].length;
+    }
+
+    if (totalEquiposCargados === 0) {
+        showGlobalFeedback("No has cargado ningún equipo en este lote.", "error");
+        return;
+    }
+
+    s.promptContainer.innerHTML = `
+        <div class="container container-sm">
+            <div class="prompt-box">
+                <h3>Paso Final: Asignar Costo al Lote</h3>
+                <p style="color: var(--text-muted); margin-bottom: 1.5rem;">Lote: <strong>${batchLoadContext.batchIdManual}</strong> - Total Equipos: <strong>${totalEquiposCargados}</strong></p>
+                <form id="lote-cost-form">
+                    <div class="form-group">
+                        <label for="lote-costo-total">Costo Total del Lote (USD) para generar la deuda</label>
+                        <input type="number" id="lote-costo-total" name="costoTotal" step="0.01" required>
+                    </div>
+                    <div class="prompt-buttons">
+                        <button type="submit" class="prompt-button confirm spinner-btn">
+                            <span class="btn-text">Guardar Lote Completo</span>
+                            <div class="spinner"></div>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('lote-cost-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = e.target.querySelector('button[type="submit"]');
+        toggleSpinner(btn, true);
+
+        const costoTotalUSD = parseFloat(e.target.costoTotal.value);
+        if (isNaN(costoTotalUSD) || costoTotalUSD <= 0) {
+            showGlobalFeedback("Ingresa un costo total válido.", "error");
+            toggleSpinner(btn, false);
+            return;
+        }
+
+        try {
+            const loteRef = db.collection('lotes').doc();
+            
+            await db.runTransaction(async t => {
+                // 1. Actualizar la deuda del proveedor
+                const providerRef = db.collection('proveedores').doc(batchLoadContext.providerId);
+                t.update(providerRef, { deuda_usd: firebase.firestore.FieldValue.increment(costoTotalUSD) });
+
+                // 2. Guardar el lote
+                const imeisTotales = Object.values(batchLoadContext.modelosCargados).flat();
+                t.set(loteRef, {
+                    numero_lote: batchLoadContext.batchIdManual,
+                    proveedorId: batchLoadContext.providerId,
+                    proveedorNombre: batchLoadContext.providerName,
+                    costo_total_usd: costoTotalUSD,
+                    fecha_carga: firebase.firestore.FieldValue.serverTimestamp(),
+                    imeis: imeisTotales,
+                    detalle_modelos: batchLoadContext.modelosCargados
+                });
+
+                // --- LÓGICA DE COSTO PROMEDIO ELIMINADA ---
+                // Ya no se sobreescribe el costo individual de cada equipo.
+            });
+
+            showGlobalFeedback("Lote completo guardado con éxito.", "success");
+            s.promptContainer.innerHTML = '';
+            batchLoadContext = null;
+            switchView('providers', s.tabProviders);
+            loadProviders();
+            loadStock(); // Actualizamos el stock para ver los costos correctos
+
+        } catch (error) {
+            console.error("Error al guardar el lote completo:", error);
+            showGlobalFeedback("Error al guardar el lote. Revisa la consola.", "error");
+        } finally {
+            toggleSpinner(btn, false);
+        }
+    });
 }
 
 async function initiateBatchLoad(providerId, providerName, model, batchCost, batchNumber) {
@@ -3813,6 +3975,8 @@ async function onScanSuccess(imei) {
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 function showAddProductForm(e, imei = '', modelo = '', canjeId = null, valorToma = null) {
     if(e) e.preventDefault();
     resetManagementView(batchLoadContext ? true : false); 
@@ -3821,76 +3985,23 @@ function showAddProductForm(e, imei = '', modelo = '', canjeId = null, valorToma
     s.imeiInput.readOnly = !!imei;
     s.imeiInput.value = imei;
 
-    // Reemplazamos el <select> original por la nueva estructura
-    const modeloSelectContainer = s.modeloFormSelect.parentElement;
-    modeloSelectContainer.innerHTML = `
-        <label for="modelo-form">Modelo</label>
-        <div class="custom-select-wrapper">
-            <input type="hidden" id="modelo-form" name="modelo">
-            <div class="custom-select-trigger">
-                <span class="selected-value">Selecciona...</span>
-                <div class="arrow"></div>
-            </div>
-            <div class="custom-options">
-                ${modelos.map(opt => `<div class="custom-option" data-value="${opt}">${opt}</div>`).join('')}
-            </div>
-        </div>
-    `;
+    // --- INICIO DE LA LÓGICA CORREGIDA Y ROBUSTA ---
+    // Volvemos a popular el select por si fue modificado
+    populateSelect(s.modeloFormSelect, modelos, "Selecciona...");
 
-    if (valorToma !== null) {
-        // Asignamos el valor al nuevo desplegable personalizado
-        const wrapper = modeloSelectContainer.querySelector('.custom-select-wrapper');
-        const trigger = wrapper.querySelector('.selected-value');
-        const hiddenInput = wrapper.querySelector('#modelo-form');
-        trigger.textContent = modelo;
-        hiddenInput.value = modelo;
-        wrapper.querySelector(`.custom-option[data-value="${modelo}"]`)?.classList.add('selected');
-
+    if (canjeId && valorToma !== null) {
+        s.modeloFormSelect.value = modelo;
         document.getElementById('precio-costo-form').value = valorToma;
         s.proveedorFormSelect.value = "Usado (Plan Canje)";
         s.productForm.dataset.canjeId = canjeId;
     } 
     else if (batchLoadContext) {
-        const wrapper = modeloSelectContainer.querySelector('.custom-select-wrapper');
-        const trigger = wrapper.querySelector('.selected-value');
-        const hiddenInput = wrapper.querySelector('#modelo-form');
-        trigger.textContent = batchLoadContext.model;
-        hiddenInput.value = batchLoadContext.model;
-        wrapper.querySelector(`.custom-option[data-value="${batchLoadContext.model}"]`)?.classList.add('selected');
-
         s.proveedorFormSelect.value = batchLoadContext.providerName;
-        s.managementTitle.textContent = `Cargando Lote: ${batchLoadContext.model} (${batchLoadContext.count} cargados)`;
+        s.modeloFormSelect.value = batchLoadContext.currentModel; // Usamos el modelo actual del lote
+        s.managementTitle.textContent = `Cargando ${batchLoadContext.currentModel} (${batchLoadContext.modelosCargados[batchLoadContext.currentModel]?.length || 0} cargados)`;
     }
-
-    // Añadimos la funcionalidad al nuevo desplegable
-    const customSelectWrapper = modeloSelectContainer.querySelector('.custom-select-wrapper');
-    const trigger = customSelectWrapper.querySelector('.custom-select-trigger');
-    const hiddenInput = customSelectWrapper.querySelector('#modelo-form');
-
-    trigger.addEventListener('click', () => {
-        customSelectWrapper.classList.toggle('open');
-    });
-
-    customSelectWrapper.querySelectorAll('.custom-option').forEach(option => {
-        option.addEventListener('click', () => {
-            // Quitamos la selección anterior
-            customSelectWrapper.querySelector('.custom-option.selected')?.classList.remove('selected');
-            // Añadimos la nueva
-            option.classList.add('selected');
-            // Actualizamos el valor visible y el oculto
-            trigger.querySelector('.selected-value').textContent = option.textContent;
-            hiddenInput.value = option.dataset.value;
-            // Cerramos el desplegable
-            customSelectWrapper.classList.remove('open');
-        });
-    });
-
-    // Cerramos el desplegable si se hace clic fuera de él
-    document.addEventListener('click', (event) => {
-        if (!customSelectWrapper.contains(event.target)) {
-            customSelectWrapper.classList.remove('open');
-        }
-    });
+    
+    // --- FIN DE LA LÓGICA CORREGIDA ---
 
     s.productForm.classList.remove('hidden');
     
@@ -3901,8 +4012,7 @@ function showAddProductForm(e, imei = '', modelo = '', canjeId = null, valorToma
     } else {
         document.getElementById('bateria').focus();
     }
-}
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+}// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
@@ -4087,6 +4197,10 @@ s.productForm.addEventListener('click', (e) => {
     }
 });
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 async function handleProductFormSubmit(e) {
     e.preventDefault();
     const btn = e.target.querySelector('button');
@@ -4097,23 +4211,27 @@ async function handleProductFormSubmit(e) {
     const imei = formData.get('imei').trim();
     if (!imei) { showFeedback("El campo IMEI no puede estar vacío.", "error"); toggleSpinner(btn, false); return; }
     
+    // --- INICIO DE LA CORRECCIÓN ---
+    // Ahora leemos el costo desde el formulario para CUALQUIER carga.
+    const costoIndividual = parseFloat(formData.get('precio_costo_usd')) || 0;
+    
     const unitData = {
         imei, 
         estado: 'en_stock', 
-        precio_costo_usd: parseFloat(formData.get('precio_costo_usd')) || 0,
+        precio_costo_usd: costoIndividual, // Usamos el costo ingresado
         modelo: formData.get('modelo'), 
         color: formData.get('color'), 
         bateria: parseInt(formData.get('bateria')),
         almacenamiento: formData.get('almacenamiento'), 
         detalles_esteticos: formData.get('detalles'),
-        proveedor: formData.get('proveedor')
+        proveedor: batchLoadContext ? batchLoadContext.providerName : formData.get('proveedor')
     };
+    // --- FIN DE LA CORRECCIÓN ---
     
     if (mode === 'create') {
         unitData.fechaDeCarga = firebase.firestore.FieldValue.serverTimestamp();
     }
     
-    // Se obtiene el ID del canje directamente del formulario.
     const canjeId = form.dataset.canjeId; 
 
     try {
@@ -4125,10 +4243,9 @@ async function handleProductFormSubmit(e) {
                 if (existingImei.exists && existingImei.data().estado === 'en_stock') {
                     throw new Error(`El IMEI ${imei} ya está en stock.`);
                 }
-
+                
                 t.set(individualStockRef, unitData);
                 
-                // Si hay un canjeId, se actualiza el documento de pendientes.
                 if (canjeId) {
                     const canjeRef = db.collection("plan_canje_pendientes").doc(canjeId);
                     t.update(canjeRef, { 
@@ -4136,38 +4253,38 @@ async function handleProductFormSubmit(e) {
                         imei_asignado: imei 
                     });
                 }
-                
-                if (batchLoadContext) {
-                    const loteRef = db.collection('lotes').doc(batchLoadContext.batchId);
-                    t.update(loteRef, {
-                        imeis: firebase.firestore.FieldValue.arrayUnion(imei)
-                    });
-                }
             });
             
-            // Limpiamos el contexto DESPUÉS de que la operación fue exitosa.
-            if (canjeId) {
-                canjeContext = null;
-            }
+            if (batchLoadContext && batchLoadContext.currentModel) {
+                const modeloActual = batchLoadContext.currentModel;
+                if (!batchLoadContext.modelosCargados[modeloActual]) {
+                    batchLoadContext.modelosCargados[modeloActual] = [];
+                }
+                batchLoadContext.modelosCargados[modeloActual].push(imei);
 
-            if (batchLoadContext) {
-                batchLoadContext.count++;
-                showFeedback(`¡Éxito! ${unitData.modelo} añadido. Cargados: ${batchLoadContext.count}`, "success");
+                const count = batchLoadContext.modelosCargados[modeloActual].length;
+                showFeedback(`¡Éxito! ${modeloActual} añadido. Cargados de este modelo: ${count}`, "success");
+                
                 setTimeout(() => {
-                    resetManagementView(true);
+                    resetManagementView(true); 
                 }, 1500);
-            } else {
+
+            } else { 
                 showFeedback(`¡Éxito! ${unitData.modelo} añadido al stock.`, "success");
                 setTimeout(() => { 
                     resetManagementView(); 
                     switchView('dashboard', s.tabDashboard);
-                    loadStock();
                     updateReports();
-                    loadCanjes();
-                    updateCanjeCount();
+                    if(canjeId) {
+                        loadCanjes();
+                        updateCanjeCount();
+                    } else {
+                        loadStock();
+                    }
                 }, 1500);
             }
         } else { // modo 'update'
+            unitData.precio_costo_usd = parseFloat(formData.get('precio_costo_usd')) || 0;
             await db.collection("stock_individual").doc(imei).update(unitData);
             showGlobalFeedback("¡Producto actualizado con éxito!", "success");
             setTimeout(() => { 
@@ -4182,14 +4299,8 @@ async function handleProductFormSubmit(e) {
         console.error("Error en handleProductFormSubmit:", error);
     } finally {
         toggleSpinner(btn, false);
-        if (form.dataset.canjeId) {
-             delete form.dataset.canjeId;
-        }
-        if (!batchLoadContext) {
-            delete form.dataset.mode;
-        }
     }
-}
+}// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
@@ -4214,46 +4325,57 @@ function resetManagementView(isBatchLoad = false, isCanje = false, isWholesaleSa
     if (s.productFormSubmitBtn) {
         s.productFormSubmitBtn.querySelector('.btn-text').textContent = "Guardar Producto";
         
-        // --- INICIO DE LA MODIFICACIÓN ---
         const cancelButtonHtml = '<button type="button" id="btn-cancel-product-form" class="prompt-button cancel" style="margin-top: 1rem; background-color: var(--error-bg);">Cancelar</button>';
         const existingCancelBtn = s.productForm.querySelector('#btn-cancel-product-form');
         if (!existingCancelBtn) {
             s.productFormSubmitBtn.insertAdjacentHTML('afterend', cancelButtonHtml);
         }
-        // --- FIN DE LA MODIFICACIÓN ---
     }
 
-    const existingEndBtn = s.managementView.querySelector('#btn-end-process');
+    // --- INICIO DE LA CORRECCIÓN CLAVE ---
+    // Eliminamos CUALQUIER botón de proceso anterior para evitar duplicados.
+    const existingEndBtn = s.managementView.querySelector('.control-btn[id^="btn-end-"]');
     if (existingEndBtn) existingEndBtn.remove();
-
+    
     const existingTitleBtn = s.managementTitle.nextElementSibling;
-    if (existingTitleBtn && existingTitleBtn.id === 'btn-end-process') {
+    if (existingTitleBtn && existingTitleBtn.matches('.control-btn')) {
         existingTitleBtn.remove();
     }
+    // --- FIN DE LA CORRECCIÓN CLAVE ---
     
-    if (!isBatchLoad) batchLoadContext = null;
-    if (!isCanje) canjeContext = null; // Se limpia el contexto de canje aquí
-    if (!isWholesaleSale) wholesaleSaleContext = null;
-
-    let endBtn;
-    if (isBatchLoad && batchLoadContext) {
-        s.managementTitle.textContent = `Cargando lote: ${batchLoadContext.model} (${batchLoadContext.count} cargados)`;
-        endBtn = document.createElement('button');
-        endBtn.id = 'btn-end-process';
-        endBtn.className = 'control-btn';
-        endBtn.style.backgroundColor = 'var(--error-bg)';
-        endBtn.textContent = 'Finalizar Carga de Lote';
-        endBtn.onclick = () => {
-            showGlobalFeedback(`Carga de lote finalizada. Se cargaron ${batchLoadContext.count} equipos.`, 'success', 4000);
-            batchLoadContext = null;
-            resetManagementView();
-            switchView('providers', s.tabProviders);
+    if (batchLoadContext && batchLoadContext.currentModel) {
+        const count = batchLoadContext.modelosCargados[batchLoadContext.currentModel]?.length || 0;
+        s.managementTitle.textContent = `Cargando ${batchLoadContext.currentModel} (${count} cargados)`;
+        
+        const endModelLoadBtn = document.createElement('button');
+        endModelLoadBtn.id = 'btn-end-model-load';
+        endModelLoadBtn.className = 'control-btn';
+        endModelLoadBtn.style.backgroundColor = 'var(--info-bg)';
+        endModelLoadBtn.textContent = `Finalizar Carga de ${batchLoadContext.currentModel}`;
+        
+        // --- LÓGICA DE CLICK CORREGIDA ---
+        endModelLoadBtn.onclick = () => {
+            batchLoadContext.currentModel = null;
+            // Ocultamos la vista de gestión de IMEI y volvemos a mostrar la pantalla de selección de modelos.
+            s.managementView.classList.add('hidden'); 
+            showModelSelectionStep(); 
         };
-        s.scanOptions.appendChild(endBtn);
-    } else if (isWholesaleSale && wholesaleSaleContext) {
+        // --- FIN DE LÓGICA DE CLICK ---
+
+        s.managementTitle.insertAdjacentElement('afterend', endModelLoadBtn);
+    }
+    
+    if (!isCanje) canjeContext = null;
+    if (!isWholesaleSale) {
+        if (!batchLoadContext || !batchLoadContext.currentModel) {
+            batchLoadContext = null;
+        }
+    }
+
+    if (isWholesaleSale && wholesaleSaleContext) {
         renderWholesaleLoader();
         s.scanOptions.classList.remove('hidden');
-        endBtn = document.createElement('button');
+        const endBtn = document.createElement('button');
         endBtn.id = 'btn-end-process';
         endBtn.className = 'control-btn';
         endBtn.style.backgroundColor = 'var(--success-bg)';
@@ -4266,12 +4388,13 @@ function resetManagementView(isBatchLoad = false, isCanje = false, isWholesaleSa
     delete s.productForm.dataset.canjeId;
 }
 
-
 function showFeedback(message, type = 'info') {
     s.feedbackMessage.textContent = message;
     s.feedbackMessage.className = `feedback-message ${type}`;
     s.feedbackMessage.classList.remove('hidden');
 }
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
 async function showWholesaleHistory(clientId, clientName) {
     s.promptContainer.innerHTML = `
@@ -4321,7 +4444,8 @@ async function showWholesaleHistory(clientId, clientName) {
                             <td>${sale.cantidad_equipos}</td>
                             <td>${formatearUSD(sale.total_venta_usd)}</td>
                             <td class="actions-cell">
-                                <button class="control-btn btn-secondary" disabled title="Próximamente">Ver Detalle</button>
+                                <!-- Botón "Ver Detalle" ahora es funcional -->
+                                <button class="control-btn btn-view-sale-detail" style="background-color: var(--info-bg);">Ver Detalle</button>
                                 <button class="control-btn btn-revert-sale">Revertir</button>
                             </td>
                         </tr>
@@ -4330,16 +4454,84 @@ async function showWholesaleHistory(clientId, clientName) {
             </table>`;
         contentDiv.innerHTML = tableHTML;
         
+        // --- INICIO DE LA MODIFICACIÓN ---
+        // Listener para el nuevo botón "Ver Detalle"
+        contentDiv.querySelectorAll('.btn-view-sale-detail').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const row = e.currentTarget.closest('tr');
+                const saleItem = JSON.parse(row.dataset.saleItem.replace(/\\'/g, "'"));
+                showWholesaleSaleDetail(row.dataset.saleId, saleItem);
+            });
+        });
+        // --- FIN DE LA MODIFICACIÓN ---
+        
         contentDiv.querySelectorAll('.btn-revert-sale').forEach(button => {
             button.addEventListener('click', (e) => {
                 const row = e.currentTarget.closest('tr');
                 const saleItem = JSON.parse(row.dataset.saleItem.replace(/\\'/g, "'"));
-                revertWholesaleSale(row.dataset.saleId, saleItem);
+                revertWholesaleSale(row.dataset.saleId, saleItem, () => showWholesaleHistory(clientId, clientName));
             });
         });
 
     } catch (error) {
         handleDBError(error, contentDiv, 'historial de compras');
+    }
+}
+
+// AÑADE ESTA FUNCIÓN NUEVA A TU SCRIPT.JS
+
+async function showWholesaleSaleDetail(masterSaleId, masterSaleData) {
+    s.promptContainer.innerHTML = `
+    <div class="container wholesale-history-modal">
+        <h3>Detalle de Venta: ${masterSaleData.venta_id_manual}</h3>
+        <p class="client-name-subtitle">Cliente: ${masterSaleData.clienteNombre}</p>
+        <div id="wholesale-detail-content" class="table-container">
+            <p class="dashboard-loader">Cargando detalle de equipos...</p>
+        </div>
+        <div class="prompt-buttons" style="justify-content: center; margin-top: 1.5rem;">
+            <button class="prompt-button cancel">Cerrar</button>
+        </div>
+    </div>`;
+
+    const detailContent = document.getElementById('wholesale-detail-content');
+    try {
+        const individualSalesQuery = db.collection('ventas').where('venta_mayorista_ref', '==', masterSaleId);
+        const snapshot = await individualSalesQuery.get();
+
+        if (snapshot.empty) {
+            detailContent.innerHTML = '<p class="dashboard-loader">No se encontraron los equipos detallados para esta venta.</p>';
+            return;
+        }
+
+        const items = snapshot.docs.map(doc => doc.data());
+
+        const tableHTML = `
+            <table>
+                <thead>
+                    <tr>
+                        <th>IMEI</th>
+                        <th>Modelo</th>
+                        <th>Color</th>
+                        <th>Batería</th>
+                        <th>Precio Venta (USD)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${items.map(item => `
+                        <tr>
+                            <td>${item.imei_vendido}</td>
+                            <td>${item.producto.modelo}</td>
+                            <td>${item.producto.color}</td>
+                            <td>${item.producto.bateria}%</td>
+                            <td>${formatearUSD(item.precio_venta_usd)}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>`;
+        detailContent.innerHTML = tableHTML;
+
+    } catch (error) {
+        handleDBError(error, detailContent, `el detalle de la venta ${masterSaleData.venta_id_manual}`);
     }
 }
 
