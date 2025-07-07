@@ -1014,49 +1014,107 @@ async function saveWholesaleClient(btn) {
     }
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 function promptToStartWholesaleSale(clientId, clientName) {
+    // Ya no necesitamos los modelos para el canje aquí
+    // const modelosOptions = modelos.map(m => `<option value="${m}">${m}</option>`).join('');
+
+    const metodosDePagoHtml = `
+        <div class="form-group">
+            <label>Método(s) de Pago Recibidos</label>
+            <div id="payment-methods-container">
+                <div class="payment-option">
+                    <label class="toggle-switch-group">
+                        <input type="checkbox" name="metodo_pago_check" value="Dólares">
+                        <span class="toggle-switch-label">Dólares</span>
+                        <span class="toggle-switch-slider"></span>
+                    </label>
+                    <div class="payment-input-container hidden">
+                        <input type="number" name="monto_dolares" placeholder="Monto en USD" step="0.01">
+                    </div>
+                </div>
+                <div class="payment-option">
+                    <label class="toggle-switch-group">
+                        <input type="checkbox" name="metodo_pago_check" value="Pesos (Efectivo)">
+                        <span class="toggle-switch-label">Pesos (Efectivo)</span>
+                        <span class="toggle-switch-slider"></span>
+                    </label>
+                    <div class="payment-input-container hidden">
+                        <input type="number" name="monto_efectivo" placeholder="Monto en ARS" step="0.01">
+                    </div>
+                </div>
+                <div class="payment-option">
+                    <label class="toggle-switch-group">
+                        <input type="checkbox" name="metodo_pago_check" value="Pesos (Transferencia)">
+                        <span class="toggle-switch-label">Pesos (Transferencia)</span>
+                        <span class="toggle-switch-slider"></span>
+                    </label>
+                    <div class="payment-input-container hidden">
+                        <input type="number" name="monto_transferencia" placeholder="Monto en ARS" step="0.01">
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // --- Se eliminó la variable canjeHtml ---
+
     s.promptContainer.innerHTML = `
-        <div class="ingreso-modal-box">
+        <div class="container container-sm wholesale-sale-modal-box">
             <h3>Registrar Venta a ${clientName}</h3>
             <form id="wholesale-sale-start-form" data-client-id="${clientId}" data-client-name="${clientName}" novalidate>
                 <div class="form-group">
-                    <input type="text" id="ws-sale-id" name="sale_id" required placeholder=" ">
-                    <label for="ws-sale-id">ID de la Venta (Ej: VTA-050)</label>
+                    <label>ID de la Venta (Ej: VTA-050)</label>
+                    <input type="text" id="ws-sale-id" name="sale_id" required>
                 </div>
-                <p style="color:var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem;">Ingresa los montos que recibirás. El total se calculará solo.</p>
+                ${metodosDePagoHtml}
                 <div class="form-group">
-                    <input type="number" id="ws-sale-usd" name="monto_usd" placeholder=" " step="0.01">
-                    <label for="ws-sale-usd">Monto Recibido (USD)</label>
+                    <label>Cotización del Dólar (si aplica)</label>
+                    <input type="number" id="ws-cotizacion" name="cotizacion_dolar" placeholder="Ej: 1200">
                 </div>
-                <div class="form-group">
-                    <input type="number" id="ws-sale-ars-efectivo" name="monto_ars_efectivo" placeholder=" " step="0.01">
-                    <label for="ws-sale-ars-efectivo">Monto Recibido (ARS Efectivo)</label>
-                </div>
-                <div class="form-group">
-                    <input type="number" id="ws-sale-ars-transf" name="monto_ars_transferencia" placeholder=" " step="0.01">
-                    <label for="ws-sale-ars-transf">Monto Recibido (ARS Transferencia)</label>
-                </div>
+                <!-- Se eliminó el HTML y los campos del Plan Canje de aquí -->
                 <div class="prompt-buttons">
                     <button type="submit" class="prompt-button confirm">Iniciar Carga de Equipos</button>
                     <button type="button" class="prompt-button cancel">Cancelar</button>
                 </div>
             </form>
         </div>`;
+
+    const form = document.getElementById('wholesale-sale-start-form');
+    form.querySelectorAll('input[name="metodo_pago_check"]').forEach(checkbox => {
+        checkbox.addEventListener('change', (e) => {
+            const container = e.target.closest('.payment-option').querySelector('.payment-input-container');
+            container.classList.toggle('hidden', !e.target.checked);
+        });
+    });
+
+    // --- Se eliminó el listener para el checkbox de canje ---
 }
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
 async function initiateWholesaleSale(form) {
     const formData = new FormData(form);
     const saleId = formData.get('sale_id').trim();
-    const montoUsd = parseFloat(formData.get('monto_usd')) || 0;
-    const montoArsEfectivo = parseFloat(formData.get('monto_ars_efectivo')) || 0;
-    const montoArsTransferencia = parseFloat(formData.get('monto_ars_transferencia')) || 0;
+    const montoUsd = parseFloat(formData.get('monto_dolares')) || 0;
+    const montoArsEfectivo = parseFloat(formData.get('monto_efectivo')) || 0;
+    const montoArsTransferencia = parseFloat(formData.get('monto_transferencia')) || 0;
+    
+    // --- Lógica de canje eliminada ---
 
     if (!saleId) {
         showGlobalFeedback("El ID de la venta es obligatorio.", "error");
         return;
     }
     if (montoUsd === 0 && montoArsEfectivo === 0 && montoArsTransferencia === 0) {
-        showGlobalFeedback("Debes ingresar al menos un monto.", "error");
+        showGlobalFeedback("Debes ingresar al menos un monto de pago.", "error");
         return;
     }
     
@@ -1069,6 +1127,11 @@ async function initiateWholesaleSale(form) {
             ars_efectivo: montoArsEfectivo,
             ars_transferencia: montoArsTransferencia,
         },
+        cotizacion: parseFloat(formData.get('cotizacion_dolar')) || 1,
+        // --- Propiedades de canje eliminadas del contexto ---
+        huboCanje: false, 
+        valorCanjeUSD: 0,
+        canjeModelo: null,
         items: [],
         totalSaleValue: 0
     };
@@ -1079,7 +1142,6 @@ async function initiateWholesaleSale(form) {
     resetManagementView(false, false, true);
     switchView('management', s.tabManagement);
 }
-
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
 async function processWholesaleItem(imei) {
@@ -1178,94 +1240,97 @@ function renderWholesaleLoader() {
 // ============= INICIO CÓDIGO ACTUALIZADO ===============
 // =======================================================
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 async function finalizeWholesaleSale() {
-    // 1. Verificación inicial de seguridad
-    if (!wholesaleSaleContext) {
-        showGlobalFeedback("Error: El contexto de venta mayorista se perdió. Por favor, inicia nuevamente la venta.", "error", 6000);
-        console.error("[Venta Mayorista] wholesaleSaleContext es null al finalizar la venta");
-        resetManagementView();
-        switchView('wholesale', s.tabWholesale);
-        return;
-    }
-    if (!Array.isArray(wholesaleSaleContext.items) || wholesaleSaleContext.items.length === 0) {
-        showGlobalFeedback("No hay equipos agregados a la venta. Debes escanear al menos un equipo antes de finalizar.", "warning", 6000);
-        console.warn("[Venta Mayorista] Se intentó finalizar sin equipos agregados", wholesaleSaleContext);
-        resetManagementView(false, false, true); // Mantener el modo mayorista para poder agregar equipos
+    if (!wholesaleSaleContext || !Array.isArray(wholesaleSaleContext.items) || wholesaleSaleContext.items.length === 0) {
+        showGlobalFeedback("No hay equipos agregados. Debes escanear al menos un equipo.", "warning", 6000);
+        resetManagementView(false, false, true);
         return;
     }
 
-    // Muestra un feedback al usuario de que el proceso ha comenzado
     showGlobalFeedback("Registrando venta mayorista, por favor espera...", "loading", 10000);
     
     try {
-        // Desestructuramos el contexto para un código más limpio
-        const { clientId, clientName, saleId, payment, items, totalSaleValue } = wholesaleSaleContext;
+        const { clientId, clientName, saleId, payment, items, totalSaleValue, cotizacion, huboCanje, valorCanjeUSD, canjeModelo } = wholesaleSaleContext;
 
-        // 2. Ejecutar toda la lógica dentro de una transacción de Firestore
         await db.runTransaction(async (t) => {
-            const saleDate = firebase.firestore.FieldValue.serverTimestamp(); // Usar la misma marca de tiempo para todos los documentos
-
-            // 3. Crear el registro maestro de la venta mayorista
+            const saleDate = firebase.firestore.FieldValue.serverTimestamp();
             const wholesaleSaleRef = db.collection('ventas_mayoristas').doc();
-            t.set(wholesaleSaleRef, {
+            
+            // Guardamos el registro maestro de la venta mayorista
+            const masterSaleData = {
                 clienteId: clientId,
                 clienteNombre: clientName,
                 venta_id_manual: saleId,
                 fecha_venta: saleDate,
                 pago_recibido: payment,
                 total_venta_usd: totalSaleValue,
-                cantidad_equipos: items.length
-            });
+                cantidad_equipos: items.length,
+                cotizacion_dolar: cotizacion,
+                hubo_canje: huboCanje,
+                valor_toma_canje_usd: valorCanjeUSD
+            };
+            
+            if (huboCanje) {
+                const canjeRef = db.collection("plan_canje_pendientes").doc();
+                t.set(canjeRef, { 
+                    modelo_recibido: canjeModelo, 
+                    valor_toma_usd: valorCanjeUSD, 
+                    observaciones_canje: `Canje en venta mayorista ${saleId}`, 
+                    producto_vendido: `Lote mayorista a ${clientName}`, 
+                    venta_asociada_id: wholesaleSaleRef.id, 
+                    fecha_canje: saleDate, 
+                    estado: 'pendiente_de_carga' 
+                });
+                masterSaleData.id_canje_pendiente = canjeRef.id;
+            }
 
-            // 4. Recorrer cada equipo para procesarlo
+            t.set(wholesaleSaleRef, masterSaleData);
+
+            // Creamos las ventas individuales
             for (const item of items) {
-                // 4a. Crear un registro de venta individual para contabilidad detallada
                 const ventaIndividualRef = db.collection('ventas').doc();
                 const ventaData = {
                     imei_vendido: item.imei,
-                    producto: item.details, // Guardamos todos los detalles del producto
+                    producto: item.details,
                     precio_venta_usd: item.precio_venta_usd,
-                    metodo_pago: 'Venta Mayorista', // Método de pago específico
-                    vendedor: `Mayorista: ${clientName}`, // Vendedor específico
+                    metodo_pago: 'Venta Mayorista',
+                    monto_dolares: 0, // Los montos se manejan en el registro maestro
+                    monto_efectivo: 0,
+                    monto_transferencia: 0,
+                    vendedor: `Mayorista: ${clientName}`,
                     fecha_venta: saleDate,
-                    venta_mayorista_ref: wholesaleSaleRef.id, // Referencia al registro maestro
+                    venta_mayorista_ref: wholesaleSaleRef.id,
                     id_venta_mayorista_manual: saleId,
-                    comision_vendedor_usd: 0, // Las ventas mayoristas no generan comisión
-                    hubo_canje: false // No se maneja canje en este flujo
+                    comision_vendedor_usd: 0,
+                    hubo_canje: false // El canje se asocia al maestro
                 };
                 t.set(ventaIndividualRef, ventaData);
-
-                // 4b. Actualizar el estado de cada equipo en el stock
                 const stockRef = db.collection('stock_individual').doc(item.imei);
                 t.update(stockRef, { estado: 'vendido' });
             }
 
-            // 5. Actualizar las estadísticas del cliente mayorista
             const clientRef = db.collection('clientes_mayoristas').doc(clientId);
-            // Usamos FieldValue.increment para evitar problemas de concurrencia
             t.update(clientRef, {
                 total_comprado_usd: firebase.firestore.FieldValue.increment(totalSaleValue),
                 fecha_ultima_compra: saleDate
             });
         });
 
-        // 6. Si la transacción fue exitosa, mostrar feedback positivo
         showGlobalFeedback(`¡Venta mayorista ${saleId} registrada con éxito!`, 'success', 5000);
-        console.log("[Venta Mayorista] Venta registrada correctamente", wholesaleSaleContext);
-
-    } catch (error) {
-        // 7. Si la transacción falla, notificar al usuario
-        console.error("Error al finalizar la venta mayorista:", error, wholesaleSaleContext);
-        showGlobalFeedback("Error crítico al registrar la venta. Los cambios no se guardaron. Revisa la consola.", "error", 8000);
-    } finally {
-        // 8. Limpiar el estado y volver a la vista principal, sin importar si hubo éxito o error
         wholesaleSaleContext = null;
         resetManagementView();
         switchView('wholesale', s.tabWholesale);
-        updateReports(); // Actualizar los KPIs
+        updateReports();
+
+    } catch (error) {
+        console.error("Error al finalizar la venta mayorista:", error, wholesaleSaleContext);
+        showGlobalFeedback("Error crítico al registrar la venta. Revisa la consola.", "error", 8000);
+        wholesaleSaleContext = null;
+        resetManagementView();
     }
 }
-
 // =======================================================
 // ============= FIN CÓDIGO ACTUALIZADO ==================
 // =======================================================
