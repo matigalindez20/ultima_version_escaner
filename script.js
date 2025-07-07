@@ -169,19 +169,32 @@ async function loadAndPopulateSelects() {
     }
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 function populateAllSelects() {
+    // --- INICIO DE LA MODIFICACIÓN ---
+    // Creamos una nueva lista de proveedores que incluye la opción de Plan Canje.
+    const proveedoresConCanje = ["Usado (Plan Canje)", ...proveedoresStock];
+    // --- FIN DE LA MODIFICACIÓN ---
+
     populateSelect(s.filterSalesVendedor, vendedores, "Todos");
     populateSelect(s.filterCommissionsVendedor, vendedores, "Todos");
     populateSelect(s.filterStockColor, colores, "Todos");
     populateSelect(s.filterStockGb, almacenamientos, "Todos");
     populateSelect(s.filterStockModel, modelos, "Todos");
-    populateSelect(s.filterStockProveedor, proveedoresStock, "Todos");
+    // Usamos la nueva lista para los filtros de stock
+    populateSelect(s.filterStockProveedor, proveedoresConCanje, "Todos"); 
     populateSelect(s.modeloFormSelect, modelos, "Selecciona...");
     populateSelect(s.colorFormSelect, colores, "Selecciona...");
     populateSelect(s.almacenamientoFormSelect, almacenamientos, "Selecciona...");
     populateSelect(s.detallesFormSelect, detallesEsteticos, "Selecciona...");
-    populateSelect(s.proveedorFormSelect, proveedoresStock, "Selecciona...");
+    // Usamos la nueva lista para el formulario de carga
+    populateSelect(s.proveedorFormSelect, proveedoresConCanje, "Selecciona..."); 
 }
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
 function addEventListeners() {
     s.logoutButton.addEventListener('click', () => auth.signOut());
@@ -231,9 +244,22 @@ function addEventListeners() {
     s.btnApplySalesFilters.addEventListener('click', loadSales);
     s.btnApplyGastosFilter.addEventListener('click', loadGastos);
     s.btnApplyIngresosFilter.addEventListener('click', loadIngresos);
-    s.btnScan.addEventListener('click', startScanner);
-    s.manualEntryBtn.addEventListener('click', promptForManualImeiInput);
+    s.btnScan.addEventListener('click', () => startScanner());
+    s.manualEntryBtn.addEventListener('click', (e) => promptForManualImeiInput(e));
     s.productForm.addEventListener('submit', handleProductFormSubmit);
+    
+    s.productForm.addEventListener('click', (e) => {
+        if (e.target.id === 'btn-cancel-product-form') {
+            e.preventDefault();
+            showConfirmationModal('¿Cancelar Carga?', 'Se perderán los datos ingresados. ¿Continuar?', () => {
+                canjeContext = null;
+                batchLoadContext = null;
+                resetManagementView();
+                switchView('dashboard', s.tabDashboard);
+            });
+        }
+    });
+
     s.btnExport.addEventListener('click', (e) => { e.stopPropagation(); s.exportMenu.classList.toggle('show'); });
     s.exportStockBtn.addEventListener('click', () => { exportToExcel('stock'); s.exportMenu.classList.remove('show'); });
     s.exportSalesBtn.addEventListener('click', () => { exportToExcel('sales'); s.exportMenu.classList.remove('show'); });
@@ -334,18 +360,48 @@ function addEventListeners() {
         }
     });
 
-    s.kpiDollarsDay.parentElement.addEventListener('click', () => showKpiDetail('dolares', 'dia'));
-    s.kpiCashDay.parentElement.addEventListener('click', () => showKpiDetail('efectivo_ars', 'dia'));
-    s.kpiTransferDay.parentElement.addEventListener('click', () => showKpiDetail('transferencia_ars', 'dia'));
-    s.kpiDollarsMonth.parentElement.addEventListener('click', () => showKpiDetail('dolares', 'mes'));
-    s.kpiCashMonth.parentElement.addEventListener('click', () => showKpiDetail('efectivo_ars', 'mes'));
-    s.kpiTransferMonth.parentElement.addEventListener('click', () => showKpiDetail('transferencia_ars', 'mes'));
+    // --- INICIO DE LA CORRECCIÓN ---
+    // Usamos delegación de eventos en un contenedor padre que siempre existe.
+    if (s.reportsView) {
+        s.reportsView.addEventListener('click', (e) => {
+            const kpiCard = e.target.closest('.kpi-card');
+            if (!kpiCard) return;
 
-    // NUEVOS EVENT LISTENERS PARA EL PROFIT
-    s.kpiProfitDay.parentElement.addEventListener('click', () => showProfitDetail('dia'));
-    s.kpiProfitMonth.parentElement.addEventListener('click', () => showProfitDetail('mes'));
+            const kpiValueDiv = kpiCard.querySelector('.kpi-value');
+            if (!kpiValueDiv) return;
+            
+            const id = kpiValueDiv.id;
+
+            switch (id) {
+                case 'kpi-dollars-day':
+                    showKpiDetail('dolares', 'dia');
+                    break;
+                case 'kpi-cash-day':
+                    showKpiDetail('efectivo_ars', 'dia');
+                    break;
+                case 'kpi-transfer-day':
+                    showKpiDetail('transferencia_ars', 'dia');
+                    break;
+                case 'kpi-dollars-month':
+                    showKpiDetail('dolares', 'mes');
+                    break;
+                case 'kpi-cash-month':
+                    showKpiDetail('efectivo_ars', 'mes');
+                    break;
+                case 'kpi-transfer-month':
+                    showKpiDetail('transferencia_ars', 'mes');
+                    break;
+                case 'kpi-profit-day':
+                    showProfitDetail('dia');
+                    break;
+                case 'kpi-profit-month':
+                    showProfitDetail('mes');
+                    break;
+            }
+        });
+    }
+    // --- FIN DE LA CORRECCIÓN ---
 }
-
 function moveDashboardSlider(activeButton) {
     if (!s.dashboardOptionsContainer || !activeButton) return;
     const { offsetLeft, offsetWidth } = activeButton;
@@ -2193,6 +2249,8 @@ function deleteBatch(batchId, batchNumber, providerId, providerName, batchCost) 
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 async function showKpiDetail(kpiType, period) {
     const now = new Date();
     let startDate, endDate;
@@ -2248,20 +2306,24 @@ async function showKpiDetail(kpiType, period) {
         
         salesSnap.forEach(doc => {
             const venta = doc.data();
-            
-            // --- INICIO DE LA LÓGICA SIMPLIFICADA FINAL ---
             const valorCanjeUSD = venta.hubo_canje ? (venta.valor_toma_canje_usd || 0) : 0;
             const montoBruto = venta[kpiMontoField] || 0;
-            
-            // Para USD, calculamos el neto. Para ARS, mostramos el valor ya guardado, que es el neto.
-            const montoNeto = (kpiMoneda === 'USD') ? (montoBruto - valorCanjeUSD) : montoBruto;
-            
+            let montoNeto = montoBruto;
+
+            if (valorCanjeUSD > 0) {
+                if (kpiMoneda === 'USD') {
+                    montoNeto = montoBruto - valorCanjeUSD;
+                } else if (kpiMoneda === 'ARS') {
+                    const cotizacion = venta.cotizacion_dolar || 1;
+                    const valorCanjeARS = valorCanjeUSD * cotizacion;
+                    montoNeto = montoBruto - valorCanjeARS;
+                }
+            }
             let conceptoVenta = `Venta: ${venta.producto.modelo}`;
             if (valorCanjeUSD > 0) {
                 conceptoVenta += ` (Canje)`;
             }
-
-            if (montoNeto > 0) {
+            if (montoNeto !== 0) {
                  transactions.push({ 
                     id: doc.id, 
                     fecha: venta.fecha_venta.toDate(), 
@@ -2273,7 +2335,6 @@ async function showKpiDetail(kpiType, period) {
                     collection: 'ventas',
                 });
             }
-            // --- FIN DE LA LÓGICA SIMPLIFICADA FINAL ---
         });
 
         miscIncomesSnap.forEach(doc => {
@@ -2353,16 +2414,21 @@ async function showKpiDetail(kpiType, period) {
                 } else {
                     showConfirmationModal('Eliminar Gasto', `¿Seguro que quieres eliminar este gasto?`, () => deleteSimpleTransaction(id, 'gastos', kpiType, period));
                 }
-            } else if (collection === 'ventas_mayoristas') {
-                revertWholesaleSale(id, data, () => { showKpiDetail(kpiType, period); });
+            } 
+            // --- INICIO DE LA MODIFICACIÓN ---
+            else if (collection === 'ventas_mayoristas') {
+                revertWholesaleSale(id, data, () => { 
+                    // Al finalizar la reversión, volvemos a mostrar el detalle de caja actualizado.
+                    showKpiDetail(kpiType, period); 
+                });
             }
+            // --- FIN DE LA MODIFICACIÓN ---
         }));
 
     } catch (error) {
         handleDBError(error, detailContent, `el detalle de ${kpiType}`);
     }
 }
-
 // NUEVA FUNCIÓN PARA VER DETALLE DE GANANCIAS
 async function showProfitDetail(period) {
     const now = new Date();
@@ -3517,9 +3583,23 @@ async function loadCanjes() {
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 function cargarCanje(docId, modelo) {
-    // Establecemos el contexto ANTES de mostrar cualquier opción.
-    canjeContext = { docId, modelo };
+    const canjeItemRow = document.querySelector(`#canje-table-container tr[data-canje-id="${docId}"]`);
+    const valorTomaTexto = canjeItemRow.querySelector('td:nth-child(4)').textContent;
+    const valorTomaNumerico = parseFloat(valorTomaTexto.replace(/[^0-9,.-]+/g,"").replace(",", "."));
+
+    // Establecemos el contexto global con TODOS los datos necesarios.
+    canjeContext = { 
+        docId, 
+        modelo,
+        valorToma: valorTomaNumerico 
+    };
 
     s.promptContainer.innerHTML = `
         <div class="container container-sm" style="margin: auto;">
@@ -3537,20 +3617,19 @@ function cargarCanje(docId, modelo) {
         </div>`;
         
     document.getElementById('btn-canje-scan').onclick = () => {
-        s.promptContainer.innerHTML = ''; // Limpiamos el prompt actual
+        s.promptContainer.innerHTML = '';
         switchView('management', s.tabManagement);
         startScanner();
     };
     
     document.getElementById('btn-canje-manual').onclick = () => {
-        s.promptContainer.innerHTML = ''; // Limpiamos el prompt actual
+        s.promptContainer.innerHTML = '';
         switchView('management', s.tabManagement);
         promptForManualImeiInput();
     };
 
-    // Si el usuario cancela, limpiamos el contexto.
     s.promptContainer.querySelector('.prompt-button.cancel').addEventListener('click', () => {
-        canjeContext = null;
+        canjeContext = null; // Limpiamos el contexto si el usuario cancela
     });
 }
 
@@ -3563,10 +3642,12 @@ function handleDBError(error, container, context) {
 
 const html5QrCode = new Html5Qrcode("scanner-container");
 
-function startScanner() {
+// REEMPLAZA ESTAS FUNCIONES EN TU SCRIPT.JS
+
+function startScanner(context = null) {
     let feedbackText = 'Escanea un IMEI para empezar';
-    if (canjeContext) {
-        feedbackText = `Escanea el IMEI para el ${canjeContext.modelo} del plan canje...`;
+    if (context && context.modelo) {
+        feedbackText = `Escanea el IMEI para el ${context.modelo} del plan canje...`;
     } else if (batchLoadContext) {
         feedbackText = `Cargando lote de ${batchLoadContext.model}. Escanea el siguiente IMEI.`;
     } else if (wholesaleSaleContext) {
@@ -3582,12 +3663,70 @@ function startScanner() {
         { fps: 10, qrbox: { width: 250, height: 150 } }, 
         async (decodedText) => { 
             try { await html5QrCode.stop(); } catch(err) {} 
-            onScanSuccess(decodedText); 
+            onScanSuccess(decodedText, context); 
         }, 
         (errorMessage) => {}
     ).catch((err) => { 
         showFeedback("Error al iniciar cámara. Revisa los permisos.", "error"); 
     });
+}
+
+function promptForManualImeiInput(e, context = null) {
+    if(e) e.preventDefault();
+    let promptTitle = 'Ingresar IMEI Manualmente';
+    if (context && context.modelo) promptTitle = `Ingresar IMEI para ${context.modelo}`;
+    else if (batchLoadContext) promptTitle = `Ingresar IMEI para ${batchLoadContext.model}`;
+    else if (wholesaleSaleContext) promptTitle = `Ingresar IMEI para venta a ${wholesaleSaleContext.clientName}`;
+
+    s.promptContainer.innerHTML = `<div class="container container-sm"><div class="prompt-box"><h3>${promptTitle}</h3><p style="color: var(--text-muted); margin-bottom: 1.5rem; text-align: center;">Escribe el IMEI para buscarlo o agregarlo.</p><div class="form-group"><label for="manual-imei-input">IMEI</label><input type="text" id="manual-imei-input" placeholder="Ingresa el IMEI aquí..."></div><div class="prompt-buttons"><button id="btn-search-manual-imei" class="prompt-button confirm">Buscar / Continuar</button><button class="prompt-button cancel">Cancelar</button></div></div></div>`;
+    
+    const imeiInput = document.getElementById('manual-imei-input');
+    imeiInput.focus();
+
+    document.getElementById('btn-search-manual-imei').addEventListener('click', () => { 
+        const imei = imeiInput.value.trim(); 
+        if (!imei) { 
+            showGlobalFeedback("Por favor, ingresa un IMEI.", "error"); 
+            return; 
+        } 
+        s.promptContainer.innerHTML = ''; 
+        onScanSuccess(imei, context); 
+    });
+    
+    imeiInput.addEventListener('keypress', (event) => { 
+        if (event.key === 'Enter') { 
+            event.preventDefault(); 
+            document.getElementById('btn-search-manual-imei').click(); 
+        } 
+    });
+}
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
+async function onScanSuccess(imei) {
+    s.feedbackMessage.classList.add('hidden');
+    
+    // Verificamos si existe el contexto de canje
+    if (canjeContext) {
+        // Le pasamos todos los datos del contexto a la siguiente función
+        showAddProductForm(null, imei, canjeContext.modelo, canjeContext.docId, canjeContext.valorToma);
+    } else if (batchLoadContext) {
+        showAddProductForm(null, imei, batchLoadContext.model);
+    } else if (wholesaleSaleContext) {
+        await processWholesaleItem(imei);
+    } else {
+        showFeedback("Buscando IMEI...", "loading");
+        try {
+            const imeiDoc = await db.collection("stock_individual").doc(imei.trim()).get();
+            s.feedbackMessage.classList.add('hidden');
+            if (imeiDoc.exists && imeiDoc.data().estado === 'en_stock') {
+                s.managementView.classList.add('hidden');
+                promptToSell(imei.trim(), imeiDoc.data());
+            } else {
+                showAddProductForm(null, imei.trim());
+            }
+        } catch (error) { handleDBError(error, s.feedbackMessage, "búsqueda de IMEI"); }
+    }
 }
 
 function promptForManualImeiInput(e) {
@@ -3622,13 +3761,16 @@ function promptForManualImeiInput(e) {
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 async function onScanSuccess(imei) {
     s.feedbackMessage.classList.add('hidden');
     
-    // Si existe el contexto de canje, lo usamos.
     if (canjeContext) {
+        // --- INICIO DE LA CORRECCIÓN CLAVE ---
+        // Ahora pasamos el canjeId correctamente.
         showAddProductForm(null, imei, canjeContext.modelo, canjeContext.docId);
-        // NO LIMPIAMOS el contexto aquí, lo necesitamos para el submit.
+        // --- FIN DE LA CORRECCIÓN CLAVE ---
     } else if (batchLoadContext) {
         showAddProductForm(null, imei, batchLoadContext.model);
     } else if (wholesaleSaleContext) {
@@ -3648,7 +3790,11 @@ async function onScanSuccess(imei) {
     }
 }
 
-function showAddProductForm(e, imei = '', modelo = '', canjeId = null) {
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
+function showAddProductForm(e, imei = '', modelo = '', canjeId = null, valorToma = null) {
     if(e) e.preventDefault();
     resetManagementView(batchLoadContext ? true : false); 
     s.scanOptions.classList.add('hidden');
@@ -3656,40 +3802,126 @@ function showAddProductForm(e, imei = '', modelo = '', canjeId = null) {
     s.imeiInput.readOnly = !!imei;
     s.imeiInput.value = imei;
 
-    if(batchLoadContext) {
+    // Reemplazamos el <select> original por la nueva estructura
+    const modeloSelectContainer = s.modeloFormSelect.parentElement;
+    modeloSelectContainer.innerHTML = `
+        <label for="modelo-form">Modelo</label>
+        <div class="custom-select-wrapper">
+            <input type="hidden" id="modelo-form" name="modelo">
+            <div class="custom-select-trigger">
+                <span class="selected-value">Selecciona...</span>
+                <div class="arrow"></div>
+            </div>
+            <div class="custom-options">
+                ${modelos.map(opt => `<div class="custom-option" data-value="${opt}">${opt}</div>`).join('')}
+            </div>
+        </div>
+    `;
+
+    if (valorToma !== null) {
+        // Asignamos el valor al nuevo desplegable personalizado
+        const wrapper = modeloSelectContainer.querySelector('.custom-select-wrapper');
+        const trigger = wrapper.querySelector('.selected-value');
+        const hiddenInput = wrapper.querySelector('#modelo-form');
+        trigger.textContent = modelo;
+        hiddenInput.value = modelo;
+        wrapper.querySelector(`.custom-option[data-value="${modelo}"]`)?.classList.add('selected');
+
+        document.getElementById('precio-costo-form').value = valorToma;
+        s.proveedorFormSelect.value = "Usado (Plan Canje)";
+        s.productForm.dataset.canjeId = canjeId;
+    } 
+    else if (batchLoadContext) {
+        const wrapper = modeloSelectContainer.querySelector('.custom-select-wrapper');
+        const trigger = wrapper.querySelector('.selected-value');
+        const hiddenInput = wrapper.querySelector('#modelo-form');
+        trigger.textContent = batchLoadContext.model;
+        hiddenInput.value = batchLoadContext.model;
+        wrapper.querySelector(`.custom-option[data-value="${batchLoadContext.model}"]`)?.classList.add('selected');
+
         s.proveedorFormSelect.value = batchLoadContext.providerName;
-        s.modeloFormSelect.value = batchLoadContext.model;
         s.managementTitle.textContent = `Cargando Lote: ${batchLoadContext.model} (${batchLoadContext.count} cargados)`;
     }
-    
-    if (modelo && !batchLoadContext) s.modeloFormSelect.value = modelo;
-    if (canjeId) s.productForm.dataset.canjeId = canjeId;
+
+    // Añadimos la funcionalidad al nuevo desplegable
+    const customSelectWrapper = modeloSelectContainer.querySelector('.custom-select-wrapper');
+    const trigger = customSelectWrapper.querySelector('.custom-select-trigger');
+    const hiddenInput = customSelectWrapper.querySelector('#modelo-form');
+
+    trigger.addEventListener('click', () => {
+        customSelectWrapper.classList.toggle('open');
+    });
+
+    customSelectWrapper.querySelectorAll('.custom-option').forEach(option => {
+        option.addEventListener('click', () => {
+            // Quitamos la selección anterior
+            customSelectWrapper.querySelector('.custom-option.selected')?.classList.remove('selected');
+            // Añadimos la nueva
+            option.classList.add('selected');
+            // Actualizamos el valor visible y el oculto
+            trigger.querySelector('.selected-value').textContent = option.textContent;
+            hiddenInput.value = option.dataset.value;
+            // Cerramos el desplegable
+            customSelectWrapper.classList.remove('open');
+        });
+    });
+
+    // Cerramos el desplegable si se hace clic fuera de él
+    document.addEventListener('click', (event) => {
+        if (!customSelectWrapper.contains(event.target)) {
+            customSelectWrapper.classList.remove('open');
+        }
+    });
 
     s.productForm.classList.remove('hidden');
     
-    if (!imei) s.imeiInput.focus();
-    else document.getElementById('precio-costo-form').focus();
+    if (!imei) {
+        s.imeiInput.focus();
+    } else if (!document.getElementById('precio-costo-form').value) {
+        document.getElementById('precio-costo-form').focus();
+    } else {
+        document.getElementById('bateria').focus();
+    }
 }
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
-// REEMPLAZA ESTA FUNCIÓN
 function promptToSell(imei, details) {
     const vendedoresOptions = vendedores.map(v => `<option value="${v}">${v}</option>`).join('');
     const pagoOptions = metodosDePago.map(p => `<option value="${p}">${p}</option>`).join('');
     const modelosOptions = modelos.map(m => `<option value="${m}">${m}</option>`).join('');
-    // Se añade un nuevo form-group para el nombre del cliente
-    s.promptContainer.innerHTML = `<div class="container container-sm" style="margin:auto;"><div class="prompt-box"><h3>Registrar Venta</h3><form id="sell-form"><div class="details-box"><div class="detail-item"><span>Vendiendo:</span> <strong>${details.modelo || ''}</strong></div><div class="detail-item"><span>IMEI:</span> <strong>${imei}</strong></div></div><div class="form-group"><label>Nombre del Cliente (Opcional)</label><input type="text" name="nombre_cliente"></div><div class="form-group"><label>Precio Venta (USD)</label><input type="number" name="precioVenta" required></div><div class="form-group"><label>Método de Pago</label><select name="metodoPago" required><option value="">Seleccione...</option>${pagoOptions}</select></div><div id="pesos-efectivo-fields" class="payment-details-group hidden"><div class="form-group"><label>Monto Efectivo (ARS)</label><input type="number" name="monto_efectivo"></div></div><div id="pesos-transferencia-fields" class="payment-details-group hidden"><div class="form-group"><label>Monto Transferido (ARS)</label><input type="number" name="monto_transferencia"></div><div class="form-group"><label>Obs. Transferencia</label><textarea name="observaciones_transferencia" rows="2"></textarea></div></div><div id="cotizacion-dolar-field" class="form-group hidden"><label>Cotización Dólar</label><input type="number" name="cotizacion_dolar"></div><div class="form-group"><label>Vendedor</label><select name="vendedor" required><option value="">Seleccione...</option>${vendedoresOptions}</select></div><div id="comision-vendedor-field" class="form-group hidden"><label>Comisión Vendedor (USD)</label><input type="number" name="comision_vendedor_usd"></div><hr style="border-color:var(--border-dark);margin:1rem 0;"><div class="checkbox-group"><input type="checkbox" id="acepta-canje" name="acepta-canje"><label for="acepta-canje">Acepta Plan Canje</label></div><div id="plan-canje-fields" class="hidden"><h4>Detalles del Equipo Recibido</h4><div class="form-group"><label>Modelo Recibido</label><select name="canje-modelo">${modelosOptions}</select></div><div class="form-group"><label>Valor Toma (USD)</label><input type="number" name="canje-valor"></div><div class="form-group"><label>Observaciones</label><textarea name="canje-observaciones" rows="2"></textarea></div></div><div class="prompt-buttons"><button type="submit" class="prompt-button confirm spinner-btn"><span class="btn-text">Registrar Venta</span><div class="spinner"></div></button><button type="button" class="prompt-button cancel">Cancelar</button></div></form></div></div>`;
+    
+    // --- INICIO DE LA MODIFICACIÓN ---
+    // Cambiamos el checkbox por la nueva estructura del toggle switch
+    const canjeHtml = `
+        <hr style="border-color:var(--border-dark);margin:1rem 0;">
+        <label class="toggle-switch-group">
+            <input type="checkbox" id="acepta-canje" name="acepta-canje">
+            <span class="toggle-switch-label">Acepta Plan Canje</span>
+            <span class="toggle-switch-slider"></span>
+        </label>
+    `;
+    // --- FIN DE LA MODIFICACIÓN ---
+
+    s.promptContainer.innerHTML = `<div class="container container-sm" style="margin:auto;"><div class="prompt-box"><h3>Registrar Venta</h3><form id="sell-form"><div class="details-box"><div class="detail-item"><span>Vendiendo:</span> <strong>${details.modelo || ''}</strong></div><div class="detail-item"><span>IMEI:</span> <strong>${imei}</strong></div></div><div class="form-group"><label>Nombre del Cliente (Opcional)</label><input type="text" name="nombre_cliente"></div><div class="form-group"><label>Precio Venta (USD)</label><input type="number" name="precioVenta" required></div><div class="form-group"><label>Método de Pago</label><select name="metodoPago" required><option value="">Seleccione...</option>${pagoOptions}</select></div><div id="pesos-efectivo-fields" class="payment-details-group hidden"><div class="form-group"><label>Monto Efectivo (ARS)</label><input type="number" name="monto_efectivo"></div></div><div id="pesos-transferencia-fields" class="payment-details-group hidden"><div class="form-group"><label>Monto Transferido (ARS)</label><input type="number" name="monto_transferencia"></div><div class="form-group"><label>Obs. Transferencia</label><textarea name="observaciones_transferencia" rows="2"></textarea></div></div><div id="cotizacion-dolar-field" class="form-group hidden"><label>Cotización Dólar</label><input type="number" name="cotizacion_dolar"></div><div class="form-group"><label>Vendedor</label><select name="vendedor" required><option value="">Seleccione...</option>${vendedoresOptions}</select></div><div id="comision-vendedor-field" class="form-group hidden"><label>Comisión Vendedor (USD)</label><input type="number" name="comision_vendedor_usd"></div>${canjeHtml}<div id="plan-canje-fields" class="hidden"><h4>Detalles del Equipo Recibido</h4><div class="form-group"><label>Modelo Recibido</label><select name="canje-modelo">${modelosOptions}</select></div><div class="form-group"><label>Valor Toma (USD)</label><input type="number" name="canje-valor"></div><div class="form-group"><label>Observaciones</label><textarea name="canje-observaciones" rows="2"></textarea></div></div><div class="prompt-buttons"><button type="submit" class="prompt-button confirm spinner-btn"><span class="btn-text">Registrar Venta</span><div class="spinner"></div></button><button type="button" class="prompt-button cancel">Cancelar</button></div></form></div></div>`;
+    
     const form = document.getElementById('sell-form');
     const metodoPagoSelect = form.querySelector('[name="metodoPago"]');
     const vendedorSelect = form.querySelector('[name="vendedor"]');
+    
     const toggleSaleFields = () => {
         form.querySelector('#pesos-efectivo-fields').classList.toggle('hidden', metodoPagoSelect.value !== 'Pesos (Efectivo)');
         form.querySelector('#pesos-transferencia-fields').classList.toggle('hidden', metodoPagoSelect.value !== 'Pesos (Transferencia)');
         form.querySelector('#cotizacion-dolar-field').classList.toggle('hidden', !metodoPagoSelect.value.startsWith('Pesos'));
         form.querySelector('#comision-vendedor-field').classList.toggle('hidden', !vendedorSelect.value);
     };
+    
     metodoPagoSelect.addEventListener('change', toggleSaleFields);
     vendedorSelect.addEventListener('change', toggleSaleFields);
-    document.getElementById('acepta-canje').addEventListener('change', (e) => { document.getElementById('plan-canje-fields').classList.toggle('hidden', !e.target.checked); });
+    
+    document.getElementById('acepta-canje').addEventListener('change', (e) => { 
+        document.getElementById('plan-canje-fields').classList.toggle('hidden', !e.target.checked); 
+    });
+    
     form.addEventListener('submit', (e) => { e.preventDefault(); registerSale(imei, details, e.target.querySelector('button[type="submit"]')); });
 }
 
@@ -3780,6 +4012,24 @@ async function registerSale(imei, productDetails, btn) {
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+// PEGA ESTE BLOQUE COMPLETO JUSTO ANTES DE "async function handleProductFormSubmit(e)"
+
+s.productForm.addEventListener('click', (e) => {
+    if (e.target && e.target.id === 'btn-cancel-product-form') {
+        e.preventDefault();
+        
+        showConfirmationModal('¿Cancelar Carga?', '¿Estás seguro de que quieres cancelar la carga de este producto? Se perderán los datos ingresados.', () => {
+            // Limpiamos cualquier contexto activo
+            canjeContext = null;
+            batchLoadContext = null;
+            wholesaleSaleContext = null;
+            
+            // Reseteamos la vista y volvemos al dashboard
+            resetManagementView();
+            switchView('dashboard', s.tabDashboard);
+        });
+    }
+});
 
 async function handleProductFormSubmit(e) {
     e.preventDefault();
@@ -3885,6 +4135,8 @@ async function handleProductFormSubmit(e) {
     }
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 function resetManagementView(isBatchLoad = false, isCanje = false, isWholesaleSale = false) {
     s.promptContainer.innerHTML = '';
     s.feedbackMessage.classList.add('hidden');
@@ -3905,6 +4157,14 @@ function resetManagementView(isBatchLoad = false, isCanje = false, isWholesaleSa
     s.managementTitle.textContent = "Gestión de IMEI";
     if (s.productFormSubmitBtn) {
         s.productFormSubmitBtn.querySelector('.btn-text').textContent = "Guardar Producto";
+        
+        // --- INICIO DE LA MODIFICACIÓN ---
+        const cancelButtonHtml = '<button type="button" id="btn-cancel-product-form" class="prompt-button cancel" style="margin-top: 1rem; background-color: var(--error-bg);">Cancelar</button>';
+        const existingCancelBtn = s.productForm.querySelector('#btn-cancel-product-form');
+        if (!existingCancelBtn) {
+            s.productFormSubmitBtn.insertAdjacentHTML('afterend', cancelButtonHtml);
+        }
+        // --- FIN DE LA MODIFICACIÓN ---
     }
 
     const existingEndBtn = s.managementView.querySelector('#btn-end-process');
@@ -3916,7 +4176,7 @@ function resetManagementView(isBatchLoad = false, isCanje = false, isWholesaleSa
     }
     
     if (!isBatchLoad) batchLoadContext = null;
-    if (!isCanje) canjeContext = null;
+    if (!isCanje) canjeContext = null; // Se limpia el contexto de canje aquí
     if (!isWholesaleSale) wholesaleSaleContext = null;
 
     let endBtn;
@@ -4027,57 +4287,85 @@ async function showWholesaleHistory(clientId, clientName) {
     }
 }
 
-function revertWholesaleSale(masterSaleId, masterSaleData) {
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
+function revertWholesaleSale(masterSaleId, masterSaleData, callback) {
     const message = `¿Estás seguro de que quieres revertir la venta <strong>${masterSaleData.venta_id_manual}</strong> por un total de <strong>${formatearUSD(masterSaleData.total_venta_usd)}</strong>?
     <br><br>
     <strong style="color:var(--error-bg);">¡ATENCIÓN!</strong> Esta acción es irreversible y hará lo siguiente:
     <ul>
         <li>Los <strong>${masterSaleData.cantidad_equipos} equipos</strong> de esta venta volverán al stock.</li>
         <li>Se eliminarán todos los registros de venta asociados.</li>
-        <li>El total comprado del cliente <strong>${masterSaleData.clienteNombre}</strong> se reducirá.</li>
+        <li>El total comprado del cliente <strong>${masterSaleData.clienteNombre}</strong> se reducirá (si el cliente aún existe).</li>
     </ul>`;
 
     showConfirmationModal('Confirmar Reversión de Venta Mayorista', message, async () => {
         try {
+            showGlobalFeedback('Revirtiendo venta mayorista...', 'loading', 5000);
+
+            // --- INICIO DE LA CORRECCIÓN CLAVE ---
+            // 1. LEEMOS los registros de venta individuales ANTES de la transacción.
+            const individualSalesQuery = db.collection('ventas').where('venta_mayorista_ref', '==', masterSaleId);
+            const individualSalesSnapshot = await individualSalesQuery.get();
+            // --- FIN DE LA CORRECCIÓN CLAVE ---
+
             await db.runTransaction(async t => {
                 const masterSaleRef = db.collection('ventas_mayoristas').doc(masterSaleId);
                 const clientRef = db.collection('clientes_mayoristas').doc(masterSaleData.clienteId);
 
-                const individualSalesQuery = db.collection('ventas').where('venta_mayorista_ref', '==', masterSaleId);
-                const individualSalesSnapshot = await individualSalesQuery.get(); 
-                
+                // Verificamos si la consulta anterior encontró algo.
                 if (individualSalesSnapshot.empty) {
-                    throw new Error("No se encontraron los registros de venta individuales para revertir. Operación cancelada para evitar inconsistencias.");
+                    // Si no hay ventas individuales, puede ser una venta antigua o un error.
+                    // Permitimos que la reversión continúe para limpiar el registro maestro.
+                    console.warn(`No se encontraron registros de venta individuales para la venta maestra ${masterSaleId}. Se procederá a eliminar solo el registro maestro.`);
+                } else {
+                    // 2. Si se encontraron, ahora los procesamos DENTRO de la transacción.
+                    for (const doc of individualSalesSnapshot.docs) {
+                        const ventaIndividual = doc.data();
+                        const imei = ventaIndividual.imei_vendido;
+                        if (imei) {
+                            const stockRef = db.collection('stock_individual').doc(imei);
+                            t.update(stockRef, { estado: 'en_stock' });
+                        }
+                        t.delete(doc.ref);
+                    }
                 }
 
-                for (const doc of individualSalesSnapshot.docs) {
-                    const ventaIndividual = doc.data();
-                    const imei = ventaIndividual.imei_vendido;
-                    const stockRef = db.collection('stock_individual').doc(imei);
-                    
-                    t.update(stockRef, { estado: 'en_stock' });
-                    t.delete(doc.ref);
+                // 3. Actualizamos el total del cliente si todavía existe.
+                const clientDoc = await t.get(clientRef).catch(() => null);
+                if (clientDoc && clientDoc.exists) {
+                    t.update(clientRef, {
+                        total_comprado_usd: firebase.firestore.FieldValue.increment(-masterSaleData.total_venta_usd)
+                    });
+                } else {
+                     console.warn(`El cliente ${masterSaleData.clienteId} no fue encontrado. No se puede actualizar su total de compra.`);
                 }
-
-                t.update(clientRef, {
-                    total_comprado_usd: firebase.firestore.FieldValue.increment(-masterSaleData.total_venta_usd)
-                });
                 
+                // 4. Eliminamos la venta maestra.
                 t.delete(masterSaleRef);
             });
 
             showGlobalFeedback(`Venta ${masterSaleData.venta_id_manual} revertida con éxito.`, 'success');
-            showWholesaleHistory(masterSaleData.clienteId, masterSaleData.clienteNombre);
-            loadWholesaleClients();
+            
+            // Si hay una función de callback (como refrescar la vista), la ejecutamos.
+            if (callback && typeof callback === 'function') {
+                callback();
+            } else {
+                // Comportamiento por defecto
+                loadWholesaleClients();
+                updateReports();
+            }
 
         } catch (error) {
             console.error("Error al revertir la venta mayorista:", error);
             showGlobalFeedback(error.message || "Error crítico al revertir la venta. Revisa la consola.", "error", 6000);
-            s.promptContainer.innerHTML = '';
+        } finally {
+            // Cerramos el prompt de confirmación si sigue abierto.
+            const modal = document.getElementById('confirmation-modal-overlay');
+            if(modal) modal.remove();
         }
     });
 }
-
 async function resyncWholesaleClientTotal(clientId, clientName) {
     const message = `Esto recalculará el "Total Comprado" para <strong>${clientName}</strong> basándose en su historial de ventas guardado.
     <br><br>
@@ -4153,16 +4441,57 @@ function renderWholesaleClients(clients) {
     }).join('');
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 function deleteWholesaleClient(clientId, clientName) {
-    const message = `¿Estás seguro de que quieres eliminar al cliente "${clientName}"?\n\nEsta acción es irreversible. Sus compras históricas NO se eliminarán.`;
-    showConfirmationModal('Confirmar Eliminación', message, async () => {
+    const message = `¿Estás seguro de que quieres eliminar al cliente "<strong>${clientName}</strong>"?<br><br><strong style="color: var(--error-bg);">¡ATENCIÓN!</strong> Esta acción es irreversible y también <strong>eliminará TODAS sus ventas asociadas</strong> y devolverá los equipos al stock.`;
+    
+    showConfirmationModal('Confirmar Eliminación Completa', message, async () => {
         try {
+            showGlobalFeedback('Eliminando cliente y revirtiendo sus ventas... Por favor espera.', 'loading', 10000);
+
+            // 1. Buscar todas las ventas maestras de este cliente.
+            const salesSnapshot = await db.collection('ventas_mayoristas')
+                .where('clienteId', '==', clientId)
+                .get();
+            
+            // 2. Por cada venta maestra, ejecutar la lógica de reversión.
+            for (const saleDoc of salesSnapshot.docs) {
+                const saleId = saleDoc.id;
+                const saleData = saleDoc.data();
+
+                await db.runTransaction(async t => {
+                    const masterSaleRef = db.collection('ventas_mayoristas').doc(saleId);
+                    
+                    // Buscar ventas individuales asociadas
+                    const individualSalesQuery = db.collection('ventas').where('venta_mayorista_ref', '==', saleId);
+                    const individualSalesSnapshot = await individualSalesQuery.get(); 
+
+                    for (const doc of individualSalesSnapshot.docs) {
+                        const ventaIndividual = doc.data();
+                        const imei = ventaIndividual.imei_vendido;
+                        if (imei) {
+                            const stockRef = db.collection('stock_individual').doc(imei);
+                            t.update(stockRef, { estado: 'en_stock' });
+                        }
+                        t.delete(doc.ref);
+                    }
+                    
+                    // Eliminar la venta maestra
+                    t.delete(masterSaleRef);
+                });
+            }
+
+            // 3. Una vez revertidas todas las ventas, eliminar al cliente.
             await db.collection('clientes_mayoristas').doc(clientId).delete();
-            showGlobalFeedback(`Cliente "${clientName}" eliminado.`, 'success');
-            loadWholesaleClients();
+
+            showGlobalFeedback(`Cliente "${clientName}" y todas sus ventas han sido eliminados.`, 'success');
+            loadWholesaleClients(); // Recargar la lista de clientes
+            updateReports(); // Actualizar los KPIs de caja
+
         } catch (error) {
-            console.error("Error eliminando cliente:", error);
-            showGlobalFeedback('No se pudo eliminar el cliente.', 'error');
+            console.error("Error eliminando cliente y sus ventas:", error);
+            showGlobalFeedback('Error crítico al eliminar el cliente. Revisa la consola.', 'error');
         }
     });
 }

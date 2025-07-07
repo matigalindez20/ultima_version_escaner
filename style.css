@@ -1917,3 +1917,140 @@ td.actions-cell {
     background-color: var(--error-bg);
     color: white;
 }
+
+/* === ESTILOS PARA EL NUEVO TOGGLE SWITCH DE PLAN CANJE === */
+.toggle-switch-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    user-select: none;
+    padding: 10px 0;
+}
+
+.toggle-switch-group input[type="checkbox"] {
+    /* Ocultamos el checkbox original */
+    height: 0;
+    width: 0;
+    visibility: hidden;
+}
+
+.toggle-switch-label {
+    font-weight: 600; 
+    color: var(--text-muted);
+    transition: color 0.3s ease;
+}
+
+.toggle-switch-slider {
+    position: relative;
+    width: 50px;
+    height: 28px;
+    background-color: #333;
+    border-radius: 28px;
+    transition: background-color 0.3s ease;
+    border: 1px solid #444;
+}
+
+.toggle-switch-slider::before {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 4px;
+    width: 20px;
+    height: 20px;
+    background-color: white;
+    border-radius: 50%;
+    transition: transform 0.3s ease;
+}
+
+/* Estilos cuando el switch está activado */
+.toggle-switch-group input:checked + .toggle-switch-label {
+    color: var(--brand-yellow);
+}
+
+.toggle-switch-group input:checked + .toggle-switch-label + .toggle-switch-slider {
+    background-color: var(--success-bg);
+    border-color: var(--success-bg);
+}
+
+.toggle-switch-group input:checked + .toggle-switch-label + .toggle-switch-slider::before {
+    transform: translateX(21px);
+}
+
+
+/* === ESTILOS PARA MENÚ DESPLEGABLE PERSONALIZADO === */
+.custom-select-wrapper {
+    position: relative;
+    user-select: none;
+}
+
+.custom-select-trigger {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%; 
+    padding: 0.8rem 1rem; 
+    border: 1px solid var(--border-dark); 
+    border-radius: 8px; 
+    font-size: 1rem; 
+    background-color: #2c2c2e; 
+    color: var(--text-light);
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.custom-select-trigger:hover,
+.custom-select-wrapper.open .custom-select-trigger {
+    border-color: var(--brand-yellow);
+}
+
+.custom-select-trigger .arrow {
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 6px solid var(--brand-yellow);
+    transition: transform 0.3s ease;
+}
+
+.custom-select-wrapper.open .arrow {
+    transform: rotate(180deg);
+}
+
+.custom-options {
+    position: absolute;
+    top: calc(100% + 5px);
+    left: 0;
+    right: 0;
+    background-color: #2c2c2e;
+    border: 1px solid var(--border-dark);
+    border-radius: 8px;
+    box-shadow: var(--box-shadow);
+    z-index: 100;
+    max-height: 0;
+    overflow-y: auto;
+    opacity: 0;
+    visibility: hidden;
+    transition: max-height 0.3s ease, opacity 0.3s ease, visibility 0s 0.3s;
+}
+
+.custom-select-wrapper.open .custom-options {
+    max-height: 250px; /* Altura máxima del desplegable */
+    opacity: 1;
+    visibility: visible;
+    transition: max-height 0.3s ease, opacity 0.3s ease, visibility 0s 0s;
+}
+
+.custom-option {
+    padding: 0.8rem 1rem;
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.custom-option:hover,
+.custom-option.selected {
+    background-color: var(--brand-yellow);
+    color: #000;
+    font-weight: 600;
+}
