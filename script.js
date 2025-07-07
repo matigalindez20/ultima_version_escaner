@@ -196,6 +196,8 @@ function populateAllSelects() {
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 function addEventListeners() {
     s.logoutButton.addEventListener('click', () => auth.signOut());
     
@@ -291,13 +293,16 @@ function addEventListeners() {
         }
     });
     
+    // --- INICIO DE LA CORRECCIÓN ---
+    // El listener ahora se asigna al contenedor padre '.wholesale-view'
     s.wholesaleView.addEventListener('click', e => {
         const button = e.target.closest('button');
         if (!button) return;
-        const clientItem = button.closest('.wholesale-client-item');
-        if (!clientItem) return;
-        const clientId = clientItem.dataset.clientId;
-        const clientName = clientItem.querySelector('h3').textContent;
+        // La tarjeta de cliente ahora tiene la clase '.provider-card'
+        const clientCard = button.closest('.provider-card'); 
+        if (!clientCard) return;
+        const clientId = clientCard.dataset.clientId;
+        const clientName = clientCard.querySelector('h3').textContent;
 
         if (button.classList.contains('btn-new-wholesale-sale')) {
             promptToStartWholesaleSale(clientId, clientName);
@@ -309,7 +314,7 @@ function addEventListeners() {
             deleteWholesaleClient(clientId, clientName);
         }
     });
-
+    // --- FIN DE LA CORRECCIÓN ---
 
     s.commissionsResultsContainer.addEventListener('click', (e) => {
         const payButton = e.target.closest('.btn-pay-commission');
@@ -360,8 +365,6 @@ function addEventListeners() {
         }
     });
 
-    // --- INICIO DE LA CORRECCIÓN ---
-    // Usamos delegación de eventos en un contenedor padre que siempre existe.
     if (s.reportsView) {
         s.reportsView.addEventListener('click', (e) => {
             const kpiCard = e.target.closest('.kpi-card');
@@ -400,8 +403,8 @@ function addEventListeners() {
             }
         });
     }
-    // --- FIN DE LA CORRECCIÓN ---
 }
+
 function moveDashboardSlider(activeButton) {
     if (!s.dashboardOptionsContainer || !activeButton) return;
     const { offsetLeft, offsetWidth } = activeButton;
@@ -4713,47 +4716,58 @@ async function resyncWholesaleClientTotal(clientId, clientName) {
 
 // REEMPLAZA ESTA FUNCIÓN EN TU SCRIPT.JS
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 function renderWholesaleClients(clients) {
     s.wholesaleClientsListContainer.innerHTML = clients.map(client => {
         const totalComprado = client.total_comprado_usd || 0;
         const ultimaCompra = client.fecha_ultima_compra ? new Date(client.fecha_ultima_compra.seconds * 1000).toLocaleDateString('es-AR') : 'Nunca';
         
-        // === CAMBIO 1: El título ahora siempre es el mismo. Ya no hay condición. ===
-        const deleteTitle = 'Eliminar Cliente';
+        const deleteTitle = 'Eliminar Cliente y todas sus ventas asociadas';
 
         return `
-        <div class="wholesale-client-item" data-client-id="${client.id}">
-            <div class="client-item-main">
-                <div class="client-item-info">
+        <div class="provider-card" data-client-id="${client.id}">
+            <div class="provider-card-header">
+                <div class="provider-card-info">
                     <h3>${client.nombre}</h3>
-                    <div class="client-item-stats">
-                        <span>Total Comprado: <strong>${formatearUSD(totalComprado)}</strong></span>
-                        <span>Última Compra: <strong>${ultimaCompra}</strong></span>
-                    </div>
+                    <p>Última Compra: ${ultimaCompra}</p>
                 </div>
-                <div class="client-item-actions">
+                <button class="delete-icon-btn btn-delete-wholesale-client" title="${deleteTitle}">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        <line x1="10" y1="11" x2="10" y2="17"></line>
+                        <line x1="14" y1="11" x2="14" y2="17"></line>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="provider-card-debt">
+                <div class="debt-label">Total Comprado</div>
+                <div class="debt-amount" style="color: var(--brand-yellow);">${formatearUSD(totalComprado)}</div>
+            </div>
+
+            <div class="provider-card-actions">
+                <div class="provider-primary-action">
                     <button class="control-btn btn-new-wholesale-sale">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14m-7-7h14" /></svg>
-                        Registrar Venta
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        <span>Registrar Venta</span>
                     </button>
-                    <button class="control-btn btn-secondary btn-view-wholesale-history">
-                        Historial
+                </div>
+                <div class="provider-secondary-actions" style="grid-template-columns: 1fr 1fr;">
+                     <button class="control-btn btn-secondary btn-view-wholesale-history">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                        <span>Ver Historial</span>
                     </button>
-                    
-                    <button class="icon-btn btn-resync-client" title="Recalcular Total Comprado" style="background-color: #3498db;">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
-                    </button>
-                    
-                    <!-- === CAMBIO 2: Quité la lógica del 'disabled' del botón. Ahora siempre está activo. === -->
-                    <button class="delete-icon-btn btn-delete-wholesale-client" title="${deleteTitle}">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                     <button class="control-btn btn-secondary btn-resync-client" title="Recalcular Total Comprado">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                        <span>Resincronizar</span>
                     </button>
                 </div>
             </div>
         </div>`;
     }).join('');
 }
-
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
 function deleteWholesaleClient(clientId, clientName) {
