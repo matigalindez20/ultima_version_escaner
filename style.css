@@ -2054,3 +2054,20 @@ td.actions-cell {
     color: #000;
     font-weight: 600;
 }
+
+/* === ESTILOS PARA OPCIONES DE PAGO MÚLTIPLE === */
+.payment-option {
+    border: 1px solid var(--border-dark);
+    border-radius: 8px;
+    margin-bottom: 0.75rem;
+    padding: 0 1rem;
+}
+
+.payment-option .toggle-switch-group {
+    padding: 5px 0;
+}
+
+.payment-input-container {
+    padding-bottom: 1rem;
+    animation: fadeIn 0.3s;
+}

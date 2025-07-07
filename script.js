@@ -422,6 +422,8 @@ function moveNavSlider(activeTab) {
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 async function updateReports() {
     const kpiElements = [
         s.kpiStockValue, s.kpiStockCount,
@@ -484,19 +486,27 @@ async function updateReports() {
                     const commission = venta.comision_vendedor_usd || 0;
                     totalProfit += (venta.precio_venta_usd || 0) - cost - commission;
 
-                    // --- INICIO DE LA LÓGICA CORREGIDA PARA KPIs ---
-                    const valorCanje = venta.hubo_canje ? (venta.valor_toma_canje_usd || 0) : 0;
+                    // --- INICIO DE LA LÓGICA CORREGIDA ---
+                    const valorCanjeUSD = venta.hubo_canje ? (venta.valor_toma_canje_usd || 0) : 0;
+                    const cotizacion = venta.cotizacion_dolar || 1;
                     
-                    if (venta.metodo_pago === 'Dólares') {
-                        totalIncomes.usd += (venta.precio_venta_usd || 0) - valorCanje;
-                    } else if (venta.metodo_pago === 'Pesos (Efectivo)') {
-                        // El monto guardado ya es el neto, simplemente lo sumamos.
-                        totalIncomes.cash += venta.monto_efectivo || 0;
-                    } else if (venta.metodo_pago === 'Pesos (Transferencia)') {
-                        // El monto guardado ya es el neto, simplemente lo sumamos.
-                        totalIncomes.transfer += venta.monto_transferencia || 0;
+                    // Sumamos los montos pagados a cada caja
+                    totalIncomes.usd += venta.monto_dolares || 0;
+                    totalIncomes.cash += venta.monto_efectivo || 0;
+                    totalIncomes.transfer += venta.monto_transferencia || 0;
+
+                    // Si hubo canje, lo restamos de la caja correspondiente
+                    if (valorCanjeUSD > 0) {
+                        // Prioridad de descuento: Dólares > Efectivo > Transferencia
+                        if ((venta.monto_dolares || 0) > 0) {
+                            totalIncomes.usd -= valorCanjeUSD;
+                        } else if ((venta.monto_efectivo || 0) > 0) {
+                            totalIncomes.cash -= (valorCanjeUSD * cotizacion);
+                        } else if ((venta.monto_transferencia || 0) > 0) {
+                            totalIncomes.transfer -= (valorCanjeUSD * cotizacion);
+                        }
                     }
-                    // --- FIN DE LA LÓGICA CORREGIDA PARA KPIs ---
+                    // --- FIN DE LA LÓGICA CORREGIDA ---
                 });
             }
             wholesaleSalesSnapshot.forEach(doc => {
@@ -551,6 +561,7 @@ async function updateReports() {
         kpiElements.forEach(el => { if(el) el.textContent = 'Error'; });
     }
 }
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
@@ -588,74 +599,72 @@ async function showKpiDetail(kpiType, period) {
 
         if (kpiType === 'dolares') {
             kpiMoneda = 'USD';
-            kpiMetodo = 'Dólares';
-            kpiMontoField = 'precio_venta_usd';
+            kpiMontoField = 'monto_dolares';
         } else if (kpiType === 'efectivo_ars') {
             kpiMoneda = 'ARS';
-            kpiMetodo = 'Pesos (Efectivo)';
             kpiMontoField = 'monto_efectivo';
         } else if (kpiType === 'transferencia_ars') {
             kpiMoneda = 'ARS';
-            kpiMetodo = 'Pesos (Transferencia)';
             kpiMontoField = 'monto_transferencia';
         }
         
-        const salesSnapPromise = db.collection('ventas').where('fecha_venta', '>=', startDate).where('fecha_venta', '<=', endDate).where('metodo_pago', '==', kpiMetodo).get();
-        const miscIncomesSnapPromise = db.collection('ingresos_caja').where('fecha', '>=', startDate).where('fecha', '<=', endDate).where('metodo', '==', kpiMetodo).get();
-        const expensesSnapPromise = db.collection('gastos').where('fecha', '>=', startDate).where('fecha', '<=', endDate).where('metodo_pago', '==', kpiMetodo).get();
+        const salesSnapPromise = db.collection('ventas').where('fecha_venta', '>=', startDate).where('fecha_venta', '<=', endDate).get();
+        const miscIncomesSnapPromise = db.collection('ingresos_caja').where('fecha', '>=', startDate).where('fecha', '<=', endDate).get();
+        const expensesSnapPromise = db.collection('gastos').where('fecha', '>=', startDate).where('fecha', '<=', endDate).get();
         const wholesaleSalesSnapPromise = db.collection('ventas_mayoristas').where('fecha_venta', '>=', startDate).where('fecha_venta', '<=', endDate).get();
 
         const [salesSnap, miscIncomesSnap, expensesSnap, wholesaleSalesSnap] = await Promise.all([salesSnapPromise, miscIncomesSnapPromise, expensesSnapPromise, wholesaleSalesSnapPromise]);
         
+        // --- INICIO DE LA LÓGICA CORREGIDA PARA EL DETALLE ---
         salesSnap.forEach(doc => {
             const venta = doc.data();
+            let montoDeEstaCaja = venta[kpiMontoField] || 0;
             
-            // --- INICIO DE LA LÓGICA CORREGIDA Y FINAL ---
-            const valorCanjeUSD = venta.hubo_canje ? (venta.valor_toma_canje_usd || 0) : 0;
-            const montoBruto = venta[kpiMontoField] || 0;
-            let montoNeto = montoBruto;
+            if (montoDeEstaCaja > 0) {
+                const valorCanjeUSD = venta.hubo_canje ? (venta.valor_toma_canje_usd || 0) : 0;
+                let montoNeto = montoDeEstaCaja;
+                
+                if (valorCanjeUSD > 0) {
+                    if (kpiMoneda === 'USD') {
+                        montoNeto -= valorCanjeUSD;
+                    } else if (kpiMoneda === 'ARS') {
+                        const cotizacion = venta.cotizacion_dolar || 1;
+                        montoNeto -= (valorCanjeUSD * cotizacion);
+                    }
+                }
 
-            if (valorCanjeUSD > 0) {
-                if (kpiMoneda === 'USD') {
-                    montoNeto = montoBruto - valorCanjeUSD;
-                } else if (kpiMoneda === 'ARS') {
-                    const cotizacion = venta.cotizacion_dolar || 1;
-                    const valorCanjeARS = valorCanjeUSD * cotizacion;
-                    montoNeto = montoBruto - valorCanjeARS;
+                if (montoNeto > 0) {
+                    let conceptoVenta = `Venta: ${venta.producto.modelo}`;
+                    if (valorCanjeUSD > 0) conceptoVenta += ` (Canje)`;
+
+                    transactions.push({ 
+                        id: doc.id, 
+                        fecha: venta.fecha_venta.toDate(), 
+                        tipo: 'Ingreso', 
+                        concepto: conceptoVenta,
+                        monto: montoNeto,
+                        moneda: kpiMoneda, 
+                        data: venta, 
+                        collection: 'ventas',
+                    });
                 }
             }
-
-            let conceptoVenta = `Venta: ${venta.producto.modelo}`;
-            if (valorCanjeUSD > 0) {
-                conceptoVenta += ` (Canje)`;
-            }
-
-            // Solo mostrar la transacción si el monto neto es relevante para esta caja
-            if (montoNeto !== 0) {
-                 transactions.push({ 
-                    id: doc.id, 
-                    fecha: venta.fecha_venta.toDate(), 
-                    tipo: 'Ingreso', 
-                    concepto: conceptoVenta,
-                    monto: montoNeto,
-                    moneda: kpiMoneda, 
-                    data: venta, 
-                    collection: 'ventas',
-                });
-            }
-            // --- FIN DE LA LÓGICA CORREGIDA Y FINAL ---
         });
 
         miscIncomesSnap.forEach(doc => {
             const ingreso = doc.data();
-            transactions.push({ id: doc.id, fecha: ingreso.fecha.toDate(), tipo: 'Ingreso', concepto: `Ingreso: ${ingreso.categoria}`, monto: ingreso.monto, moneda: kpiMoneda, data: ingreso, collection: 'ingresos_caja' });
+            if (ingreso.metodo.toLowerCase().includes(kpiType.split('_')[0])) {
+                 transactions.push({ id: doc.id, fecha: ingreso.fecha.toDate(), tipo: 'Ingreso', concepto: `Ingreso: ${ingreso.categoria}`, monto: ingreso.monto, moneda: kpiMoneda, data: ingreso, collection: 'ingresos_caja' });
+            }
         });
         
         expensesSnap.forEach(doc => {
             const gasto = doc.data();
-            transactions.push({ id: doc.id, fecha: gasto.fecha.toDate(), tipo: 'Egreso', concepto: `Gasto: ${gasto.descripcion || gasto.categoria}`, monto: gasto.monto, moneda: kpiMoneda, data: gasto, collection: 'gastos' });
+             if (gasto.metodo_pago.toLowerCase().includes(kpiType.split('_')[0])) {
+                transactions.push({ id: doc.id, fecha: gasto.fecha.toDate(), tipo: 'Egreso', concepto: `Gasto: ${gasto.descripcion || gasto.categoria}`, monto: gasto.monto, moneda: kpiMoneda, data: gasto, collection: 'gastos' });
+            }
         });
-
+        
         wholesaleSalesSnap.forEach(doc => {
             const sale = doc.data();
             const payment = sale.pago_recibido || {};
@@ -670,6 +679,7 @@ async function showKpiDetail(kpiType, period) {
                 transactions.push({ id: doc.id, fecha: sale.fecha_venta.toDate(), tipo: 'Ingreso', concepto: concepto, monto: monto, moneda: kpiMoneda, data: sale, collection: 'ventas_mayoristas' });
             }
         });
+        // --- FIN DE LA LÓGICA CORREGIDA ---
         
         transactions.sort((a, b) => b.fecha - a.fecha);
 
@@ -724,7 +734,9 @@ async function showKpiDetail(kpiType, period) {
                     showConfirmationModal('Eliminar Gasto', `¿Seguro que quieres eliminar este gasto?`, () => deleteSimpleTransaction(id, 'gastos', kpiType, period));
                 }
             } else if (collection === 'ventas_mayoristas') {
-                revertWholesaleSale(id, data, () => { showKpiDetail(kpiType, period); });
+                revertWholesaleSale(id, data, () => { 
+                    showKpiDetail(kpiType, period); 
+                });
             }
         }));
 
@@ -732,7 +744,6 @@ async function showKpiDetail(kpiType, period) {
         handleDBError(error, detailContent, `el detalle de ${kpiType}`);
     }
 }
-
 async function handleAuthStateChange(user) {
     if (user) {
         s.loginContainer.innerHTML = ''; 
@@ -2251,6 +2262,8 @@ function deleteBatch(batchId, batchNumber, providerId, providerName, batchCost) 
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 async function showKpiDetail(kpiType, period) {
     const now = new Date();
     let startDate, endDate;
@@ -2281,72 +2294,80 @@ async function showKpiDetail(kpiType, period) {
 
     try {
         const transactions = [];
-        let kpiMoneda, kpiMetodo, kpiMontoField;
+        let kpiMoneda;
 
-        if (kpiType === 'dolares') {
-            kpiMoneda = 'USD';
-            kpiMetodo = 'Dólares';
-            kpiMontoField = 'precio_venta_usd';
-        } else if (kpiType === 'efectivo_ars') {
-            kpiMoneda = 'ARS';
-            kpiMetodo = 'Pesos (Efectivo)';
-            kpiMontoField = 'monto_efectivo';
-        } else if (kpiType === 'transferencia_ars') {
-            kpiMoneda = 'ARS';
-            kpiMetodo = 'Pesos (Transferencia)';
-            kpiMontoField = 'monto_transferencia';
-        }
+        if (kpiType === 'dolares') kpiMoneda = 'USD';
+        else if (kpiType === 'efectivo_ars') kpiMoneda = 'ARS';
+        else if (kpiType === 'transferencia_ars') kpiMoneda = 'ARS';
         
-        const salesSnapPromise = db.collection('ventas').where('fecha_venta', '>=', startDate).where('fecha_venta', '<=', endDate).where('metodo_pago', '==', kpiMetodo).get();
-        const miscIncomesSnapPromise = db.collection('ingresos_caja').where('fecha', '>=', startDate).where('fecha', '<=', endDate).where('metodo', '==', kpiMetodo).get();
-        const expensesSnapPromise = db.collection('gastos').where('fecha', '>=', startDate).where('fecha', '<=', endDate).where('metodo_pago', '==', kpiMetodo).get();
+        const salesSnapPromise = db.collection('ventas').where('fecha_venta', '>=', startDate).where('fecha_venta', '<=', endDate).get();
+        const miscIncomesSnapPromise = db.collection('ingresos_caja').where('fecha', '>=', startDate).where('fecha', '<=', endDate).get();
+        const expensesSnapPromise = db.collection('gastos').where('fecha', '>=', startDate).where('fecha', '<=', endDate).get();
         const wholesaleSalesSnapPromise = db.collection('ventas_mayoristas').where('fecha_venta', '>=', startDate).where('fecha_venta', '<=', endDate).get();
 
         const [salesSnap, miscIncomesSnap, expensesSnap, wholesaleSalesSnap] = await Promise.all([salesSnapPromise, miscIncomesSnapPromise, expensesSnapPromise, wholesaleSalesSnapPromise]);
         
+        // --- INICIO DE LA LÓGICA CORREGIDA PARA EL DETALLE ---
         salesSnap.forEach(doc => {
             const venta = doc.data();
-            const valorCanjeUSD = venta.hubo_canje ? (venta.valor_toma_canje_usd || 0) : 0;
-            const montoBruto = venta[kpiMontoField] || 0;
-            let montoNeto = montoBruto;
-
-            if (valorCanjeUSD > 0) {
-                if (kpiMoneda === 'USD') {
-                    montoNeto = montoBruto - valorCanjeUSD;
-                } else if (kpiMoneda === 'ARS') {
-                    const cotizacion = venta.cotizacion_dolar || 1;
-                    const valorCanjeARS = valorCanjeUSD * cotizacion;
-                    montoNeto = montoBruto - valorCanjeARS;
+            let montoDeEstaCaja = 0;
+            
+            // Verificamos qué monto corresponde a la caja actual
+            if (kpiType === 'dolares') montoDeEstaCaja = venta.monto_dolares || 0;
+            if (kpiType === 'efectivo_ars') montoDeEstaCaja = venta.monto_efectivo || 0;
+            if (kpiType === 'transferencia_ars') montoDeEstaCaja = venta.monto_transferencia || 0;
+            
+            if (montoDeEstaCaja > 0) {
+                const valorCanjeUSD = venta.hubo_canje ? (venta.valor_toma_canje_usd || 0) : 0;
+                let montoNeto = montoDeEstaCaja;
+                
+                // Aplicamos el descuento del canje solo si esta caja fue la que lo "absorbió"
+                if (valorCanjeUSD > 0) {
+                    if (kpiType === 'dolares' && (venta.monto_dolares || 0) > 0) {
+                        montoNeto -= valorCanjeUSD;
+                    } else if (kpiType === 'efectivo_ars' && (venta.monto_efectivo || 0) > 0) {
+                        montoNeto -= (valorCanjeUSD * (venta.cotizacion_dolar || 1));
+                    } else if (kpiType === 'transferencia_ars' && (venta.monto_transferencia || 0) > 0) {
+                         montoNeto -= (valorCanjeUSD * (venta.cotizacion_dolar || 1));
+                    }
                 }
-            }
-            let conceptoVenta = `Venta: ${venta.producto.modelo}`;
-            if (valorCanjeUSD > 0) {
-                conceptoVenta += ` (Canje)`;
-            }
-            if (montoNeto !== 0) {
-                 transactions.push({ 
-                    id: doc.id, 
-                    fecha: venta.fecha_venta.toDate(), 
-                    tipo: 'Ingreso', 
-                    concepto: conceptoVenta,
-                    monto: montoNeto,
-                    moneda: kpiMoneda, 
-                    data: venta, 
-                    collection: 'ventas',
-                });
+
+                if (montoNeto > 0) {
+                    let conceptoVenta = `Venta: ${venta.producto.modelo}`;
+                    if (valorCanjeUSD > 0) conceptoVenta += ` (Canje)`;
+
+                    transactions.push({ 
+                        id: doc.id, 
+                        fecha: venta.fecha_venta.toDate(), 
+                        tipo: 'Ingreso', 
+                        concepto: conceptoVenta,
+                        monto: montoNeto,
+                        moneda: kpiMoneda, 
+                        data: venta, 
+                        collection: 'ventas',
+                    });
+                }
             }
         });
 
         miscIncomesSnap.forEach(doc => {
             const ingreso = doc.data();
-            transactions.push({ id: doc.id, fecha: ingreso.fecha.toDate(), tipo: 'Ingreso', concepto: `Ingreso: ${ingreso.categoria}`, monto: ingreso.monto, moneda: kpiMoneda, data: ingreso, collection: 'ingresos_caja' });
+            if ((kpiType === 'dolares' && ingreso.metodo === 'Dólares') ||
+                (kpiType === 'efectivo_ars' && ingreso.metodo === 'Pesos (Efectivo)') ||
+                (kpiType === 'transferencia_ars' && ingreso.metodo === 'Pesos (Transferencia)')) {
+                 transactions.push({ id: doc.id, fecha: ingreso.fecha.toDate(), tipo: 'Ingreso', concepto: `Ingreso: ${ingreso.categoria}`, monto: ingreso.monto, moneda: kpiMoneda, data: ingreso, collection: 'ingresos_caja' });
+            }
         });
         
         expensesSnap.forEach(doc => {
             const gasto = doc.data();
-            transactions.push({ id: doc.id, fecha: gasto.fecha.toDate(), tipo: 'Egreso', concepto: `Gasto: ${gasto.descripcion || gasto.categoria}`, monto: gasto.monto, moneda: kpiMoneda, data: gasto, collection: 'gastos' });
+             if ((kpiType === 'dolares' && gasto.metodo_pago === 'Dólares') ||
+                 (kpiType === 'efectivo_ars' && gasto.metodo_pago === 'Pesos (Efectivo)') ||
+                 (kpiType === 'transferencia_ars' && gasto.metodo_pago === 'Pesos (Transferencia)')) {
+                transactions.push({ id: doc.id, fecha: gasto.fecha.toDate(), tipo: 'Egreso', concepto: `Gasto: ${gasto.descripcion || gasto.categoria}`, monto: gasto.monto, moneda: kpiMoneda, data: gasto, collection: 'gastos' });
+            }
         });
-
+        
         wholesaleSalesSnap.forEach(doc => {
             const sale = doc.data();
             const payment = sale.pago_recibido || {};
@@ -2361,6 +2382,7 @@ async function showKpiDetail(kpiType, period) {
                 transactions.push({ id: doc.id, fecha: sale.fecha_venta.toDate(), tipo: 'Ingreso', concepto: concepto, monto: monto, moneda: kpiMoneda, data: sale, collection: 'ventas_mayoristas' });
             }
         });
+        // --- FIN DE LA LÓGICA CORREGIDA ---
         
         transactions.sort((a, b) => b.fecha - a.fecha);
 
@@ -2414,21 +2436,18 @@ async function showKpiDetail(kpiType, period) {
                 } else {
                     showConfirmationModal('Eliminar Gasto', `¿Seguro que quieres eliminar este gasto?`, () => deleteSimpleTransaction(id, 'gastos', kpiType, period));
                 }
-            } 
-            // --- INICIO DE LA MODIFICACIÓN ---
-            else if (collection === 'ventas_mayoristas') {
+            } else if (collection === 'ventas_mayoristas') {
                 revertWholesaleSale(id, data, () => { 
-                    // Al finalizar la reversión, volvemos a mostrar el detalle de caja actualizado.
                     showKpiDetail(kpiType, period); 
                 });
             }
-            // --- FIN DE LA MODIFICACIÓN ---
         }));
 
     } catch (error) {
         handleDBError(error, detailContent, `el detalle de ${kpiType}`);
     }
 }
+
 // NUEVA FUNCIÓN PARA VER DETALLE DE GANANCIAS
 async function showProfitDetail(period) {
     const now = new Date();
@@ -3885,38 +3904,80 @@ function showAddProductForm(e, imei = '', modelo = '', canjeId = null, valorToma
 }
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 function promptToSell(imei, details) {
     const vendedoresOptions = vendedores.map(v => `<option value="${v}">${v}</option>`).join('');
-    const pagoOptions = metodosDePago.map(p => `<option value="${p}">${p}</option>`).join('');
     const modelosOptions = modelos.map(m => `<option value="${m}">${m}</option>`).join('');
-    
-    // --- INICIO DE LA MODIFICACIÓN ---
-    // Cambiamos el checkbox por la nueva estructura del toggle switch
+
+    // Nueva estructura para los métodos de pago
+    const metodosDePagoHtml = `
+        <div class="form-group">
+            <label>Método(s) de Pago</label>
+            <div id="payment-methods-container">
+                <!-- Dólares -->
+                <div class="payment-option">
+                    <label class="toggle-switch-group">
+                        <input type="checkbox" name="metodo_pago_check" value="Dólares">
+                        <span class="toggle-switch-label">Dólares</span>
+                        <span class="toggle-switch-slider"></span>
+                    </label>
+                    <div class="payment-input-container hidden">
+                        <input type="number" name="monto_dolares" placeholder="Monto en USD" step="0.01">
+                    </div>
+                </div>
+                <!-- Pesos (Efectivo) -->
+                <div class="payment-option">
+                    <label class="toggle-switch-group">
+                        <input type="checkbox" name="metodo_pago_check" value="Pesos (Efectivo)">
+                        <span class="toggle-switch-label">Pesos (Efectivo)</span>
+                        <span class="toggle-switch-slider"></span>
+                    </label>
+                    <div class="payment-input-container hidden">
+                        <input type="number" name="monto_efectivo" placeholder="Monto en ARS" step="0.01">
+                    </div>
+                </div>
+                <!-- Pesos (Transferencia) -->
+                <div class="payment-option">
+                    <label class="toggle-switch-group">
+                        <input type="checkbox" name="metodo_pago_check" value="Pesos (Transferencia)">
+                        <span class="toggle-switch-label">Pesos (Transferencia)</span>
+                        <span class="toggle-switch-slider"></span>
+                    </label>
+                    <div class="payment-input-container hidden">
+                        <input type="number" name="monto_transferencia" placeholder="Monto en ARS" step="0.01">
+                        <textarea name="observaciones_transferencia" rows="2" placeholder="Obs. de transferencia (opcional)" style="margin-top: 10px;"></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
     const canjeHtml = `
-        <hr style="border-color:var(--border-dark);margin:1rem 0;">
+        <hr style="border-color:var(--border-dark);margin:1.5rem 0;">
         <label class="toggle-switch-group">
             <input type="checkbox" id="acepta-canje" name="acepta-canje">
             <span class="toggle-switch-label">Acepta Plan Canje</span>
             <span class="toggle-switch-slider"></span>
         </label>
     `;
-    // --- FIN DE LA MODIFICACIÓN ---
 
-    s.promptContainer.innerHTML = `<div class="container container-sm" style="margin:auto;"><div class="prompt-box"><h3>Registrar Venta</h3><form id="sell-form"><div class="details-box"><div class="detail-item"><span>Vendiendo:</span> <strong>${details.modelo || ''}</strong></div><div class="detail-item"><span>IMEI:</span> <strong>${imei}</strong></div></div><div class="form-group"><label>Nombre del Cliente (Opcional)</label><input type="text" name="nombre_cliente"></div><div class="form-group"><label>Precio Venta (USD)</label><input type="number" name="precioVenta" required></div><div class="form-group"><label>Método de Pago</label><select name="metodoPago" required><option value="">Seleccione...</option>${pagoOptions}</select></div><div id="pesos-efectivo-fields" class="payment-details-group hidden"><div class="form-group"><label>Monto Efectivo (ARS)</label><input type="number" name="monto_efectivo"></div></div><div id="pesos-transferencia-fields" class="payment-details-group hidden"><div class="form-group"><label>Monto Transferido (ARS)</label><input type="number" name="monto_transferencia"></div><div class="form-group"><label>Obs. Transferencia</label><textarea name="observaciones_transferencia" rows="2"></textarea></div></div><div id="cotizacion-dolar-field" class="form-group hidden"><label>Cotización Dólar</label><input type="number" name="cotizacion_dolar"></div><div class="form-group"><label>Vendedor</label><select name="vendedor" required><option value="">Seleccione...</option>${vendedoresOptions}</select></div><div id="comision-vendedor-field" class="form-group hidden"><label>Comisión Vendedor (USD)</label><input type="number" name="comision_vendedor_usd"></div>${canjeHtml}<div id="plan-canje-fields" class="hidden"><h4>Detalles del Equipo Recibido</h4><div class="form-group"><label>Modelo Recibido</label><select name="canje-modelo">${modelosOptions}</select></div><div class="form-group"><label>Valor Toma (USD)</label><input type="number" name="canje-valor"></div><div class="form-group"><label>Observaciones</label><textarea name="canje-observaciones" rows="2"></textarea></div></div><div class="prompt-buttons"><button type="submit" class="prompt-button confirm spinner-btn"><span class="btn-text">Registrar Venta</span><div class="spinner"></div></button><button type="button" class="prompt-button cancel">Cancelar</button></div></form></div></div>`;
+    s.promptContainer.innerHTML = `<div class="container container-sm" style="margin:auto;"><div class="prompt-box"><h3>Registrar Venta</h3><form id="sell-form"><div class="details-box"><div class="detail-item"><span>Vendiendo:</span> <strong>${details.modelo || ''}</strong></div><div class="detail-item"><span>IMEI:</span> <strong>${imei}</strong></div></div><div class="form-group"><label>Nombre del Cliente (Opcional)</label><input type="text" name="nombre_cliente"></div><div class="form-group"><label>Precio Venta TOTAL (USD)</label><input type="number" name="precioVenta" required></div>${metodosDePagoHtml}<div class="form-group"><label for="cotizacion_dolar">Cotización Dólar (si aplica)</label><input type="number" name="cotizacion_dolar" placeholder="Ej: 1200"></div><div class="form-group"><label>Vendedor</label><select name="vendedor" required><option value="">Seleccione...</option>${vendedoresOptions}</select></div><div id="comision-vendedor-field" class="form-group hidden"><label>Comisión Vendedor (USD)</label><input type="number" name="comision_vendedor_usd"></div>${canjeHtml}<div id="plan-canje-fields" class="hidden"><h4>Detalles del Equipo Recibido</h4><div class="form-group"><label>Modelo Recibido</label><select name="canje-modelo">${modelosOptions}</select></div><div class="form-group"><label>Valor Toma (USD)</label><input type="number" name="canje-valor"></div><div class="form-group"><label>Observaciones</label><textarea name="canje-observaciones" rows="2"></textarea></div></div><div class="prompt-buttons"><button type="submit" class="prompt-button confirm spinner-btn"><span class="btn-text">Registrar Venta</span><div class="spinner"></div></button><button type="button" class="prompt-button cancel">Cancelar</button></div></form></div></div>`;
     
     const form = document.getElementById('sell-form');
-    const metodoPagoSelect = form.querySelector('[name="metodoPago"]');
     const vendedorSelect = form.querySelector('[name="vendedor"]');
     
-    const toggleSaleFields = () => {
-        form.querySelector('#pesos-efectivo-fields').classList.toggle('hidden', metodoPagoSelect.value !== 'Pesos (Efectivo)');
-        form.querySelector('#pesos-transferencia-fields').classList.toggle('hidden', metodoPagoSelect.value !== 'Pesos (Transferencia)');
-        form.querySelector('#cotizacion-dolar-field').classList.toggle('hidden', !metodoPagoSelect.value.startsWith('Pesos'));
-        form.querySelector('#comision-vendedor-field').classList.toggle('hidden', !vendedorSelect.value);
-    };
+    // Funcionalidad para mostrar/ocultar campos de monto
+    form.querySelectorAll('input[name="metodo_pago_check"]').forEach(checkbox => {
+        checkbox.addEventListener('change', (e) => {
+            const container = e.target.closest('.payment-option').querySelector('.payment-input-container');
+            container.classList.toggle('hidden', !e.target.checked);
+        });
+    });
     
-    metodoPagoSelect.addEventListener('change', toggleSaleFields);
-    vendedorSelect.addEventListener('change', toggleSaleFields);
+    vendedorSelect.addEventListener('change', () => {
+        form.querySelector('#comision-vendedor-field').classList.toggle('hidden', !vendedorSelect.value);
+    });
     
     document.getElementById('acepta-canje').addEventListener('change', (e) => { 
         document.getElementById('plan-canje-fields').classList.toggle('hidden', !e.target.checked); 
@@ -3924,9 +3985,7 @@ function promptToSell(imei, details) {
     
     form.addEventListener('submit', (e) => { e.preventDefault(); registerSale(imei, details, e.target.querySelector('button[type="submit"]')); });
 }
-
 // REEMPLAZA ESTA FUNCIÓN
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
@@ -3934,47 +3993,47 @@ async function registerSale(imei, productDetails, btn) {
     toggleSpinner(btn, true);
     const form = btn.form;
     const formData = new FormData(form);
-    const metodoPago = formData.get('metodoPago');
-    
+
+    const ventaTotalUSD = parseFloat(formData.get('precioVenta')) || 0;
+    const valorCanjeUSD = formData.get('acepta-canje') === 'on' ? (parseFloat(formData.get('canje-valor')) || 0) : 0;
+    const cotizacion = parseFloat(formData.get('cotizacion_dolar')) || 1;
+
+    // Recopilamos los pagos
+    const montoDolares = parseFloat(formData.get('monto_dolares')) || 0;
+    const montoEfectivo = parseFloat(formData.get('monto_efectivo')) || 0;
+    const montoTransferencia = parseFloat(formData.get('monto_transferencia')) || 0;
+
+    if (montoDolares === 0 && montoEfectivo === 0 && montoTransferencia === 0) {
+        showGlobalFeedback("Debes ingresar un monto para al menos un método de pago.", "error");
+        toggleSpinner(btn, false);
+        return;
+    }
+
+    const pagosRecibidos = [];
+    if (montoDolares > 0) pagosRecibidos.push('Dólares');
+    if (montoEfectivo > 0) pagosRecibidos.push('Pesos (Efectivo)');
+    if (montoTransferencia > 0) pagosRecibidos.push('Pesos (Transferencia)');
+
+    // Creamos el objeto de la venta principal
     const saleData = {
         imei_vendido: imei, 
         producto: productDetails, 
-        precio_venta_usd: parseFloat(formData.get('precioVenta')) || 0,
+        precio_venta_usd: ventaTotalUSD,
         nombre_cliente: formData.get('nombre_cliente').trim() || null,
-        metodo_pago: metodoPago, 
+        metodo_pago: pagosRecibidos.join(' + '), // Ej: "Dólares + Pesos (Efectivo)"
         vendedor: formData.get('vendedor'), 
         comision_vendedor_usd: parseFloat(formData.get('comision_vendedor_usd')) || 0,
         fecha_venta: firebase.firestore.FieldValue.serverTimestamp(), 
-        hubo_canje: formData.get('acepta-canje') === 'on',
+        hubo_canje: valorCanjeUSD > 0,
+        valor_toma_canje_usd: valorCanjeUSD,
+        cotizacion_dolar: cotizacion,
+        monto_dolares: montoDolares,
+        monto_efectivo: montoEfectivo,
+        monto_transferencia: montoTransferencia,
+        observaciones_transferencia: formData.get('observaciones_transferencia'),
         comision_pagada: false
     };
 
-    if (saleData.hubo_canje) {
-        saleData.valor_toma_canje_usd = parseFloat(formData.get('canje-valor')) || 0;
-    }
-
-    if (metodoPago.startsWith('Pesos')) {
-        saleData.cotizacion_dolar = parseFloat(formData.get('cotizacion_dolar')) || 0;
-        
-        // --- INICIO DE LA CORRECCIÓN MÁS IMPORTANTE ---
-        // Aquí nos aseguramos de que el monto guardado sea el neto.
-        // El formulario debe contener el monto BRUTO, y aquí hacemos la resta.
-        const montoBrutoARS = metodoPago === 'Pesos (Efectivo)'
-            ? parseFloat(formData.get('monto_efectivo')) || 0
-            : parseFloat(formData.get('monto_transferencia')) || 0;
-
-        const valorCanjeARS = (saleData.valor_toma_canje_usd || 0) * (saleData.cotizacion_dolar || 1);
-        const montoNetoARS = montoBrutoARS - valorCanjeARS;
-
-        if (metodoPago === 'Pesos (Efectivo)') {
-            saleData.monto_efectivo = montoNetoARS;
-        } else if (metodoPago === 'Pesos (Transferencia)') {
-            saleData.monto_transferencia = montoNetoARS;
-            saleData.observaciones_transferencia = formData.get('observaciones_transferencia');
-        }
-        // --- FIN DE LA CORRECCIÓN MÁS IMPORTANTE ---
-    }
-    
     try {
         await db.runTransaction(async (t) => {
             const saleRef = db.collection("ventas").doc();
@@ -3993,6 +4052,7 @@ async function registerSale(imei, productDetails, btn) {
                 });
                 saleData.id_canje_pendiente = canjeRef.id;
             }
+            // Guardamos la venta maestra
             t.set(saleRef, saleData);
         });
 
@@ -4009,10 +4069,6 @@ async function registerSale(imei, productDetails, btn) {
     }
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-// PEGA ESTE BLOQUE COMPLETO JUSTO ANTES DE "async function handleProductFormSubmit(e)"
 
 s.productForm.addEventListener('click', (e) => {
     if (e.target && e.target.id === 'btn-cancel-product-form') {
