@@ -40,6 +40,10 @@ let wholesaleSaleContext = null;
 
 document.addEventListener('DOMContentLoaded', initApp);
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
+
 function initApp() {
     Object.assign(s, {
         loginContainer: document.getElementById('login-container'),
@@ -198,6 +202,8 @@ function populateAllSelects() {
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 function addEventListeners() {
     s.logoutButton.addEventListener('click', () => auth.signOut());
     
@@ -239,8 +245,58 @@ function addEventListeners() {
         if (s.exportMenu && !s.btnExport.contains(e.target)) {
             s.exportMenu.classList.remove('show');
         }
+
+        // --- INICIO DE LA CORRECCIÓN ---
+        // Manejamos los clics dentro de #prompt-container aquí
+        if (e.target.matches('#prompt-container .prompt-button.cancel')) {
+             e.preventDefault();
+             s.promptContainer.innerHTML = '';
+             paymentContext = null; // Limpiamos cualquier contexto de pago
+        }
+        // --- FIN DE LA CORRECCIÓN ---
     });
 
+    // --- INICIO DE LA CORRECCIÓN ---
+    // Manejamos los submits dentro de #prompt-container aquí
+    document.addEventListener('submit', (e) => {
+        const form = e.target;
+        // Solo actuamos si el submit ocurrió dentro de nuestro contenedor de prompts
+        if (s.promptContainer && s.promptContainer.contains(form)) {
+            e.preventDefault();
+            if (form.id === 'payment-form') {
+                saveProviderPayment(form);
+            } else if (form.id === 'provider-form') {
+                saveProvider(form.querySelector('button[type="submit"]'));
+            } else if (form.id === 'gasto-form') {
+                saveGasto(form.querySelector('button[type="submit"]'));
+            } else if (form.id === 'ingreso-form') {
+                const mode = form.dataset.mode || 'create';
+                if (mode === 'create') {
+                    saveIngreso(form.querySelector('button[type="submit"]'));
+                } else {
+                    updateIngreso(form.dataset.ingresoId, form.querySelector('button[type="submit"]'));
+                }
+            } else if (form.id === 'commission-payment-form') {
+                saveCommissionPayment(form);
+            } else if (form.id === 'batch-id-form') {
+                const batchIdManual = form.batchNumber.value.trim();
+                if (!batchIdManual) {
+                    showGlobalFeedback("El ID del lote no puede estar vacío.", "error");
+                    return;
+                }
+                batchLoadContext.batchIdManual = batchIdManual;
+                showModelSelectionStep();
+            } else if (form.id === 'lote-cost-form') {
+                promptToAssignLoteCost(form);
+            } else if (form.id === 'wholesale-client-form') {
+                saveWholesaleClient(form.querySelector('button[type="submit"]'));
+            } else if (form.id === 'wholesale-sale-start-form') {
+                initiateWholesaleSale(form);
+            }
+        }
+    });
+    // --- FIN DE LA CORRECCIÓN ---
+    
     s.btnCalculateCommissions.addEventListener('click', loadCommissions);
     s.btnApplyStockFilters.addEventListener('click', loadStock);
     s.btnApplySalesFilters.addEventListener('click', loadSales);
@@ -293,12 +349,9 @@ function addEventListeners() {
         }
     });
     
-    // --- INICIO DE LA CORRECCIÓN ---
-    // El listener ahora se asigna al contenedor padre '.wholesale-view'
     s.wholesaleView.addEventListener('click', e => {
         const button = e.target.closest('button');
         if (!button) return;
-        // La tarjeta de cliente ahora tiene la clase '.provider-card'
         const clientCard = button.closest('.provider-card'); 
         if (!clientCard) return;
         const clientId = clientCard.dataset.clientId;
@@ -314,7 +367,6 @@ function addEventListeners() {
             deleteWholesaleClient(clientId, clientName);
         }
     });
-    // --- FIN DE LA CORRECCIÓN ---
 
     s.commissionsResultsContainer.addEventListener('click', (e) => {
         const payButton = e.target.closest('.btn-pay-commission');
@@ -325,46 +377,7 @@ function addEventListeners() {
             promptToPayCommission(vendorName, pendingAmount);
         }
     });
-
-    s.promptContainer.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const form = e.target;
-        if (form.id === 'payment-form') {
-            saveProviderPayment(form);
-        } else if (form.id === 'provider-form') {
-            saveProvider(form.querySelector('button[type="submit"]'));
-        } else if (form.id === 'gasto-form') {
-            saveGasto(form.querySelector('button[type="submit"]'));
-        } else if (form.id === 'ingreso-form') {
-            const mode = form.dataset.mode || 'create';
-            if (mode === 'create') {
-                saveIngreso(form.querySelector('button[type="submit"]'));
-            } else {
-                updateIngreso(form.dataset.ingresoId, form.querySelector('button[type="submit"]'));
-            }
-        } else if (form.id === 'commission-payment-form') {
-            saveCommissionPayment(form);
-        } else if (form.id === 'batch-load-form') {
-            const model = form.modelo.value;
-            const batchCost = parseFloat(form.costo.value);
-            const batchNumber = form.batchNumber.value.trim();
-            const providerId = form.dataset.providerId;
-            const providerName = form.dataset.providerName;
-            initiateBatchLoad(providerId, providerName, model, batchCost, batchNumber);
-        } else if (form.id === 'wholesale-client-form') {
-            saveWholesaleClient(form.querySelector('button[type="submit"]'));
-        } else if (form.id === 'wholesale-sale-start-form') {
-            initiateWholesaleSale(form);
-        }
-    });
-
-    s.promptContainer.addEventListener('click', (e) => {
-        if (e.target.matches('.prompt-button.cancel')) {
-            s.promptContainer.innerHTML = '';
-            paymentContext = null;
-        }
-    });
-
+    
     if (s.reportsView) {
         s.reportsView.addEventListener('click', (e) => {
             const kpiCard = e.target.closest('.kpi-card');
@@ -747,6 +760,10 @@ async function showKpiDetail(kpiType, period) {
         handleDBError(error, detailContent, `el detalle de ${kpiType}`);
     }
 }
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
+
 async function handleAuthStateChange(user) {
     if (user) {
         s.loginContainer.innerHTML = ''; 
@@ -774,7 +791,6 @@ async function handleAuthStateChange(user) {
                 <div class="form-group">
                     <div class="password-wrapper">
                         <input type="password" id="password" required placeholder=" " autocomplete="new-password">
-                        <!-- === LA ETIQUETA AHORA ESTÁ AQUÍ ADENTRO === -->
                         <label for="password">Contraseña</label>
                         <button type="button" id="password-toggle" class="password-toggle-btn" title="Mostrar/Ocultar contraseña">
                             <svg id="eye-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -2831,6 +2847,8 @@ async function reverseEgresoTransaction(egresoId, egresoData, kpiType, period) {
 }
 
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 async function loadCommissions() {
     s.commissionsResultsContainer.innerHTML = `<p class="dashboard-loader">Calculando comisiones...</p>`;
     toggleSpinner(s.btnCalculateCommissions, true);
@@ -2841,6 +2859,7 @@ async function loadCommissions() {
 
         if (vendorsToQuery.length === 0) {
             s.commissionsResultsContainer.innerHTML = `<p class="dashboard-loader">No hay vendedores para mostrar.</p>`;
+            toggleSpinner(s.btnCalculateCommissions, false);
             return;
         }
 
@@ -2855,7 +2874,10 @@ async function loadCommissions() {
             }
         });
 
-        let salesQuery = db.collection("ventas").where("comision_vendedor_usd", ">", 0);
+        // --- INICIO DE LA CORRECCIÓN ---
+        // 1. Quitamos el filtro de desigualdad en 'comision_vendedor_usd'
+        let salesQuery = db.collection("ventas"); 
+        
         if (vendorNameFilter) {
             salesQuery = salesQuery.where("vendedor", "==", vendorNameFilter);
         }
@@ -2870,15 +2892,20 @@ async function loadCommissions() {
         }
         
         const salesSnapshot = await salesQuery.get();
-        const salesByVendor = salesSnapshot.docs.reduce((acc, doc) => {
-            const sale = doc.data();
-            const vendorName = sale.vendedor;
-            if (!acc[vendorName]) {
-                acc[vendorName] = [];
-            }
-            acc[vendorName].push(sale);
-            return acc;
-        }, {});
+
+        // 2. Filtramos por comisión > 0 en el lado del cliente
+        const salesByVendor = salesSnapshot.docs
+            .filter(doc => (doc.data().comision_vendedor_usd || 0) > 0) // <--- Filtro en JavaScript
+            .reduce((acc, doc) => {
+                const sale = doc.data();
+                const vendorName = sale.vendedor;
+                if (!acc[vendorName]) {
+                    acc[vendorName] = [];
+                }
+                acc[vendorName].push(sale);
+                return acc;
+            }, {});
+        // --- FIN DE LA CORRECCIÓN ---
         
         renderCommissions(vendorData, salesByVendor);
 
@@ -2888,7 +2915,6 @@ async function loadCommissions() {
         toggleSpinner(s.btnCalculateCommissions, false);
     }
 }
-
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA
 
