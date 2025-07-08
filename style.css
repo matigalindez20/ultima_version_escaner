@@ -900,6 +900,40 @@ td.actions-cell {
         background-color: #2a2a2a; /* Un poco más claro al pasar el mouse */
     }
 }
+    /* --- AÑADE ESTAS REGLAS EN TU CSS, DENTRO DE LA MEDIA QUERY @media (max-width: 767px) --- */
+
+    /* Reorganizamos el contenedor de los gastos */
+    .kpi-sub-values {
+        flex-direction: column;   /* Hacemos que los elementos se apilen verticalmente */
+        align-items: stretch;     /* Hacemos que se estiren a lo ancho de la tarjeta */
+        gap: 0.5rem;              /* Reducimos el espacio entre ellos */
+    }
+
+    /* Ajustamos cada item individual (USD, Efectivo, Transf.) */
+    .kpi-sub-values > div {
+        flex-direction: row;              /* Ponemos el label y el valor en la misma fila */
+        justify-content: space-between;   /* Empujamos el label a la izquierda y el valor a la derecha */
+        padding-bottom: 0.5rem;           /* Añadimos un pequeño espacio debajo */
+        border-bottom: 1px solid var(--border-dark); /* Creamos una línea separadora sutil */
+    }
+
+    /* Quitamos la línea del último elemento para que se vea más limpio */
+    .kpi-sub-values > div:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+    }
+
+    /* Reducimos un poco el tamaño de los números para que no sean tan dominantes */
+    .kpi-sub-values div[id*="expenses"] {
+        font-size: 1.2rem; 
+    }
+
+    /* Ajustamos el texto de las etiquetas para que no estén en mayúsculas y se alineen bien */
+    .kpi-sub-values span {
+        text-transform: none; /* "EFECTIVO" pasa a ser "Efectivo", ocupando menos espacio */
+        font-size: 0.9rem;
+        align-self: center; /* Centramos verticalmente la etiqueta */
+    }
 }
 
 
