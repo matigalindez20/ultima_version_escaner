@@ -4400,10 +4400,9 @@ async function handleProductFormSubmit(e) {
                 updateReports();
             }, 1500);
 
-        } else {
+        } else { // MODO CREAR
             const paraReparar = formData.get('para-reparar') === 'on';
             const costoIndividual = parseFloat(formData.get('precio_costo_usd')) || 0;
-
             const commonData = {
                 imei,
                 precio_costo_usd: costoIndividual,
@@ -4419,26 +4418,17 @@ async function handleProductFormSubmit(e) {
             await db.runTransaction(async (t) => {
                 const stockRef = db.collection("stock_individual").doc(imei);
                 const reparacionRef = db.collection("reparaciones").doc(imei);
-
                 const [stockDoc, reparacionDoc] = await Promise.all([t.get(stockRef), t.get(reparacionRef)]);
                 if (stockDoc.exists || reparacionDoc.exists) {
                     throw new Error(`El IMEI ${imei} ya fue cargado previamente.`);
                 }
-                
                 if (paraReparar) {
-                    const reparacionData = {
-                        ...commonData,
-                        estado_reparacion: 'en_proceso',
-                        defecto: formData.get('defecto'),
-                        repuesto_necesario: formData.get('repuesto')
-                    };
+                    const reparacionData = { ...commonData, estado_reparacion: 'en_proceso', defecto: formData.get('defecto'), repuesto_necesario: formData.get('repuesto') };
                     t.set(reparacionRef, reparacionData);
-                } 
-                else {
+                } else {
                     const unitData = { ...commonData, estado: 'en_stock' };
                     t.set(stockRef, unitData);
                 }
-
                 const canjeId = form.dataset.canjeId;
                 if (canjeId) {
                     const canjeRef = db.collection("plan_canje_pendientes").doc(canjeId);
@@ -4446,6 +4436,7 @@ async function handleProductFormSubmit(e) {
                 }
             });
             
+            // ===== LÓGICA DE FEEDBACK CORREGIDA =====
             if (batchLoadContext && batchLoadContext.currentModel) {
                 const modeloActual = batchLoadContext.currentModel;
                 if (!batchLoadContext.modelosCargados[modeloActual]) {
@@ -4457,14 +4448,13 @@ async function handleProductFormSubmit(e) {
                 let message = `¡Éxito! ${modeloActual} añadido. Cargados de este modelo: ${count}`;
                 if (paraReparar) {
                     message += " (Enviado a Reparación)";
-                    // ===== ESTA ES LA LÍNEA AÑADIDA PARA CORREGIR EL BUG =====
                     updateReparacionCount();
                 }
                 showFeedback(message, "success");
                 
                 setTimeout(() => { resetManagementView(true); }, 1500);
 
-            } else {
+            } else { // Si NO es carga de lote, redirigir
                 let message = `¡Éxito! ${commonData.modelo} añadido.`;
                 if (paraReparar) {
                     message = `¡Éxito! ${commonData.modelo} enviado a la lista de reparación.`;
@@ -4473,7 +4463,6 @@ async function handleProductFormSubmit(e) {
                     message = `¡Éxito! ${commonData.modelo} añadido al stock.`;
                     if (form.dataset.canjeId) updateCanjeCount();
                 }
-                
                 showFeedback(message, "success");
 
                 setTimeout(() => {
@@ -4495,7 +4484,6 @@ async function handleProductFormSubmit(e) {
         toggleSpinner(btn, false);
     }
 }
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
 function resetManagementView(isBatchLoad = false, isCanje = false, isWholesaleSale = false) {
     s.promptContainer.innerHTML = '';
