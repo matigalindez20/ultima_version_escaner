@@ -2236,3 +2236,8 @@ td.actions-cell {
 }
 
 
+/* --- AÑADE ESTA REGLA A TU STYLE.CSS --- */
+
+.kpi-card.kpi-reparacion .kpi-value {
+    color: #e67e22; /* Un color naranja, como el de "Comisiones" */
+}

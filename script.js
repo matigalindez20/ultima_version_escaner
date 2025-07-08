@@ -440,13 +440,6 @@ function moveNavSlider(activeTab) {
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
-// REEMPLAZA ESTA FUNCIÓN COMPLETA
 async function updateReports() {
     const kpiElements = [
         s.kpiStockValue, s.kpiStockCount,
@@ -454,6 +447,7 @@ async function updateReports() {
         s.kpiProfitDay, s.kpiExpensesDayUsd, s.kpiExpensesDayCash, s.kpiExpensesDayTransfer,
         s.kpiDollarsMonth, s.kpiCashMonth, s.kpiTransferMonth,
         s.kpiProfitMonth, s.kpiExpensesMonthUsd, s.kpiExpensesMonthCash, s.kpiExpensesMonthTransfer,
+        document.getElementById('kpi-reparacion-count')
     ];
     kpiElements.forEach(el => { if (el) el.textContent = '...'; });
 
@@ -470,12 +464,14 @@ async function updateReports() {
 
         const [
             stockSnap,
+            reparacionesSnap,
             salesDaySnap, salesMonthSnap,
             expensesDaySnap, expensesMonthSnap,
             miscIncomesDaySnap, miscIncomesMonthSnap,
             wholesaleSalesDaySnap, wholesaleSalesMonthSnap,
         ] = await Promise.all([
             db.collection('stock_individual').where('estado', '==', 'en_stock').get(),
+            db.collection('reparaciones').get(),
             fetchData('ventas', 'fecha_venta', startOfDay, endOfDay),
             fetchData('ventas', 'fecha_venta', startOfMonth, endOfMonth),
             fetchData('gastos', 'fecha', startOfDay, endOfDay),
@@ -487,9 +483,14 @@ async function updateReports() {
         ]);
         
         let totalStockValue = 0;
+        let totalReparacionValue = 0;
+        
         stockSnap.forEach(doc => { totalStockValue += doc.data().precio_costo_usd || 0; });
-        s.kpiStockValue.textContent = formatearUSD(totalStockValue);
+        reparacionesSnap.forEach(doc => { totalReparacionValue += doc.data().precio_costo_usd || 0; });
+
+        s.kpiStockValue.textContent = formatearUSD(totalStockValue + totalReparacionValue);
         s.kpiStockCount.textContent = stockSnap.size;
+        document.getElementById('kpi-reparacion-count').textContent = reparacionesSnap.size;
 
         const processEntries = async (salesSnapshot, miscIncomesSnap, expensesSnap, wholesaleSalesSnapshot) => {
             let totalIncomes = { usd: 0, cash: 0, transfer: 0 };
@@ -507,16 +508,11 @@ async function updateReports() {
                     const venta = doc.data();
                     const cost = costMap.get(venta.imei_vendido) || 0;
                     const commission = venta.comision_vendedor_usd || 0;
-                    // El profit sigue siendo correcto: Precio total - costo - comisión
                     totalProfit += (venta.precio_venta_usd || 0) - cost - commission;
 
-                    // ===== LÓGICA DE INGRESOS CORREGIDA =====
-                    // Simplemente sumamos los montos que se ingresaron en cada campo.
-                    // Ya no restamos el valor del canje.
                     totalIncomes.usd += venta.monto_dolares || 0;
                     totalIncomes.cash += venta.monto_efectivo || 0;
                     totalIncomes.transfer += venta.monto_transferencia || 0;
-                    // =========================================
                 });
             }
             wholesaleSalesSnapshot.forEach(doc => {
@@ -564,15 +560,15 @@ async function updateReports() {
         s.kpiProfitMonth.textContent = formatearUSD(monthly.profit);
         s.kpiExpensesMonthUsd.textContent = formatearUSD(monthly.expenses.usd);
         s.kpiExpensesMonthCash.textContent = formatearARS(monthly.expenses.cash);
+        
+        // ===== ESTA ES LA LÍNEA CORREGIDA =====
         s.kpiExpensesMonthTransfer.textContent = formatearARS(monthly.expenses.transfer);
 
     } catch (error) {
         console.error("Error al actualizar los informes:", error);
         kpiElements.forEach(el => { if(el) el.textContent = 'Error'; });
     }
-}// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+}
 
 async function showKpiDetail(kpiType, period) {
     const now = new Date();
