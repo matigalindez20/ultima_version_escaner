@@ -877,6 +877,29 @@ td.actions-cell {
         font-size: 0.85rem;
         padding: 0.8rem 0.25rem;
     }
+    /* --- AÑADE ESTAS REGLAS A TU STYLE.CSS --- */
+
+/* Por defecto, las filas no son clicables */
+    .stock-row-clickable {
+        cursor: default;
+    }
+
+/* Solo en móviles... */
+    @media (max-width: 767px) {
+    /* Ocultamos las columnas que no queremos ver */
+    .hide-on-mobile {
+        display: none;
+    }
+
+    /* Hacemos que la fila completa sea clicable y tenga un feedback visual */
+    .stock-row-clickable {
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    .stock-row-clickable:hover {
+        background-color: #2a2a2a; /* Un poco más claro al pasar el mouse */
+    }
+}
 }
 
 
@@ -2177,3 +2200,5 @@ td.actions-cell {
 #reparacion-fields {
     animation: fadeIn 0.4s;
 }
+
+

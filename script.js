@@ -3541,6 +3541,8 @@ function deleteGasto(id, categoria, monto) {
 }
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 async function loadStock() {
     s.stockTableContainer.innerHTML = `<p class="dashboard-loader">Cargando stock...</p>`;
     toggleSpinner(s.btnApplyStockFilters, true);
@@ -3554,7 +3556,17 @@ async function loadStock() {
         const querySnapshot = await query.get();
         if (querySnapshot.empty) { s.stockTableContainer.innerHTML = `<p class="dashboard-loader">No se encontraron productos con esos filtros.</p>`; return; }
         
-        let tableHTML = `<table><thead><tr><th>Fecha Carga</th><th>Modelo</th><th>Proveedor</th><th>Color</th><th>GB</th><th>Batería</th><th>Costo (USD)</th><th>Acciones</th></tr></thead><tbody>`;
+        // ===== CAMBIO 1: Modificamos las cabeceras para que algunas se oculten en móvil =====
+        let tableHTML = `<table><thead><tr>
+            <th class="hide-on-mobile">Fecha Carga</th>
+            <th>Modelo</th>
+            <th class="hide-on-mobile">Proveedor</th>
+            <th>Color</th>
+            <th class="hide-on-mobile">GB</th>
+            <th>Batería</th>
+            <th class="hide-on-mobile">Costo (USD)</th>
+            <th class="hide-on-mobile">Acciones</th>
+        </tr></thead><tbody>`;
         
         querySnapshot.forEach(doc => {
             const item = doc.data();
@@ -3562,34 +3574,102 @@ async function loadStock() {
             let fechaFormateada = fechaObj ? `${String(fechaObj.getDate()).padStart(2, '0')}/${String(fechaObj.getMonth() + 1).padStart(2, '0')}/${fechaObj.getFullYear()}<br><small class="time-muted">${String(fechaObj.getHours()).padStart(2, '0')}:${String(fechaObj.getMinutes()).padStart(2, '0')} hs</small>` : 'N/A';
             const itemJSON = JSON.stringify(item).replace(/'/g, "\\'");
 
-            // ===== LÓGICA PARA AÑADIR EL ÍCONO DE REPARADO =====
             let reparadoIconHtml = '';
             if (item.fueReparado) {
-                reparadoIconHtml = `
-                    <span class="reparado-badge" title="Equipo reparado">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
-                    </span>`;
+                reparadoIconHtml = `<span class="reparado-badge" title="Equipo reparado"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg></span>`;
             }
 
-            tableHTML += `<tr data-item='${itemJSON}'>
-                <td>${fechaFormateada}</td>
+            // ===== CAMBIO 2: Añadimos la clase 'stock-row-clickable' a la fila (tr) =====
+            // ===== y 'hide-on-mobile' a las celdas (td) correspondientes =====
+            tableHTML += `<tr class="stock-row-clickable" data-item='${itemJSON}'>
+                <td class="hide-on-mobile">${fechaFormateada}</td>
                 <td>${item.modelo || ''} ${reparadoIconHtml}</td>
-                <td>${item.proveedor || 'N/A'}</td>
+                <td class="hide-on-mobile">${item.proveedor || 'N/A'}</td>
                 <td>${item.color || ''}</td>
-                <td>${item.almacenamiento || ''}</td>
+                <td class="hide-on-mobile">${item.almacenamiento || ''}</td>
                 <td>${item.bateria || ''}%</td>
-                <td>${formatearUSD(item.precio_costo_usd)}</td>
-                <td class="actions-cell">
+                <td class="hide-on-mobile">${formatearUSD(item.precio_costo_usd)}</td>
+                <td class="actions-cell hide-on-mobile">
                     <button class="edit-btn btn-edit-stock" title="Editar Producto"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
                     <button class="delete-btn btn-delete-stock" title="Eliminar Producto"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button>
                 </td></tr>`;
         });
         s.stockTableContainer.innerHTML = tableHTML + `</tbody></table>`;
+
+        // ===== CAMBIO 3: Añadimos los event listeners =====
+        // Para las filas clicables (en móvil, mostrará el modal)
+        document.querySelectorAll('.stock-row-clickable').forEach(row => {
+            row.addEventListener('click', e => {
+                // Solo activamos el modal en pantallas pequeñas
+                if (window.innerWidth < 768) {
+                    // Evitamos que el clic en los botones de acción (si estuvieran visibles) dispare el modal
+                    if (e.target.closest('button')) return;
+                    
+                    const item = JSON.parse(row.dataset.item.replace(/\\'/g, "'"));
+                    showStockDetailModal(item);
+                }
+            });
+        });
+
+        // Para los botones de editar y eliminar (que solo son visibles en desktop)
         document.querySelectorAll('.btn-edit-stock').forEach(button => button.addEventListener('click', e => { const item = JSON.parse(e.currentTarget.closest('tr').dataset.item.replace(/\\'/g, "'")); promptToEditStock(item); }));
         document.querySelectorAll('.btn-delete-stock').forEach(button => button.addEventListener('click', e => { const item = JSON.parse(e.currentTarget.closest('tr').dataset.item.replace(/\\'/g, "'")); const message = `Producto: ${item.modelo} ${item.color}\nIMEI: ${item.imei}\n\nEsta acción eliminará el producto del stock permanentemente.`; showConfirmationModal('¿Seguro que quieres eliminar este producto?', message, () => deleteStockItem(item.imei, item)); }));
+
     } catch (error) { handleDBError(error, s.stockTableContainer, "stock"); }
     finally { toggleSpinner(s.btnApplyStockFilters, false); }
 }
+
+// AÑADE ESTA NUEVA FUNCIÓN A TU SCRIPT.JS
+
+function showStockDetailModal(item) {
+    const fechaObj = item.fechaDeCarga ? new Date(item.fechaDeCarga.seconds * 1000) : null;
+    let fechaFormateada = fechaObj ? fechaObj.toLocaleString('es-AR') : 'N/A';
+
+    // Usamos el contenedor de prompts para mostrar nuestro modal
+    s.promptContainer.innerHTML = `
+        <div class="container container-sm" style="margin: auto;">
+            <div class="prompt-box">
+                <h3>Detalles del Producto</h3>
+                
+                <div class="details-box">
+                    <div class="detail-item"><span>Modelo:</span> <strong>${item.modelo || ''}</strong></div>
+                    <div class="detail-item"><span>IMEI:</span> <strong>${item.imei || ''}</strong></div>
+                    <div class="detail-item"><span>Color:</span> <strong>${item.color || ''}</strong></div>
+                    <div class="detail-item"><span>Almacenamiento:</span> <strong>${item.almacenamiento || ''}</strong></div>
+                    <div class="detail-item"><span>Batería:</span> <strong>${item.bateria || ''}%</strong></div>
+                    <div class="detail-item"><span>Detalles Estéticos:</span> <strong>${item.detalles_esteticos || ''}</strong></div>
+                    <div class="detail-item"><span>Costo (USD):</span> <strong>${formatearUSD(item.precio_costo_usd)}</strong></div>
+                    <div class="detail-item"><span>Proveedor:</span> <strong>${item.proveedor || 'N/A'}</strong></div>
+                    <div class="detail-item"><span>Fecha de Carga:</span> <strong>${fechaFormateada}</strong></div>
+                </div>
+
+                <div class="prompt-buttons">
+                    <button id="modal-edit-btn" class="prompt-button confirm" style="background-color:#3498db;">Editar</button>
+                    <button id="modal-delete-btn" class="prompt-button cancel" style="background-color:var(--error-bg);">Eliminar</button>
+                </div>
+                 <div class="prompt-buttons" style="margin-top: 1rem;">
+                    <button class="prompt-button cancel" style="background-color:#555;">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Añadimos la funcionalidad a los botones del modal, reutilizando tus funciones existentes
+    document.getElementById('modal-edit-btn').onclick = () => {
+        s.promptContainer.innerHTML = ''; // Cerramos el modal de detalle
+        promptToEditStock(item);
+    };
+
+    document.getElementById('modal-delete-btn').onclick = () => {
+        const message = `Producto: ${item.modelo} ${item.color}\nIMEI: ${item.imei}\n\nEsta acción eliminará el producto del stock permanentemente.`;
+        // No cerramos el modal de detalle hasta que se confirme la acción
+        showConfirmationModal('¿Seguro que quieres eliminar este producto?', message, () => {
+            s.promptContainer.innerHTML = ''; // Cerramos el modal de detalle
+            deleteStockItem(item.imei, item);
+        });
+    };
+}
+
 function promptToEditStock(item) {
     switchView('management', s.tabManagement);
     resetManagementView();
