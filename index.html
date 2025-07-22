@@ -80,6 +80,24 @@
                     <div class="filter-group"><button id="btn-apply-stock-filters">Filtrar Stock</button></div>
                 </div>
                 <div id="stock-table-container" class="table-container"></div>
+                <!-- ===== INICIO: Controles de Paginación para Stock (MODIFICADO) ===== -->
+                <div id="stock-pagination-controls" class="pagination-controls hidden">
+                    <select id="stock-items-per-page">
+                        <option value="10">10 por página</option>
+                        <option value="20">20 por página</option>
+                        <option value="50" selected>50 por página</option>
+                        <option value="100">100 por página</option>
+                        <option value="all">Ver Todos</option>
+                    </select>
+                    <button id="stock-prev-page" title="Página Anterior" disabled>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                    </button>
+                    <span id="stock-page-info">Página 1</span>
+                    <button id="stock-next-page" title="Página Siguiente" disabled>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </button>
+                </div>
+                <!-- ===== FIN: Controles de Paginación para Stock (MODIFICADO) ===== -->
             </div>
             <div id="sales-section" class="hidden">
                  <h2>Historial de Ventas</h2>
@@ -96,6 +114,24 @@
                     </div>
                 </div>
                 <div id="sales-table-container" class="table-container"></div>
+                <!-- ===== INICIO: Controles de Paginación para Ventas (MODIFICADO) ===== -->
+                <div id="sales-pagination-controls" class="pagination-controls hidden">
+                    <select id="sales-items-per-page">
+                        <option value="10">10 por página</option>
+                        <option value="20">20 por página</option>
+                        <option value="50" selected>50 por página</option>
+                        <option value="100">100 por página</option>
+                        <option value="all">Ver Todos</option>
+                    </select>
+                    <button id="sales-prev-page" title="Página Anterior" disabled>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                    </button>
+                    <span id="sales-page-info">Página 1</span>
+                    <button id="sales-next-page" title="Página Siguiente" disabled>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </button>
+                </div>
+                <!-- ===== FIN: Controles de Paginación para Ventas (MODIFICADO) ===== -->
             </div>
             <div id="commissions-section" class="hidden">
                 <h2>Reporte de Comisiones</h2>
@@ -211,7 +247,6 @@
         <div id="reports-view" class="hidden">
             <h2>Informes Generales</h2>
             
-            <!-- ===== SECCIÓN MODIFICADA ===== -->
             <div class="kpi-group">
                 <h3><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg> Stock</h3>
                 <div class="kpi-container three-cols">
@@ -229,7 +264,6 @@
                     </div>
                 </div>
             </div>
-            <!-- ===== FIN DE LA SECCIÓN MODIFICADA ===== -->
 
             <div class="kpi-group">
                 <h3><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"></path><path d="M12 20h.01"></path><path d="M4.2 4.2l1.4 1.4"></path><path d="M18.4 18.4l1.4 1.4"></path><path d="M2 12h4"></path><path d="M18 12h4"></path><path d="M4.2 19.8l1.4-1.4"></path><path d="M18.4 5.6l1.4-1.4"></path></svg> Resumen del Día</h3>

@@ -2241,3 +2241,216 @@ td.actions-cell {
 .kpi-card.kpi-reparacion .kpi-value {
     color: #e67e22; /* Un color naranja, como el de "Comisiones" */
 }
+
+/* --- ESTILOS PARA LA PAGINACIÓN --- */
+.pagination-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem 0.5rem;
+    margin-top: 1rem;
+    border-top: 1px solid var(--border-dark);
+}
+
+.pagination-controls select,
+.pagination-controls button {
+    width: auto;
+    padding: 0.6rem 1rem;
+    font-size: 0.9rem;
+}
+
+.pagination-controls button:disabled {
+    background-color: #333 !important;
+    color: #666;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.pagination-controls span {
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+/* --- INICIO: NUEVOS ESTILOS DE PAGINACIÓN --- */
+
+/* Contenedor principal de la paginación */
+.pagination-controls {
+    display: flex;
+    justify-content: center; /* Centramos los elementos */
+    align-items: center;
+    flex-wrap: wrap; /* Permite que se acomoden en pantallas pequeñas */
+    gap: 0.75rem; /* Espacio uniforme entre cada elemento */
+    padding: 1.5rem 0.5rem;
+    margin-top: 1rem;
+    border-top: 1px solid var(--border-dark);
+}
+
+/* Estilo base para los botones y el selector */
+.pagination-controls button,
+.pagination-controls select {
+    width: auto;
+    background-color: #2c2c2e; /* Mismo fondo que los inputs */
+    border: 1px solid var(--border-dark);
+    color: var(--text-muted); /* Texto sutil por defecto */
+    font-weight: 600;
+    border-radius: 8px;
+    padding: 0.6rem 1.2rem;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out; /* Transición suave para todo */
+}
+
+/* Efecto al pasar el ratón (para botones y selector) */
+.pagination-controls button:not(:disabled):hover,
+.pagination-controls select:hover {
+    color: var(--text-light); /* Texto se vuelve más brillante */
+    border-color: var(--brand-yellow); /* El borde se resalta con el color de la marca */
+}
+
+/* Estilo para el texto "Página X" */
+.pagination-controls span {
+    font-weight: 600;
+    color: var(--text-light); /* Lo hacemos más visible */
+    padding: 0 0.5rem;
+    font-size: 0.9rem;
+}
+
+/* Estilo específico para los botones deshabilitados */
+.pagination-controls button:disabled {
+    background-color: transparent; /* Lo hacemos casi invisible */
+    color: #444; /* Color de texto muy apagado */
+    border-color: #2a2a2a; /* Borde sutil */
+    cursor: not-allowed;
+}
+
+/* Nos aseguramos de que el selector siga teniendo la flecha personalizada */
+.pagination-controls select {
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23fdd100%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.4-5.4-13z%22/%3E%3C/svg%3E'); 
+    background-repeat: no-repeat; 
+    background-position: right 1rem center; 
+    background-size: .65em auto;
+    padding-right: 2.5rem; /* Espacio extra para que el texto no se monte sobre la flecha */
+}
+
+/* === INICIO: NUEVOS ESTILOS DE PAGINACIÓN MINIMALISTA === */
+
+/* Contenedor principal de la paginación */
+.pagination-controls {
+    display: flex;
+    justify-content: flex-end; /* Para alinear todo a la derecha */
+    align-items: center;
+    gap: 0.75rem; /* Espacio entre los elementos */
+}
+
+/* Estilos para los botones circulares (Anterior/Siguiente) */
+.pagination-controls button {
+    width: 36px;  /* Ancho y alto fijos para que sea un círculo perfecto */
+    height: 36px;
+    padding: 0;   /* Quitamos el padding para centrar el icono */
+    border-radius: 50%; /* Esto crea el círculo */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #2c2c2e;
+    border: 1px solid var(--border-dark);
+}
+
+/* Estilos para el icono SVG dentro de los botones */
+.pagination-controls button svg {
+    width: 18px;
+    height: 18px;
+    stroke: var(--text-muted); /* Color del icono por defecto */
+    transition: stroke 0.2s ease-in-out;
+}
+
+/* Efecto al pasar el ratón sobre los botones */
+.pagination-controls button:not(:disabled):hover {
+    border-color: var(--brand-yellow); /* El borde se resalta */
+}
+
+.pagination-controls button:not(:disabled):hover svg {
+    stroke: var(--text-light); /* El icono se pone más brillante */
+}
+
+/* Estilos para los botones deshabilitados */
+.pagination-controls button:disabled {
+    background-color: transparent;
+    cursor: not-allowed;
+}
+
+.pagination-controls button:disabled svg {
+    stroke: #444; /* Color del icono muy apagado */
+}
+
+/* Ajustamos el selector de ítems por página */
+.pagination-controls select {
+    width: auto;
+    background-color: #2c2c2e;
+    border: 1px solid var(--border-dark);
+    color: var(--text-muted);
+    font-weight: 600;
+    border-radius: 8px;
+    padding: 0.6rem 2.5rem 0.6rem 1rem; /* Ajuste para que no se pise la flecha */
+    font-size: 0.9rem;
+    transition: all 0.2s ease-in-out;
+}
+
+.pagination-controls select:hover {
+     border-color: var(--brand-yellow);
+     color: var(--text-light);
+}
+
+/* === INICIO: ESTILOS CORREGIDOS PARA EL COMPONENTE DE ESTADO VACÍO === */
+
+/* === INICIO: ESTILOS PARA ESTADO DE PAGO DE LOTES === */
+
+/* Contenedor principal de la información del lote */
+.batch-info {
+    display: flex;
+    align-items: center; /* Centra verticalmente el texto y el indicador */
+    flex-wrap: wrap;     /* Permite que el indicador pase abajo en pantallas pequeñas */
+    gap: 0.5rem;         /* Espacio entre el texto y el indicador */
+}
+
+/* Estilo base para la píldora de estado */
+.lote-status {
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 12px; /* Píldora redondeada */
+    display: inline-block;
+    line-height: 1.2;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Estado "Pagado" (verde) */
+.lote-status.pagado {
+    background-color: var(--success-bg);
+    color: white;
+}
+
+/* Estado "Parcial" (azul informativo) */
+.lote-status.parcial {
+    background-color: var(--info-bg);
+    color: white;
+}
+
+/* Estado "Pendiente" (rojo de alerta) */
+.lote-status.pendiente {
+    background-color: var(--error-bg);
+    color: white;
+}
+
+/* === FIN: ESTILOS PARA ESTADO DE PAGO DE LOTES === */
+
+/* AÑADE ESTO AL FINAL DE TU STYLE.CSS */
+
+.payment-row {
+    background-color: #1a2c21; /* Un verde oscuro sutil */
+}
+.payment-row:hover {
+    background-color: #20382a;
+}

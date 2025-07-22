@@ -37,14 +37,10 @@ let gastosChart = null;
 let batchLoadContext = null;
 let paymentContext = null;
 let wholesaleSaleContext = null;
+let paginationState = {};
 
 document.addEventListener('DOMContentLoaded', initApp);
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
-// REEMPLAZA ESTA FUNCIÓN COMPLETA
-
-// REEMPLAZA ESTA FUNCIÓN COMPLETA
 // REEMPLAZA ESTA FUNCIÓN COMPLETA
 function initApp() {
     Object.assign(s, {
@@ -156,9 +152,18 @@ function initApp() {
         btnShowReparacion: document.getElementById('btn-show-reparacion'),
         reparacionSection: document.getElementById('reparacion-section'),
         reparacionTableContainer: document.getElementById('reparacion-table-container'),
-
-        // ===== NUEVA REFERENCIA AÑADIDA AQUÍ =====
         reparacionBadge: document.getElementById('reparacion-badge'),
+        // ===== NUEVAS REFERENCIAS DE PAGINACIÓN =====
+        stockPaginationControls: document.getElementById('stock-pagination-controls'),
+        stockItemsPerPage: document.getElementById('stock-items-per-page'),
+        stockPrevPage: document.getElementById('stock-prev-page'),
+        stockNextPage: document.getElementById('stock-next-page'),
+        stockPageInfo: document.getElementById('stock-page-info'),
+        salesPaginationControls: document.getElementById('sales-pagination-controls'),
+        salesItemsPerPage: document.getElementById('sales-items-per-page'),
+        salesPrevPage: document.getElementById('sales-prev-page'),
+        salesNextPage: document.getElementById('sales-next-page'),
+        salesPageInfo: document.getElementById('sales-page-info'),
     });
     
     addEventListeners();
@@ -205,8 +210,7 @@ function populateAllSelects() {
     populateSelect(s.proveedorFormSelect, proveedoresConCanje, "Selecciona..."); 
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
+// REEMPLAZA TU FUNCIÓN addEventListeners COMPLETA POR ESTA VERSIÓN
 function addEventListeners() {
     s.logoutButton.addEventListener('click', () => auth.signOut());
     
@@ -257,7 +261,7 @@ function addEventListeners() {
              e.preventDefault();
              s.promptContainer.innerHTML = '';
              paymentContext = null; 
-             canjeContext = null; // Limpiamos también el contexto de canje/reparación
+             canjeContext = null;
         }
     });
 
@@ -291,21 +295,22 @@ function addEventListeners() {
             } else if (form.id === 'lote-cost-form') {
                 promptToAssignLoteCost(form);
             
-            // ===== ESTA ES LA CONDICIÓN AÑADIDA =====
             } else if (form.id === 'finalize-reparacion-form') {
                 saveFinalizedReparacion(form);
             
             } else if (form.id === 'wholesale-client-form') {
                 saveWholesaleClient(form.querySelector('button[type="submit"]'));
-            } else if (form.id === 'wholesale-sale-start-form') {
-                initiateWholesaleSale(form);
+            } else if (form.id === 'wholesale-sale-finalize-form') {
+                finalizeWholesaleSale(form);
+            } else if (form.id === 'wholesale-payment-form') {
+                saveWholesalePayment(form);
             }
         }
     });
     
     s.btnCalculateCommissions.addEventListener('click', loadCommissions);
-    s.btnApplyStockFilters.addEventListener('click', loadStock);
-    s.btnApplySalesFilters.addEventListener('click', loadSales);
+    s.btnApplyStockFilters.addEventListener('click', () => loadStock('first'));
+    s.btnApplySalesFilters.addEventListener('click', () => loadSales('first'));
     s.btnApplyGastosFilter.addEventListener('click', loadGastos);
     s.btnApplyIngresosFilter.addEventListener('click', loadIngresos);
     s.btnScan.addEventListener('click', () => startScanner());
@@ -318,6 +323,7 @@ function addEventListeners() {
             showConfirmationModal('¿Cancelar Carga?', 'Se perderán los datos ingresados. ¿Continuar?', () => {
                 canjeContext = null;
                 batchLoadContext = null;
+                wholesaleSaleContext = null;
                 resetManagementView();
                 switchView('dashboard', s.tabDashboard);
             });
@@ -364,7 +370,22 @@ function addEventListeners() {
         const clientName = clientCard.querySelector('h3').textContent;
 
         if (button.classList.contains('btn-new-wholesale-sale')) {
-            promptToStartWholesaleSale(clientId, clientName);
+            wholesaleSaleContext = {
+                clientId: clientId,
+                clientName: clientName,
+                items: [],
+                totalSaleValue: 0
+            };
+            switchView('management', s.tabManagement);
+            resetManagementView(false, false, true);
+
+        } else if (button.classList.contains('btn-register-ws-payment')) {
+            // ===== ESTA ES LA LÍNEA CORREGIDA =====
+            const debtString = clientCard.querySelector('.client-debt-value').textContent;
+            // ======================================
+            const debtAmount = parseFloat(debtString.replace(/[^0-9,-]+/g,"").replace(',', '.'));
+            promptToRegisterWholesalePayment(clientId, clientName, debtAmount);
+
         } else if (button.classList.contains('btn-view-wholesale-history')) {
             showWholesaleHistory(clientId, clientName);
         } else if (button.classList.contains('btn-resync-client')) {
@@ -422,6 +443,89 @@ function addEventListeners() {
             }
         });
     }
+
+    s.stockItemsPerPage.addEventListener('change', () => loadStock('first'));
+    s.stockNextPage.addEventListener('click', () => loadStock('next'));
+    s.stockPrevPage.addEventListener('click', () => loadStock('prev'));
+
+    s.salesItemsPerPage.addEventListener('change', () => loadSales('first'));
+    s.salesNextPage.addEventListener('click', () => loadSales('next'));
+    s.salesPrevPage.addEventListener('click', () => loadSales('prev'));
+}
+
+async function loadStock(direction = 'first') {
+    const type = 'stock';
+
+    const newFiltersJSON = JSON.stringify([s.filterStockModel.value, s.filterStockProveedor.value, s.filterStockColor.value, s.filterStockGb.value]);
+    if (!paginationState[type] || paginationState[type].lastFilters !== newFiltersJSON) {
+        direction = 'first';
+    }
+    
+    if (direction === 'first') {
+        paginationState[type] = {
+            lastFilters: newFiltersJSON,
+            currentPage: 1,
+            lastVisible: null,
+            pageHistory: [null]
+        };
+    }
+    
+    const filters = [['estado', '==', 'en_stock']];
+    if (s.filterStockModel.value) filters.push(['modelo', '==', s.filterStockModel.value]);
+    if (s.filterStockProveedor.value) filters.push(['proveedor', '==', s.filterStockProveedor.value]);
+    if (s.filterStockColor.value) filters.push(['color', '==', s.filterStockColor.value]);
+    if (s.filterStockGb.value) filters.push(['almacenamiento', '==', s.filterStockGb.value]);
+
+    await loadPaginatedData({
+        type: type,
+        collectionName: 'stock_individual',
+        filters: filters,
+        orderByField: 'fechaDeCarga',
+        orderByDirection: 'desc',
+        direction: direction,
+        renderFunction: (doc) => {
+            const item = doc.data();
+            const fechaObj = item.fechaDeCarga ? new Date(item.fechaDeCarga.seconds * 1000) : null;
+            let fechaFormateada = fechaObj ? `${String(fechaObj.getDate()).padStart(2, '0')}/${String(fechaObj.getMonth() + 1).padStart(2, '0')}/${fechaObj.getFullYear()}<br><small class="time-muted">${String(fechaObj.getHours()).padStart(2, '0')}:${String(fechaObj.getMinutes()).padStart(2, '0')} hs</small>` : 'N/A';
+            const itemJSON = JSON.stringify(item).replace(/'/g, "\\'");
+
+            let reparadoIconHtml = item.fueReparado ? `<span class="reparado-badge" title="Equipo reparado"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg></span>` : '';
+            
+            return `<tr class="stock-row-clickable" data-item='${itemJSON}' data-imei="${item.imei}">
+                <td class="hide-on-mobile">${fechaFormateada}</td>
+                <td>${item.modelo || ''} ${reparadoIconHtml}</td>
+                <td class="hide-on-mobile">${item.proveedor || 'N/A'}</td>
+                <td>${item.color || ''}</td>
+                <td class="hide-on-mobile">${item.almacenamiento || ''}</td>
+                <td>${item.bateria || ''}%</td>
+                <td class="hide-on-mobile">${formatearUSD(item.precio_costo_usd)}</td>
+                <td class="actions-cell">
+                    <button class="edit-btn btn-edit-stock hide-on-mobile" title="Editar Producto"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                    <button class="delete-btn btn-delete-stock hide-on-mobile" title="Eliminar Producto"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button>
+                </td></tr>`;
+        },
+        setupEventListeners: () => {
+             document.querySelectorAll('.stock-row-clickable').forEach(row => {
+                const itemData = JSON.parse(row.dataset.item.replace(/\\'/g, "'"));
+                const imei = row.dataset.imei;
+                
+                const editBtn = row.querySelector('.btn-edit-stock');
+                if (editBtn) editBtn.addEventListener('click', () => promptToEditStock(itemData));
+
+                const deleteBtn = row.querySelector('.btn-delete-stock');
+                if (deleteBtn) deleteBtn.addEventListener('click', () => {
+                    const message = `Producto: ${itemData.modelo} ${itemData.color}\nIMEI: ${imei}\n\nEsta acción eliminará el producto del stock permanentemente.`;
+                    showConfirmationModal('¿Seguro que quieres eliminar este producto?', message, () => deleteStockItem(imei, itemData));
+                });
+
+                row.addEventListener('click', e => {
+                    if (window.innerWidth < 768 && !e.target.closest('button')) {
+                        showStockDetailModal(itemData);
+                    }
+                });
+            });
+        }
+    });
 }
 
 function moveDashboardSlider(activeButton) {
@@ -439,7 +543,6 @@ function moveNavSlider(activeTab) {
 }
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
 async function updateReports() {
     const kpiElements = [
         s.kpiStockValue, s.kpiStockCount,
@@ -515,12 +618,15 @@ async function updateReports() {
                     totalIncomes.transfer += venta.monto_transferencia || 0;
                 });
             }
+            
             wholesaleSalesSnapshot.forEach(doc => {
-                const sale = doc.data().pago_recibido || {};
-                totalIncomes.usd += sale.usd || 0;
-                totalIncomes.cash += sale.ars_efectivo || 0;
-                totalIncomes.transfer += sale.ars_transferencia || 0;
+                const sale = doc.data();
+                const payment = sale.pago_recibido || {};
+                totalIncomes.usd += payment.usd || 0;
+                totalIncomes.cash += payment.ars_efectivo || 0;
+                totalIncomes.transfer += payment.ars_transferencia || 0;
             });
+
             miscIncomesSnap.forEach(doc => {
                 const ingreso = doc.data();
                 if (ingreso.metodo === 'Dólares') totalIncomes.usd += ingreso.monto || 0;
@@ -559,9 +665,9 @@ async function updateReports() {
         s.kpiTransferMonth.textContent = formatearARS(monthly.netIncomes.transfer);
         s.kpiProfitMonth.textContent = formatearUSD(monthly.profit);
         s.kpiExpensesMonthUsd.textContent = formatearUSD(monthly.expenses.usd);
-        s.kpiExpensesMonthCash.textContent = formatearARS(monthly.expenses.cash);
-        
         // ===== ESTA ES LA LÍNEA CORREGIDA =====
+        s.kpiExpensesMonthCash.textContent = formatearARS(monthly.expenses.cash);
+        // ======================================
         s.kpiExpensesMonthTransfer.textContent = formatearARS(monthly.expenses.transfer);
 
     } catch (error) {
@@ -1015,6 +1121,7 @@ function promptToAddWholesaleClient() {
     }
 }
 
+// REEMPLAZA ESTA FUNCIÓN EN TU SCRIPT.JS
 async function saveWholesaleClient(btn) {
     toggleSpinner(btn, true);
     const form = btn.form;
@@ -1022,6 +1129,7 @@ async function saveWholesaleClient(btn) {
         nombre: form.nombre.value.trim(),
         notas: form.notas.value.trim(),
         total_comprado_usd: 0,
+        deuda_usd: 0, // <--- CAMPO AÑADIDO AQUÍ
         fecha_creacion: firebase.firestore.FieldValue.serverTimestamp(),
         fecha_ultima_compra: null
     };
@@ -1038,12 +1146,6 @@ async function saveWholesaleClient(btn) {
         toggleSpinner(btn, false);
     }
 }
-
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
 function promptToStartWholesaleSale(clientId, clientName) {
     // Ya no necesitamos los modelos para el canje aquí
@@ -1261,77 +1363,67 @@ function renderWholesaleLoader() {
     s.productForm.classList.remove('hidden');
 }
 
-// =======================================================
-// ============= INICIO CÓDIGO ACTUALIZADO ===============
-// =======================================================
-
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+async function finalizeWholesaleSale(form) {
+    const btn = form.querySelector('button[type="submit"]');
+    toggleSpinner(btn, true);
 
-async function finalizeWholesaleSale() {
-    if (!wholesaleSaleContext || !Array.isArray(wholesaleSaleContext.items) || wholesaleSaleContext.items.length === 0) {
-        showGlobalFeedback("No hay equipos agregados. Debes escanear al menos un equipo.", "warning", 6000);
-        resetManagementView(false, false, true);
+    const formData = new FormData(form);
+    const saleId = formData.get('sale_id').trim();
+
+    const montoUsd = parseFloat(formData.get('monto_dolares')) || 0;
+    const montoArsEfectivo = parseFloat(formData.get('monto_efectivo')) || 0;
+    const montoArsTransferencia = parseFloat(formData.get('monto_transferencia')) || 0;
+    
+    // CORRECCIÓN: Usamos un valor por defecto de 1 para la cotización si no se ingresa
+    const cotizacion = parseFloat(formData.get('cotizacion_dolar')) || 1;
+
+    if (!saleId) {
+        showGlobalFeedback("El ID de la venta es obligatorio.", "error");
+        toggleSpinner(btn, false);
         return;
     }
 
-    showGlobalFeedback("Registrando venta mayorista, por favor espera...", "loading", 10000);
-    
     try {
-        const { clientId, clientName, saleId, payment, items, totalSaleValue, cotizacion, huboCanje, valorCanjeUSD, canjeModelo } = wholesaleSaleContext;
+        const { clientId, clientName, items, totalSaleValue } = wholesaleSaleContext;
 
+        const totalPagadoPesos = montoArsEfectivo + montoArsTransferencia;
+        const totalPagadoUSD = montoUsd + (totalPagadoPesos > 0 ? (totalPagadoPesos / cotizacion) : 0);
+        const deudaGenerada = totalSaleValue - totalPagadoUSD;
+        
         await db.runTransaction(async (t) => {
             const saleDate = firebase.firestore.FieldValue.serverTimestamp();
             const wholesaleSaleRef = db.collection('ventas_mayoristas').doc();
             
-            // Guardamos el registro maestro de la venta mayorista
             const masterSaleData = {
                 clienteId: clientId,
                 clienteNombre: clientName,
                 venta_id_manual: saleId,
                 fecha_venta: saleDate,
-                pago_recibido: payment,
                 total_venta_usd: totalSaleValue,
+                pago_recibido: {
+                    usd: montoUsd,
+                    ars_efectivo: montoArsEfectivo,
+                    ars_transferencia: montoArsTransferencia,
+                    cotizacion_dolar: cotizacion,
+                    total_pagado_usd: totalPagadoUSD // Guardamos el total pagado calculado
+                },
+                deuda_generada_usd: deudaGenerada > 0.01 ? deudaGenerada : 0,
                 cantidad_equipos: items.length,
-                cotizacion_dolar: cotizacion,
-                hubo_canje: huboCanje,
-                valor_toma_canje_usd: valorCanjeUSD
             };
-            
-            if (huboCanje) {
-                const canjeRef = db.collection("plan_canje_pendientes").doc();
-                t.set(canjeRef, { 
-                    modelo_recibido: canjeModelo, 
-                    valor_toma_usd: valorCanjeUSD, 
-                    observaciones_canje: `Canje en venta mayorista ${saleId}`, 
-                    producto_vendido: `Lote mayorista a ${clientName}`, 
-                    venta_asociada_id: wholesaleSaleRef.id, 
-                    fecha_canje: saleDate, 
-                    estado: 'pendiente_de_carga' 
-                });
-                masterSaleData.id_canje_pendiente = canjeRef.id;
-            }
-
             t.set(wholesaleSaleRef, masterSaleData);
 
-            // Creamos las ventas individuales
             for (const item of items) {
                 const ventaIndividualRef = db.collection('ventas').doc();
-                const ventaData = {
+                t.set(ventaIndividualRef, {
                     imei_vendido: item.imei,
                     producto: item.details,
                     precio_venta_usd: item.precio_venta_usd,
                     metodo_pago: 'Venta Mayorista',
-                    monto_dolares: 0, // Los montos se manejan en el registro maestro
-                    monto_efectivo: 0,
-                    monto_transferencia: 0,
                     vendedor: `Mayorista: ${clientName}`,
                     fecha_venta: saleDate,
                     venta_mayorista_ref: wholesaleSaleRef.id,
-                    id_venta_mayorista_manual: saleId,
-                    comision_vendedor_usd: 0,
-                    hubo_canje: false // El canje se asocia al maestro
-                };
-                t.set(ventaIndividualRef, ventaData);
+                });
                 const stockRef = db.collection('stock_individual').doc(item.imei);
                 t.update(stockRef, { estado: 'vendido' });
             }
@@ -1339,26 +1431,24 @@ async function finalizeWholesaleSale() {
             const clientRef = db.collection('clientes_mayoristas').doc(clientId);
             t.update(clientRef, {
                 total_comprado_usd: firebase.firestore.FieldValue.increment(totalSaleValue),
+                deuda_usd: firebase.firestore.FieldValue.increment(deudaGenerada),
                 fecha_ultima_compra: saleDate
             });
         });
 
         showGlobalFeedback(`¡Venta mayorista ${saleId} registrada con éxito!`, 'success', 5000);
         wholesaleSaleContext = null;
+        s.promptContainer.innerHTML = '';
         resetManagementView();
         switchView('wholesale', s.tabWholesale);
         updateReports();
 
     } catch (error) {
-        console.error("Error al finalizar la venta mayorista:", error, wholesaleSaleContext);
+        console.error("Error al finalizar la venta mayorista:", error);
         showGlobalFeedback("Error crítico al registrar la venta. Revisa la consola.", "error", 8000);
-        wholesaleSaleContext = null;
-        resetManagementView();
+        toggleSpinner(btn, false);
     }
 }
-// =======================================================
-// ============= FIN CÓDIGO ACTUALIZADO ==================
-// =======================================================
 
 
 async function loadIngresos() {
@@ -1862,8 +1952,6 @@ function deleteProvider(providerId, providerName) {
     });
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
 function promptToStartBatchLoad(providerId, providerName) {
     s.promptContainer.innerHTML = `
         <div class="container container-sm">
@@ -1895,17 +1983,17 @@ function promptToStartBatchLoad(providerId, providerName) {
             providerId,
             providerName,
             batchIdManual,
-            modelosCargados: {} // Aquí guardaremos los equipos por modelo
+            modelosCargados: {},
+            // Propiedades añadidas para el nuevo flujo
+            itemsCargados: [], 
+            totalCostoAcumulado: 0 
         };
         // Pasamos al siguiente paso
         showModelSelectionStep();
     });
 }
 
-// AÑADE ESTA FUNCIÓN NUEVA A TU SCRIPT.JS
-
 function showModelSelectionStep() {
-    // Generamos los checkboxes para cada modelo
     const modelosHtml = modelos.map(modelo => {
         const equiposCargados = batchLoadContext.modelosCargados[modelo]?.length || 0;
         const checkDisabled = equiposCargados > 0 ? 'disabled' : '';
@@ -1936,23 +2024,20 @@ function showModelSelectionStep() {
             </div>
         </div>`;
 
-    // Añadimos el listener para cada checkbox
     document.querySelectorAll('#modelos-list-container input[type="checkbox"]').forEach(checkbox => {
         checkbox.addEventListener('click', (e) => {
             if (e.target.checked) {
                 const modeloSeleccionado = e.target.value;
-                // Iniciamos la carga para este modelo
                 batchLoadContext.currentModel = modeloSeleccionado;
                 switchView('management', s.tabManagement);
-                s.promptContainer.innerHTML = ''; // Limpiamos el prompt de selección
+                s.promptContainer.innerHTML = ''; 
             }
         });
     });
 
-    // Listener para el botón de finalizar
+    // Llamada a la función de finalización actualizada
     document.getElementById('btn-finalize-lote').addEventListener('click', promptToAssignLoteCost);
     
-    // Listener para cancelar todo el lote
     document.getElementById('btn-cancel-lote').addEventListener('click', () => {
         showConfirmationModal('¿Cancelar Lote?', 'Se perderán todos los equipos cargados en este lote. ¿Estás seguro?', () => {
             batchLoadContext = null;
@@ -1962,64 +2047,75 @@ function showModelSelectionStep() {
     });
 }
 
-// AÑADE ESTA FUNCIÓN NUEVA A TU SCRIPT.JS
-
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
-function promptToAssignLoteCost() {
-    let totalEquiposCargados = 0;
-    for (const modelo in batchLoadContext.modelosCargados) {
-        totalEquiposCargados += batchLoadContext.modelosCargados[modelo].length;
-    }
+async function promptToAssignLoteCost() {
+    let totalEquiposCargados = batchLoadContext.itemsCargados.length;
 
     if (totalEquiposCargados === 0) {
         showGlobalFeedback("No has cargado ningún equipo en este lote.", "error");
+        showModelSelectionStep(); // Volvemos a la selección si no hay nada que finalizar
         return;
     }
+
+    const itemsDetailHtml = batchLoadContext.itemsCargados.map(item => `
+        <div class="detail-item">
+            <span>${item.modelo} ${item.color} ${item.almacenamiento}</span>
+            <strong>${formatearUSD(item.precio_costo_usd)}</strong>
+        </div>
+    `).join('');
 
     s.promptContainer.innerHTML = `
         <div class="container container-sm">
             <div class="prompt-box">
-                <h3>Paso Final: Asignar Costo al Lote</h3>
-                <p style="color: var(--text-muted); margin-bottom: 1.5rem;">Lote: <strong>${batchLoadContext.batchIdManual}</strong> - Total Equipos: <strong>${totalEquiposCargados}</strong></p>
-                <form id="lote-cost-form">
-                    <div class="form-group">
-                        <label for="lote-costo-total">Costo Total del Lote (USD) para generar la deuda</label>
-                        <input type="number" id="lote-costo-total" name="costoTotal" step="0.01" required>
+                <h3>Finalizar y Confirmar Lote</h3>
+                <p style="color: var(--text-muted); text-align: center;">
+                    Lote: <strong>${batchLoadContext.batchIdManual}</strong> para <strong>${batchLoadContext.providerName}</strong>
+                </p>
+
+                <div class="details-box" style="margin-top: 1.5rem; text-align: center; background-color: #1e1e1e;">
+                     <div class="detail-item" style="flex-direction: column;">
+                        <span style="font-size: 1rem; color: var(--text-muted);">Costo Total del Lote (Calculado)</span>
+                        <strong style="font-size: 2.2rem; color: var(--brand-yellow);">${formatearUSD(batchLoadContext.totalCostoAcumulado)}</strong>
                     </div>
-                    <div class="prompt-buttons">
-                        <button type="submit" class="prompt-button confirm spinner-btn">
-                            <span class="btn-text">Guardar Lote Completo</span>
-                            <div class="spinner"></div>
-                        </button>
+                     <div class="detail-item">
+                        <span>Total de Equipos:</span>
+                        <strong>${totalEquiposCargados}</strong>
                     </div>
-                </form>
+                </div>
+
+                <h4 style="margin-top: 2rem; text-align: center; color: var(--text-muted);">Resumen de Equipos Cargados</h4>
+                <div class="details-box" style="max-height: 200px; overflow-y: auto; padding: 1rem;">
+                    ${itemsDetailHtml || '<p>No hay equipos en este lote.</p>'}
+                </div>
+
+                <div class="prompt-buttons" style="margin-top: 2rem;">
+                    <button id="btn-save-batch-final" class="prompt-button confirm spinner-btn">
+                        <span class="btn-text">Confirmar y Guardar Lote</span>
+                        <div class="spinner"></div>
+                    </button>
+                    <button id="btn-back-to-models" class="prompt-button cancel" style="background-color: #555;">Volver y Cargar Más</button>
+                </div>
             </div>
         </div>
     `;
 
-    document.getElementById('lote-cost-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const btn = e.target.querySelector('button[type="submit"]');
+    document.getElementById('btn-back-to-models').addEventListener('click', () => {
+        showModelSelectionStep();
+    });
+
+    document.getElementById('btn-save-batch-final').addEventListener('click', async (e) => {
+        const btn = e.currentTarget;
         toggleSpinner(btn, true);
 
-        const costoTotalUSD = parseFloat(e.target.costoTotal.value);
-        if (isNaN(costoTotalUSD) || costoTotalUSD <= 0) {
-            showGlobalFeedback("Ingresa un costo total válido.", "error");
-            toggleSpinner(btn, false);
-            return;
-        }
+        const costoTotalUSD = batchLoadContext.totalCostoAcumulado;
 
         try {
             const loteRef = db.collection('lotes').doc();
             
             await db.runTransaction(async t => {
-                // 1. Actualizar la deuda del proveedor
                 const providerRef = db.collection('proveedores').doc(batchLoadContext.providerId);
                 t.update(providerRef, { deuda_usd: firebase.firestore.FieldValue.increment(costoTotalUSD) });
 
-                // 2. Guardar el lote
-                const imeisTotales = Object.values(batchLoadContext.modelosCargados).flat();
+                const imeisTotales = batchLoadContext.itemsCargados.map(item => item.imei);
                 t.set(loteRef, {
                     numero_lote: batchLoadContext.batchIdManual,
                     proveedorId: batchLoadContext.providerId,
@@ -2029,9 +2125,6 @@ function promptToAssignLoteCost() {
                     imeis: imeisTotales,
                     detalle_modelos: batchLoadContext.modelosCargados
                 });
-
-                // --- LÓGICA DE COSTO PROMEDIO ELIMINADA ---
-                // Ya no se sobreescribe el costo individual de cada equipo.
             });
 
             showGlobalFeedback("Lote completo guardado con éxito.", "success");
@@ -2039,7 +2132,7 @@ function promptToAssignLoteCost() {
             batchLoadContext = null;
             switchView('providers', s.tabProviders);
             loadProviders();
-            loadStock(); // Actualizamos el stock para ver los costos correctos
+            loadStock();
 
         } catch (error) {
             console.error("Error al guardar el lote completo:", error);
@@ -2090,11 +2183,35 @@ async function initiateBatchLoad(providerId, providerName, model, batchCost, bat
     }
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 async function promptToRegisterPayment(providerName, currentDebt) {
-    const lotesSnapshot = await db.collection('lotes').where('proveedorId', '==', paymentContext.id).get();
+    // Primero, nos aseguramos de tener el contexto correcto para el proveedor
+    paymentContext = { id: paymentContext.id, name: providerName };
+
+    const lotesSnapshot = await db.collection('lotes').where('proveedorId', '==', paymentContext.id).orderBy('fecha_carga', 'desc').get();
+    
     const lotesOptions = lotesSnapshot.docs.map(doc => {
         const lote = doc.data();
-        return `<option value="${lote.numero_lote}">${lote.numero_lote} (${lote.modelo})</option>`;
+        
+        // --- INICIO DE LA CORRECCIÓN ---
+        // Lógica para mostrar una descripción inteligente del lote
+        let loteDescripcion = '';
+        if (lote.modelo) {
+            // Caso 1: Es un lote antiguo, con un solo modelo.
+            loteDescripcion = lote.modelo;
+        } else if (lote.detalle_modelos) {
+            // Caso 2: Es un lote nuevo, con múltiples modelos.
+            const modelosEnLote = Object.keys(lote.detalle_modelos).join(', ');
+            loteDescripcion = `Múltiples (${modelosEnLote})`;
+        } else {
+            // Caso 3: Es un lote sin modelo definido (poco probable, pero lo manejamos).
+            loteDescripcion = 'Sin detalle de modelo';
+        }
+        
+        return `<option value="${lote.numero_lote}">${lote.numero_lote} (${loteDescripcion})</option>`;
+        // --- FIN DE LA CORRECCIÓN ---
+
     }).join('');
 
     s.promptContainer.innerHTML = `
@@ -2157,11 +2274,6 @@ async function promptToRegisterPayment(providerName, currentDebt) {
         }
     });
 }
-
-// REEMPLAZA ESTA FUNCIÓN
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
-// REEMPLAZA ESTA FUNCIÓN COMPLETA
 
 async function saveProviderPayment(form) {
     const btn = form.querySelector('button[type="submit"]');
@@ -2375,9 +2487,7 @@ async function showPaymentHistory(providerId, providerName) {
     }
 }
 
-
-// REEMPLAZA ESTA FUNCIÓN COMPLETA
-
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 async function showBatchHistory(providerId, providerName) {
     s.promptContainer.innerHTML = `
     <div class="container batch-history-modal">
@@ -2395,29 +2505,67 @@ async function showBatchHistory(providerId, providerName) {
 
     const batchListContainer = document.getElementById('batch-list-container');
     try {
-        const snapshot = await db.collection('lotes')
+        // --- INICIO DE LA MODIFICACIÓN: Obtenemos lotes y pagos al mismo tiempo ---
+        const lotesPromise = db.collection('lotes')
             .where('proveedorId', '==', providerId)
             .orderBy('fecha_carga', 'desc')
             .get();
         
-        if (snapshot.empty) {
+        const pagosPromise = db.collection('pagos_proveedores')
+            .where('providerId', '==', providerId)
+            .get();
+
+        const [lotesSnapshot, pagosSnapshot] = await Promise.all([lotesPromise, pagosPromise]);
+        
+        if (lotesSnapshot.empty) {
             batchListContainer.innerHTML = '<p class="dashboard-loader">Este proveedor no tiene lotes registrados.</p>';
             return;
         }
 
-        const lotes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // Procesamos los pagos para tener una suma por cada lote
+        const pagosPorLote = {};
+        pagosSnapshot.forEach(doc => {
+            const pago = doc.data();
+            if (pago.lote_asociado) {
+                pagosPorLote[pago.lote_asociado] = (pagosPorLote[pago.lote_asociado] || 0) + pago.monto_total_usd;
+            }
+        });
+
+        const lotes = lotesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // --- FIN DE LA MODIFICACIÓN ---
         
-        batchListContainer.innerHTML = lotes.map(lote => `
+        batchListContainer.innerHTML = lotes.map(lote => {
+            // --- CÁLCULO Y GENERACIÓN DEL ESTADO DE PAGO ---
+            const costoTotal = lote.costo_total_usd || 0;
+            const totalPagado = pagosPorLote[lote.numero_lote] || 0;
+            let statusHtml = '';
+
+            if (costoTotal > 0) {
+                if (totalPagado >= costoTotal) {
+                    statusHtml = `<div class="lote-status pagado">✓ Pagado</div>`;
+                } else if (totalPagado > 0) {
+                    const porcentaje = Math.round((totalPagado / costoTotal) * 100);
+                    statusHtml = `<div class="lote-status parcial">${porcentaje}% Pagado</div>`;
+                } else {
+                    statusHtml = `<div class="lote-status pendiente">Pendiente</div>`;
+                }
+            }
+            // --- FIN DEL CÁLCULO ---
+
+            return `
             <div class="batch-list-item" data-batch-id="${lote.id}">
                 <div class="list-item-content" style="flex-grow: 1; display: flex; justify-content: space-between; align-items: center;">
-                    <div class="batch-info">Lote #${lote.numero_lote} <span>(${new Date(lote.fecha_carga.seconds * 1000).toLocaleDateString('es-AR')})</span></div>
+                    <div class="batch-info">
+                        Lote #${lote.numero_lote} <span>(${new Date(lote.fecha_carga.seconds * 1000).toLocaleDateString('es-AR')})</span>
+                        ${statusHtml}  <!-- INDICADOR AÑADIDO AQUÍ -->
+                    </div>
                     <div class="batch-cost">${formatearUSD(lote.costo_total_usd)}</div>
                 </div>
                 <button class="delete-icon-btn btn-delete-batch" title="Eliminar Lote">
                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
                 </button>
             </div>
-        `).join('');
+        `}).join('');
 
         batchListContainer.querySelectorAll('.list-item-content').forEach(itemContent => {
             itemContent.addEventListener('click', async (e) => {
@@ -2444,7 +2592,6 @@ async function showBatchHistory(providerId, providerName) {
         handleDBError(error, batchListContainer, "historial de lotes");
     }
 }
-
 async function showBatchDetail(lote) {
     const detailContainer = document.getElementById('batch-detail-container');
     detailContainer.innerHTML = `<p class="dashboard-loader">Cargando detalle del lote...</p>`;
@@ -3536,48 +3683,46 @@ function deleteGasto(id, categoria, monto) {
     });
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+// VERSIÓN DEFINITIVA SIN EL BOTÓN "VENDER"
+async function loadStock(direction = 'first') {
+    const type = 'stock';
 
-async function loadStock() {
-    s.stockTableContainer.innerHTML = `<p class="dashboard-loader">Cargando stock...</p>`;
-    toggleSpinner(s.btnApplyStockFilters, true);
-    try {
-        let query = db.collection("stock_individual").where("estado", "==", "en_stock");
-        if (s.filterStockModel.value) query = query.where('modelo', '==', s.filterStockModel.value);
-        if (s.filterStockProveedor.value) query = query.where('proveedor', '==', s.filterStockProveedor.value);
-        if (s.filterStockColor.value) query = query.where('color', '==', s.filterStockColor.value);
-        if (s.filterStockGb.value) query = query.where('almacenamiento', '==', s.filterStockGb.value);
-        query = query.orderBy('modelo');
-        const querySnapshot = await query.get();
-        if (querySnapshot.empty) { s.stockTableContainer.innerHTML = `<p class="dashboard-loader">No se encontraron productos con esos filtros.</p>`; return; }
-        
-        // ===== CAMBIO 1: Modificamos las cabeceras para que algunas se oculten en móvil =====
-        let tableHTML = `<table><thead><tr>
-            <th class="hide-on-mobile">Fecha Carga</th>
-            <th>Modelo</th>
-            <th class="hide-on-mobile">Proveedor</th>
-            <th>Color</th>
-            <th class="hide-on-mobile">GB</th>
-            <th>Batería</th>
-            <th class="hide-on-mobile">Costo (USD)</th>
-            <th class="hide-on-mobile">Acciones</th>
-        </tr></thead><tbody>`;
-        
-        querySnapshot.forEach(doc => {
+    const newFiltersJSON = JSON.stringify([s.filterStockModel.value, s.filterStockProveedor.value, s.filterStockColor.value, s.filterStockGb.value]);
+    if (!paginationState[type] || paginationState[type].lastFilters !== newFiltersJSON) {
+        direction = 'first';
+    }
+    
+    if (direction === 'first') {
+        paginationState[type] = {
+            lastFilters: newFiltersJSON,
+            currentPage: 1,
+            lastVisible: null,
+            pageHistory: [null]
+        };
+    }
+    
+    const filters = [['estado', '==', 'en_stock']];
+    if (s.filterStockModel.value) filters.push(['modelo', '==', s.filterStockModel.value]);
+    if (s.filterStockProveedor.value) filters.push(['proveedor', '==', s.filterStockProveedor.value]);
+    if (s.filterStockColor.value) filters.push(['color', '==', s.filterStockColor.value]);
+    if (s.filterStockGb.value) filters.push(['almacenamiento', '==', s.filterStockGb.value]);
+
+    await loadPaginatedData({
+        type: type,
+        collectionName: 'stock_individual',
+        filters: filters,
+        orderByField: 'fechaDeCarga',
+        orderByDirection: 'desc',
+        direction: direction,
+        renderFunction: (doc) => {
             const item = doc.data();
             const fechaObj = item.fechaDeCarga ? new Date(item.fechaDeCarga.seconds * 1000) : null;
             let fechaFormateada = fechaObj ? `${String(fechaObj.getDate()).padStart(2, '0')}/${String(fechaObj.getMonth() + 1).padStart(2, '0')}/${fechaObj.getFullYear()}<br><small class="time-muted">${String(fechaObj.getHours()).padStart(2, '0')}:${String(fechaObj.getMinutes()).padStart(2, '0')} hs</small>` : 'N/A';
             const itemJSON = JSON.stringify(item).replace(/'/g, "\\'");
 
-            let reparadoIconHtml = '';
-            if (item.fueReparado) {
-                reparadoIconHtml = `<span class="reparado-badge" title="Equipo reparado"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg></span>`;
-            }
-
-            // ===== CAMBIO 2: Añadimos la clase 'stock-row-clickable' a la fila (tr) =====
-            // ===== y 'hide-on-mobile' a las celdas (td) correspondientes =====
-            tableHTML += `<tr class="stock-row-clickable" data-item='${itemJSON}'>
+            let reparadoIconHtml = item.fueReparado ? `<span class="reparado-badge" title="Equipo reparado"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg></span>` : '';
+            
+            return `<tr class="stock-row-clickable" data-item='${itemJSON}' data-imei="${item.imei}">
                 <td class="hide-on-mobile">${fechaFormateada}</td>
                 <td>${item.modelo || ''} ${reparadoIconHtml}</td>
                 <td class="hide-on-mobile">${item.proveedor || 'N/A'}</td>
@@ -3585,37 +3730,34 @@ async function loadStock() {
                 <td class="hide-on-mobile">${item.almacenamiento || ''}</td>
                 <td>${item.bateria || ''}%</td>
                 <td class="hide-on-mobile">${formatearUSD(item.precio_costo_usd)}</td>
-                <td class="actions-cell hide-on-mobile">
-                    <button class="edit-btn btn-edit-stock" title="Editar Producto"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
-                    <button class="delete-btn btn-delete-stock" title="Eliminar Producto"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button>
+                <td class="actions-cell">
+                    <button class="edit-btn btn-edit-stock hide-on-mobile" title="Editar Producto"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                    <button class="delete-btn btn-delete-stock hide-on-mobile" title="Eliminar Producto"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button>
                 </td></tr>`;
-        });
-        s.stockTableContainer.innerHTML = tableHTML + `</tbody></table>`;
+        },
+        setupEventListeners: () => {
+             document.querySelectorAll('.stock-row-clickable').forEach(row => {
+                const itemData = JSON.parse(row.dataset.item.replace(/\\'/g, "'"));
+                const imei = row.dataset.imei;
+                
+                const editBtn = row.querySelector('.btn-edit-stock');
+                if (editBtn) editBtn.addEventListener('click', () => promptToEditStock(itemData));
 
-        // ===== CAMBIO 3: Añadimos los event listeners =====
-        // Para las filas clicables (en móvil, mostrará el modal)
-        document.querySelectorAll('.stock-row-clickable').forEach(row => {
-            row.addEventListener('click', e => {
-                // Solo activamos el modal en pantallas pequeñas
-                if (window.innerWidth < 768) {
-                    // Evitamos que el clic en los botones de acción (si estuvieran visibles) dispare el modal
-                    if (e.target.closest('button')) return;
-                    
-                    const item = JSON.parse(row.dataset.item.replace(/\\'/g, "'"));
-                    showStockDetailModal(item);
-                }
+                const deleteBtn = row.querySelector('.btn-delete-stock');
+                if (deleteBtn) deleteBtn.addEventListener('click', () => {
+                    const message = `Producto: ${itemData.modelo} ${itemData.color}\nIMEI: ${imei}\n\nEsta acción eliminará el producto del stock permanentemente.`;
+                    showConfirmationModal('¿Seguro que quieres eliminar este producto?', message, () => deleteStockItem(imei, itemData));
+                });
+
+                row.addEventListener('click', e => {
+                    if (window.innerWidth < 768 && !e.target.closest('button')) {
+                        showStockDetailModal(itemData);
+                    }
+                });
             });
-        });
-
-        // Para los botones de editar y eliminar (que solo son visibles en desktop)
-        document.querySelectorAll('.btn-edit-stock').forEach(button => button.addEventListener('click', e => { const item = JSON.parse(e.currentTarget.closest('tr').dataset.item.replace(/\\'/g, "'")); promptToEditStock(item); }));
-        document.querySelectorAll('.btn-delete-stock').forEach(button => button.addEventListener('click', e => { const item = JSON.parse(e.currentTarget.closest('tr').dataset.item.replace(/\\'/g, "'")); const message = `Producto: ${item.modelo} ${item.color}\nIMEI: ${item.imei}\n\nEsta acción eliminará el producto del stock permanentemente.`; showConfirmationModal('¿Seguro que quieres eliminar este producto?', message, () => deleteStockItem(item.imei, item)); }));
-
-    } catch (error) { handleDBError(error, s.stockTableContainer, "stock"); }
-    finally { toggleSpinner(s.btnApplyStockFilters, false); }
+        }
+    });
 }
-
-// AÑADE ESTA NUEVA FUNCIÓN A TU SCRIPT.JS
 
 function showStockDetailModal(item) {
     const fechaObj = item.fechaDeCarga ? new Date(item.fechaDeCarga.seconds * 1000) : null;
@@ -3725,119 +3867,75 @@ async function exportToExcel(type) {
     }
 }
 
-// REEMPLAZA ESTA FUNCIÓN
-// REEMPLAZA ESTA FUNCIÓN COMPLETA
+async function loadSales(direction = 'first') {
+    const type = 'sales';
 
-// REEMPLAZA ESTA FUNCIÓN EN TU SCRIPT.JS
+    const newFiltersJSON = JSON.stringify([s.filterSalesVendedor.value, s.filterSalesStartDate.value, s.filterSalesEndDate.value]);
+    if (!paginationState[type] || paginationState[type].lastFilters !== newFiltersJSON) {
+        direction = 'first';
+    }
+    
+    if (direction === 'first') {
+        paginationState[type] = {
+            lastFilters: newFiltersJSON,
+            currentPage: 1,
+            lastVisible: null,
+            pageHistory: [null]
+        };
+    }
+    
+    const filters = [];
+    if (s.filterSalesStartDate.value) filters.push(['fecha_venta', '>=', new Date(s.filterSalesStartDate.value + 'T00:00:00')]);
+    if (s.filterSalesEndDate.value) filters.push(['fecha_venta', '<=', new Date(s.filterSalesEndDate.value + 'T23:59:59')]);
+    if (s.filterSalesVendedor.value) filters.push(['vendedor', '==', s.filterSalesVendedor.value]);
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
-async function loadSales() {
-    s.salesTableContainer.innerHTML = `<p class="dashboard-loader">Cargando ventas...</p>`;
-    toggleSpinner(s.btnApplySalesFilters, true);
-    try {
-        let query = db.collection("ventas").orderBy("fecha_venta", "desc");
-        if (s.filterSalesStartDate.value) query = query.where('fecha_venta', '>=', new Date(s.filterSalesStartDate.value + 'T00:00:00'));
-        if (s.filterSalesEndDate.value) query = query.where('fecha_venta', '<=', new Date(s.filterSalesEndDate.value + 'T23:59:59'));
-        if (s.filterSalesVendedor.value) query = query.where('vendedor', '==', s.filterSalesVendedor.value);
-        const querySnapshot = await query.limit(100).get();
-        if (querySnapshot.empty) { s.salesTableContainer.innerHTML = `<p class="dashboard-loader">No se encontraron ventas con esos filtros.</p>`; return; }
-        
-        let tableHTML = `<table><thead><tr><th>Fecha</th><th>Producto</th><th>Cliente</th><th>Vendedor</th><th>Precio (USD)</th><th>Pago</th><th>Garantía</th><th>Acciones</th></tr></thead><tbody>`;
-        
-        querySnapshot.forEach(doc => {
+    await loadPaginatedData({
+        type: type,
+        collectionName: 'ventas',
+        filters: filters,
+        orderByField: 'fecha_venta',
+        orderByDirection: 'desc',
+        direction: direction,
+        renderFunction: (doc) => {
             const venta = doc.data();
             const fechaObj = venta.fecha_venta ? venta.fecha_venta.toDate() : new Date();
             let fechaFormateada = `${String(fechaObj.getDate()).padStart(2, '0')}/${String(fechaObj.getMonth() + 1).padStart(2, '0')}/${fechaObj.getFullYear()}<br><small class="time-muted">${String(fechaObj.getHours()).padStart(2, '0')}:${String(fechaObj.getMinutes()).padStart(2, '0')} hs</small>`;
-            
             const hoy = new Date();
-            const fechaVenta = fechaObj;
-            const diffTiempo = hoy.getTime() - fechaVenta.getTime();
-            const diffDias = Math.floor(diffTiempo / (1000 * 3600 * 24));
+            const diffDias = Math.floor((hoy.getTime() - fechaObj.getTime()) / (1000 * 3600 * 24));
             const diasRestantes = 30 - diffDias;
 
             let garantiaHtml = '';
-            let tooltipText = '';
-
             if (diasRestantes > 0) {
-                tooltipText = `Quedan ${diasRestantes} día${diasRestantes > 1 ? 's' : ''} de garantía`;
-                garantiaHtml = `
-                    <div class="garantia-icon" data-tooltip="${tooltipText}">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2ecc71" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                            <polyline points="9 12 12 15 15 9"></polyline>
-                        </svg>
-                    </div>`;
+                garantiaHtml = `<div class="garantia-icon" data-tooltip="Quedan ${diasRestantes} día${diasRestantes > 1 ? 's' : ''} de garantía"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2ecc71" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><polyline points="9 12 12 15 15 9"></polyline></svg></div>`;
             } else {
-                tooltipText = `Garantía vencida`;
-                garantiaHtml = `
-                    <div class="garantia-icon" data-tooltip="${tooltipText}">
-                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#e74c3c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                            <line x1="15" y1="9" x2="9" y2="15"></line>
-                            <line x1="9" y1="9" x2="15" y2="15"></line>
-                        </svg>
-                    </div>`;
+                garantiaHtml = `<div class="garantia-icon" data-tooltip="Garantía vencida"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#e74c3c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg></div>`;
             }
-
             const ventaJSON = JSON.stringify(venta).replace(/'/g, "\\'");
-            tableHTML += `<tr data-sale-id="${doc.id}" data-sale-item='${ventaJSON}'>
-                <td>${fechaFormateada}</td>
-                <td>${venta.producto.modelo || ''} ${venta.producto.color || ''}</td>
-                <td>${venta.nombre_cliente || '-'}</td>
-                <td>${venta.vendedor}</td>
-                <td>${formatearUSD(venta.precio_venta_usd)}</td>
-                <td>${venta.metodo_pago}</td>
-                <td class="garantia-cell">${garantiaHtml}</td>
-                <td class="actions-cell"><button class="edit-btn btn-edit-sale" title="Editar Venta"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button><button class="delete-btn btn-delete-sale" title="Revertir Venta"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button></td>
-            </tr>`;
-        });
-        s.salesTableContainer.innerHTML = tableHTML + `</tbody></table>`;
-
-        document.querySelectorAll('.garantia-icon').forEach(icon => {
-            let tooltip = null;
-            icon.addEventListener('mouseenter', (e) => {
-                const text = e.currentTarget.dataset.tooltip;
-                tooltip = document.createElement('div');
-                tooltip.className = 'garantia-tooltip';
-                tooltip.textContent = text;
-                e.currentTarget.appendChild(tooltip);
-                
-                setTimeout(() => {
-                    tooltip.classList.add('visible');
-                }, 10);
-            });
-
-            icon.addEventListener('mouseleave', () => {
-                if (tooltip) {
-                    tooltip.classList.remove('visible');
-                    tooltip.addEventListener('transitionend', () => tooltip.remove());
-                }
-            });
-        });
-
-        document.querySelectorAll('.btn-edit-sale').forEach(button => button.addEventListener('click', e => { const row = e.currentTarget.closest('tr'); const saleItem = JSON.parse(row.dataset.saleItem.replace(/\\'/g, "'")); promptToEditSale(saleItem, row.dataset.saleId); }));
-        
-        document.querySelectorAll('.btn-delete-sale').forEach(button => button.addEventListener('click', e => { 
-            const row = e.currentTarget.closest('tr'); 
-            const saleItem = JSON.parse(row.dataset.saleItem.replace(/\\'/g, "'")); 
-            const message = `Producto: ${saleItem.producto.modelo}\nIMEI: ${saleItem.imei_vendido}\n\nEsta acción devolverá el equipo al stock y eliminará la venta permanentemente.`; 
-            
-            // ===== ESTA ES LA LÍNEA MODIFICADA =====
-            showConfirmationModal('¿Seguro que quieres revertir esta venta?', message, () => deleteSale(row.dataset.saleId)); 
-        }));
-    
-    } catch (error) { 
-        handleDBError(error, s.salesTableContainer, "ventas"); 
-    } finally { 
-        toggleSpinner(s.btnApplySalesFilters, false); 
-    }
+            return `<tr data-sale-id="${doc.id}" data-sale-item='${ventaJSON}'><td>${fechaFormateada}</td><td>${venta.producto.modelo || ''} ${venta.producto.color || ''}</td><td>${venta.nombre_cliente || '-'}</td><td>${venta.vendedor}</td><td>${formatearUSD(venta.precio_venta_usd)}</td><td>${venta.metodo_pago}</td><td class="garantia-cell">${garantiaHtml}</td><td class="actions-cell"><button class="edit-btn btn-edit-sale" title="Editar Venta"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button><button class="delete-btn btn-delete-sale" title="Revertir Venta"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button></td></tr>`;
+        },
+        setupEventListeners: () => {
+             document.querySelectorAll('.garantia-icon').forEach(icon => { let tooltip = null; icon.addEventListener('mouseenter', (e) => { const text = e.currentTarget.dataset.tooltip; tooltip = document.createElement('div'); tooltip.className = 'garantia-tooltip'; tooltip.textContent = text; e.currentTarget.appendChild(tooltip); setTimeout(() => { tooltip.classList.add('visible'); }, 10); }); icon.addEventListener('mouseleave', () => { if (tooltip) { tooltip.classList.remove('visible'); tooltip.addEventListener('transitionend', () => tooltip.remove()); } }); });
+            document.querySelectorAll('.btn-edit-sale').forEach(button => button.addEventListener('click', e => { const row = e.currentTarget.closest('tr'); const saleItem = JSON.parse(row.dataset.saleItem.replace(/\\'/g, "'")); promptToEditSale(saleItem, row.dataset.saleId); }));
+            document.querySelectorAll('.btn-delete-sale').forEach(button => button.addEventListener('click', e => { const row = e.currentTarget.closest('tr'); const saleItem = JSON.parse(row.dataset.saleItem.replace(/\\'/g, "'")); const message = `Producto: ${saleItem.producto.modelo}\nIMEI: ${saleItem.imei_vendido}\n\nEsta acción devolverá el equipo al stock y eliminará la venta permanentemente.`; showConfirmationModal('¿Seguro que quieres revertir esta venta?', message, () => deleteSale(row.dataset.saleId)); }));
+        }
+    });
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
 function promptToEditSale(sale, saleId) {
     const vendedoresOptions = vendedores.map(v => `<option value="${v}" ${sale.vendedor === v ? 'selected' : ''}>${v}</option>`).join('');
     const pagoOptions = metodosDePago.map(p => `<option value="${p}" ${sale.metodo_pago === p ? 'selected' : ''}>${p}</option>`).join('');
-    s.promptContainer.innerHTML = `<div class="container container-sm" style="margin:auto;"><div class="prompt-box"><h3>Editar Venta</h3><form id="edit-sale-form"><div class="details-box"><div class="detail-item"><span>Producto:</span> <strong>${sale.producto.modelo || ''}</strong></div><div class="detail-item"><span>IMEI:</span> <strong>${sale.imei_vendido}</strong></div></div><div class="form-group"><label for="precioVenta">Precio (USD)</label><input type="number" name="precioVenta" required value="${sale.precio_venta_usd || ''}"></div><div class="form-group"><label for="metodoPago">Método de Pago</label><select name="metodoPago" required>${pagoOptions}</select></div><div id="pesos-efectivo-fields" class="payment-details-group hidden"><div class="form-group"><label>Monto Efectivo (ARS)</label><input type="number" name="monto_efectivo" value="${sale.monto_efectivo || ''}"></div></div><div id="pesos-transferencia-fields" class="payment-details-group hidden"><div class="form-group"><label>Monto Transferido (ARS)</label><input type="number" name="monto_transferencia" value="${sale.monto_transferencia || ''}"></div><div class="form-group"><label>Obs. Transferencia</label><textarea name="observaciones_transferencia" rows="2">${sale.observaciones_transferencia || ''}</textarea></div></div><div id="cotizacion-dolar-field" class="form-group hidden"><label for="cotizacion_dolar">Cotización Dólar</label><input type="number" name="cotizacion_dolar" value="${sale.cotizacion_dolar || ''}"></div><div class="form-group"><label for="vendedor">Vendedor</label><select name="vendedor" required>${vendedoresOptions}</select></div><div id="comision-vendedor-field" class="form-group hidden"><label>Comisión Vendedor (USD)</label><input type="number" name="comision_vendedor_usd" value="${sale.comision_vendedor_usd || ''}"></div><div class="prompt-buttons"><button type="submit" class="prompt-button confirm spinner-btn"><span class="btn-text">Actualizar Venta</span><div class="spinner"></div></button><button type="button" class="prompt-button cancel">Cancelar</button></div></form></div></div>`;
+    
+    s.promptContainer.innerHTML = `<div class="container container-sm" style="margin:auto;"><div class="prompt-box"><h3>Editar Venta</h3><form id="edit-sale-form"><div class="details-box"><div class="detail-item"><span>Producto:</span> <strong>${sale.producto.modelo || ''}</strong></div><div class="detail-item"><span>IMEI:</span> <strong>${sale.imei_vendido}</strong></div></div>
+        <div class="form-group"><label for="edit-precioVenta">Precio (USD)</label><input type="number" id="edit-precioVenta" name="precioVenta" required value="${sale.precio_venta_usd || ''}"></div>
+        <div class="form-group"><label for="edit-metodoPago">Método de Pago</label><select id="edit-metodoPago" name="metodoPago" required>${pagoOptions}</select></div>
+        <div id="pesos-efectivo-fields" class="payment-details-group hidden"><div class="form-group"><label for="edit-monto-efectivo">Monto Efectivo (ARS)</label><input type="number" id="edit-monto-efectivo" name="monto_efectivo" value="${sale.monto_efectivo || ''}"></div></div>
+        <div id="pesos-transferencia-fields" class="payment-details-group hidden"><div class="form-group"><label for="edit-monto-transferencia">Monto Transferido (ARS)</label><input type="number" id="edit-monto-transferencia" name="monto_transferencia" value="${sale.monto_transferencia || ''}"></div><div class="form-group"><label for="edit-obs-transferencia">Obs. Transferencia</label><textarea id="edit-obs-transferencia" name="observaciones_transferencia" rows="2">${sale.observaciones_transferencia || ''}</textarea></div></div>
+        <div id="cotizacion-dolar-field" class="form-group hidden"><label for="edit-cotizacion-dolar">Cotización Dólar</label><input type="number" id="edit-cotizacion-dolar" name="cotizacion_dolar" value="${sale.cotizacion_dolar || ''}"></div>
+        <div class="form-group"><label for="edit-vendedor">Vendedor</label><select id="edit-vendedor" name="vendedor" required>${vendedoresOptions}</select></div>
+        <div id="comision-vendedor-field" class="form-group hidden"><label for="edit-comision-vendedor">Comisión Vendedor (USD)</label><input type="number" id="edit-comision-vendedor" name="comision_vendedor_usd" value="${sale.comision_vendedor_usd || ''}"></div>
+        <div class="prompt-buttons"><button type="submit" class="prompt-button confirm spinner-btn"><span class="btn-text">Actualizar Venta</span><div class="spinner"></div></button><button type="button" class="prompt-button cancel">Cancelar</button></div></form></div></div>`;
+    
     const form = document.getElementById('edit-sale-form');
     const metodoPagoSelect = form.querySelector('[name="metodoPago"]');
     const vendedorSelect = form.querySelector('[name="vendedor"]');
@@ -3885,8 +3983,6 @@ async function updateSale(saleId, btn) {
     }
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA
-// REEMPLAZA ESTA FUNCIÓN COMPLETA
 async function deleteSale(saleId) {
     try {
         await db.runTransaction(async t => {
@@ -3899,25 +3995,35 @@ async function deleteSale(saleId) {
             }
             const saleData = saleDoc.data();
 
-            // 1. Poner el equipo vendido de nuevo en stock
+            // 1. Poner el equipo vendido de nuevo en stock (CON VERIFICACIÓN)
             if (saleData.imei_vendido) {
                 const stockRef = db.collection("stock_individual").doc(saleData.imei_vendido);
-                t.update(stockRef, { estado: 'en_stock' });
+                
+                // --- INICIO DE LA MEJORA ---
+                // Leemos primero el documento de stock antes de intentar actualizarlo.
+                const stockDoc = await t.get(stockRef);
+
+                if (stockDoc.exists) {
+                    // Si el documento existe, lo actualizamos.
+                    t.update(stockRef, { estado: 'en_stock' });
+                } else {
+                    // Si no existe, lo informamos en la consola pero permitimos
+                    // que la transacción continúe para al menos eliminar la venta.
+                    console.warn(`El documento de stock con IMEI ${saleData.imei_vendido} no fue encontrado. No se pudo actualizar su estado, pero la venta se revertirá de todas formas.`);
+                }
+                // --- FIN DE LA MEJORA ---
             }
 
-            // 2. CORRECCIÓN CLAVE: Eliminar el registro pendiente correcto
+            // 2. Eliminar el registro pendiente de canje/reparación si existe
             if (saleData.hubo_canje) {
                 let pendienteRef;
-                // Si la venta tiene la bandera 'canje_a_reparacion', buscamos en 'reparaciones'
                 if (saleData.canje_a_reparacion && saleData.id_reparacion_pendiente) {
                     pendienteRef = db.collection("reparaciones").doc(saleData.id_reparacion_pendiente);
                 } 
-                // Si no, buscamos en la lista normal de pendientes
                 else if (saleData.id_canje_pendiente) {
                     pendienteRef = db.collection("plan_canje_pendientes").doc(saleData.id_canje_pendiente);
                 }
                 
-                // Si encontramos una referencia, la eliminamos
                 if (pendienteRef) {
                     t.delete(pendienteRef);
                 }
@@ -3929,7 +4035,6 @@ async function deleteSale(saleId) {
 
         showGlobalFeedback("Venta revertida y registro pendiente eliminado con éxito.");
         
-        // Actualizamos todas las vistas relevantes
         loadSales();
         updateCanjeCount();
         updateReparacionCount();
@@ -3941,26 +4046,24 @@ async function deleteSale(saleId) {
     }
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA
 async function loadCanjes() {
     s.canjeTableContainer.innerHTML = `<p class="dashboard-loader">Cargando pendientes...</p>`;
     try {
         const query = db.collection("plan_canje_pendientes").where("estado", "==", "pendiente_de_carga").orderBy("fecha_canje", "desc");
         const querySnapshot = await query.get();
-        if (querySnapshot.empty) { s.canjeTableContainer.innerHTML = `<p class="dashboard-loader">No hay equipos pendientes de carga.</p>`; return; }
+        if (querySnapshot.empty) { 
+            s.canjeTableContainer.innerHTML = `<p class="dashboard-loader">No hay equipos pendientes de carga.</p>`; 
+            return; 
+        }
         
         let tableHTML = `<table><thead><tr><th>Fecha Canje</th><th>Modelo Recibido</th><th>Info Venta Asociada</th><th>Valor Toma (USD)</th><th>Acción</th></tr></thead><tbody>`;
         
         querySnapshot.forEach(doc => { 
             const item = doc.data();
             const fechaObj = item.fecha_canje ? item.fecha_canje.toDate() : null;
-            
-            // ===== LÍNEA MODIFICADA PARA INCLUIR LA HORA =====
             let fechaFormateada = fechaObj ? `${String(fechaObj.getDate()).padStart(2, '0')}/${String(fechaObj.getMonth() + 1).padStart(2, '0')}/${fechaObj.getFullYear()}<br><small class="time-muted">${String(fechaObj.getHours()).padStart(2, '0')}:${String(fechaObj.getMinutes()).padStart(2, '0')} hs</small>` : 'N/A';
-            
             let ventaInfo = item.observaciones_canje || '';
             if (item.producto_vendido) ventaInfo = `A cambio de ${item.producto_vendido}. ${ventaInfo}`;
-            
             const itemJSON = JSON.stringify(item).replace(/'/g, "\\'");
             tableHTML += `<tr data-canje-id="${doc.id}" data-item='${itemJSON}'>
                             <td>${fechaFormateada}</td>
@@ -3982,14 +4085,6 @@ async function loadCanjes() {
         });
     } catch (error) { handleDBError(error, s.canjeTableContainer, "pendientes de canje"); }
 }
-
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA
 function cargarCanje(docId, canjeData) {
@@ -4060,11 +4155,12 @@ function startScanner(context = null) {
     });
 }
 
-function promptForManualImeiInput(e, context = null) {
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
+function promptForManualImeiInput(e) {
     if(e) e.preventDefault();
     let promptTitle = 'Ingresar IMEI Manualmente';
-    if (context && context.modelo) promptTitle = `Ingresar IMEI para ${context.modelo}`;
-    else if (batchLoadContext) promptTitle = `Ingresar IMEI para ${batchLoadContext.model}`;
+    if (canjeContext) promptTitle = `Ingresar IMEI para ${canjeContext.modelo}`;
+    else if (batchLoadContext) promptTitle = `Ingresar IMEI para ${batchLoadContext.currentModel}`;
     else if (wholesaleSaleContext) promptTitle = `Ingresar IMEI para venta a ${wholesaleSaleContext.clientName}`;
 
     s.promptContainer.innerHTML = `<div class="container container-sm"><div class="prompt-box"><h3>${promptTitle}</h3><p style="color: var(--text-muted); margin-bottom: 1.5rem; text-align: center;">Escribe el IMEI para buscarlo o agregarlo.</p><div class="form-group"><label for="manual-imei-input">IMEI</label><input type="text" id="manual-imei-input" placeholder="Ingresa el IMEI aquí..."></div><div class="prompt-buttons"><button id="btn-search-manual-imei" class="prompt-button confirm">Buscar / Continuar</button><button class="prompt-button cancel">Cancelar</button></div></div></div>`;
@@ -4079,7 +4175,7 @@ function promptForManualImeiInput(e, context = null) {
             return; 
         } 
         s.promptContainer.innerHTML = ''; 
-        onScanSuccess(imei, context); 
+        onScanSuccess(imei); 
     });
     
     imeiInput.addEventListener('keypress', (event) => { 
@@ -4089,7 +4185,6 @@ function promptForManualImeiInput(e, context = null) {
         } 
     });
 }
-
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
 async function onScanSuccess(imei) {
@@ -4251,14 +4346,13 @@ function promptToSell(imei, details) {
         <div class="form-group">
             <label>Método(s) de Pago</label>
             <div id="payment-methods-container">
-                <div class="payment-option"><label class="toggle-switch-group"><input type="checkbox" name="metodo_pago_check" value="Dólares"><span class="toggle-switch-label">Dólares</span><span class="toggle-switch-slider"></span></label><div class="payment-input-container hidden"><input type="number" name="monto_dolares" placeholder="Monto en USD" step="0.01"></div></div>
-                <div class="payment-option"><label class="toggle-switch-group"><input type="checkbox" name="metodo_pago_check" value="Pesos (Efectivo)"><span class="toggle-switch-label">Pesos (Efectivo)</span><span class="toggle-switch-slider"></span></label><div class="payment-input-container hidden"><input type="number" name="monto_efectivo" placeholder="Monto en ARS" step="0.01"></div></div>
-                <div class="payment-option"><label class="toggle-switch-group"><input type="checkbox" name="metodo_pago_check" value="Pesos (Transferencia)"><span class="toggle-switch-label">Pesos (Transferencia)</span><span class="toggle-switch-slider"></span></label><div class="payment-input-container hidden"><input type="number" name="monto_transferencia" placeholder="Monto en ARS" step="0.01"><textarea name="observaciones_transferencia" rows="2" placeholder="Obs. de transferencia (opcional)" style="margin-top: 10px;"></textarea></div></div>
+                <div class="payment-option"><label class="toggle-switch-group"><input type="checkbox" name="metodo_pago_check" value="Dólares"><span class="toggle-switch-label">Dólares</span><span class="toggle-switch-slider"></span></label><div class="payment-input-container hidden"><input type="number" id="sell-monto-dolares" name="monto_dolares" placeholder="Monto en USD" step="0.01"></div></div>
+                <div class="payment-option"><label class="toggle-switch-group"><input type="checkbox" name="metodo_pago_check" value="Pesos (Efectivo)"><span class="toggle-switch-label">Pesos (Efectivo)</span><span class="toggle-switch-slider"></span></label><div class="payment-input-container hidden"><input type="number" id="sell-monto-efectivo" name="monto_efectivo" placeholder="Monto en ARS" step="0.01"></div></div>
+                <div class="payment-option"><label class="toggle-switch-group"><input type="checkbox" name="metodo_pago_check" value="Pesos (Transferencia)"><span class="toggle-switch-label">Pesos (Transferencia)</span><span class="toggle-switch-slider"></span></label><div class="payment-input-container hidden"><input type="number" id="sell-monto-transferencia" name="monto_transferencia" placeholder="Monto en ARS" step="0.01"><textarea id="sell-obs-transferencia" name="observaciones_transferencia" rows="2" placeholder="Obs. de transferencia (opcional)" style="margin-top: 10px;"></textarea></div></div>
             </div>
         </div>
     `;
 
-    // ===== HTML DEL PLAN CANJE MODIFICADO =====
     const canjeHtml = `
         <hr style="border-color:var(--border-dark);margin:1.5rem 0;">
         <label class="toggle-switch-group">
@@ -4268,11 +4362,10 @@ function promptToSell(imei, details) {
         </label>
         <div id="plan-canje-fields" class="hidden">
             <h4>Detalles del Equipo Recibido</h4>
-            <div class="form-group"><label>Modelo Recibido</label><select name="canje-modelo">${modelosOptions}</select></div>
-            <div class="form-group"><label>Valor Toma (USD)</label><input type="number" name="canje-valor"></div>
-            <div class="form-group"><label>Observaciones</label><textarea name="canje-observaciones" rows="2"></textarea></div>
+            <div class="form-group"><label for="sell-canje-modelo">Modelo Recibido</label><select id="sell-canje-modelo" name="canje-modelo">${modelosOptions}</select></div>
+            <div class="form-group"><label for="sell-canje-valor">Valor Toma (USD)</label><input type="number" id="sell-canje-valor" name="canje-valor"></div>
+            <div class="form-group"><label for="sell-canje-observaciones">Observaciones</label><textarea id="sell-canje-observaciones" name="canje-observaciones" rows="2"></textarea></div>
             
-            <!-- NUEVOS CAMPOS PARA REPARACIÓN DEL CANJE -->
             <label class="toggle-switch-group">
                 <input type="checkbox" id="canje-para-reparar-check" name="canje-para-reparar">
                 <span class="toggle-switch-label">Equipo de Canje Dañado (Enviar a Reparación)</span>
@@ -4291,7 +4384,7 @@ function promptToSell(imei, details) {
         </div>
     `;
 
-    s.promptContainer.innerHTML = `<div class="container container-sm" style="margin:auto;"><div class="prompt-box"><h3>Registrar Venta</h3><form id="sell-form"><div class="details-box"><div class="detail-item"><span>Vendiendo:</span> <strong>${details.modelo || ''}</strong></div><div class="detail-item"><span>IMEI:</span> <strong>${imei}</strong></div></div><div class="form-group"><label>Nombre del Cliente (Opcional)</label><input type="text" name="nombre_cliente"></div><div class="form-group"><label>Precio Venta TOTAL (USD)</label><input type="number" name="precioVenta" required></div>${metodosDePagoHtml}<div class="form-group"><label for="cotizacion_dolar">Cotización Dólar (si aplica)</label><input type="number" name="cotizacion_dolar" placeholder="Ej: 1200"></div><div class="form-group"><label>Vendedor</label><select name="vendedor" required><option value="">Seleccione...</option>${vendedoresOptions}</select></div><div id="comision-vendedor-field" class="form-group hidden"><label>Comisión Vendedor (USD)</label><input type="number" name="comision_vendedor_usd"></div>${canjeHtml}<div class="prompt-buttons"><button type="submit" class="prompt-button confirm spinner-btn"><span class="btn-text">Registrar Venta</span><div class="spinner"></div></button><button type="button" class="prompt-button cancel">Cancelar</button></div></form></div></div>`;
+    s.promptContainer.innerHTML = `<div class="container container-sm" style="margin:auto;"><div class="prompt-box"><h3>Registrar Venta</h3><form id="sell-form"><div class="details-box"><div class="detail-item"><span>Vendiendo:</span> <strong>${details.modelo || ''}</strong></div><div class="detail-item"><span>IMEI:</span> <strong>${imei}</strong></div></div><div class="form-group"><label for="sell-nombre-cliente">Nombre del Cliente (Opcional)</label><input type="text" id="sell-nombre-cliente" name="nombre_cliente"></div><div class="form-group"><label for="sell-precio-venta">Precio Venta TOTAL (USD)</label><input type="number" id="sell-precio-venta" name="precioVenta" required></div>${metodosDePagoHtml}<div class="form-group"><label for="sell-cotizacion-dolar">Cotización Dólar (si aplica)</label><input type="number" id="sell-cotizacion-dolar" name="cotizacion_dolar" placeholder="Ej: 1200"></div><div class="form-group"><label for="sell-vendedor">Vendedor</label><select id="sell-vendedor" name="vendedor" required><option value="">Seleccione...</option>${vendedoresOptions}</select></div><div id="comision-vendedor-field" class="form-group hidden"><label for="sell-comision-vendedor">Comisión Vendedor (USD)</label><input type="number" id="sell-comision-vendedor" name="comision_vendedor_usd"></div>${canjeHtml}<div class="prompt-buttons"><button type="submit" class="prompt-button confirm spinner-btn"><span class="btn-text">Registrar Venta</span><div class="spinner"></div></button><button type="button" class="prompt-button cancel">Cancelar</button></div></form></div></div>`;
     
     const form = document.getElementById('sell-form');
     const vendedorSelect = form.querySelector('[name="vendedor"]');
@@ -4311,15 +4404,13 @@ function promptToSell(imei, details) {
         document.getElementById('plan-canje-fields').classList.toggle('hidden', !e.target.checked); 
     });
 
-    // ===== NUEVO EVENT LISTENER PARA EL CHECKBOX DE REPARACIÓN =====
     document.getElementById('canje-para-reparar-check').addEventListener('change', (e) => {
         document.getElementById('canje-reparacion-fields').classList.toggle('hidden', !e.target.checked);
     });
     
     form.addEventListener('submit', (e) => { e.preventDefault(); registerSale(imei, details, e.target.querySelector('button[type="submit"]')); });
 }
-// REEMPLAZA ESTA FUNCIÓN COMPLETA
-// REEMPLAZA ESTA FUNCIÓN COMPLETA
+
 async function registerSale(imei, productDetails, btn) {
     toggleSpinner(btn, true);
     const form = btn.form;
@@ -4439,8 +4530,6 @@ s.productForm.addEventListener('click', (e) => {
     }
 });
 
-
-// REEMPLAZA ESTA FUNCIÓN COMPLETA
 async function handleProductFormSubmit(e) {
     e.preventDefault();
     const btn = e.target.querySelector('button');
@@ -4495,9 +4584,11 @@ async function handleProductFormSubmit(e) {
                 const stockRef = db.collection("stock_individual").doc(imei);
                 const reparacionRef = db.collection("reparaciones").doc(imei);
                 const [stockDoc, reparacionDoc] = await Promise.all([t.get(stockRef), t.get(reparacionRef)]);
-                if (stockDoc.exists || reparacionDoc.exists) {
-                    throw new Error(`El IMEI ${imei} ya fue cargado previamente.`);
+                
+                if ((stockDoc.exists && stockDoc.data().estado === 'en_stock') || reparacionDoc.exists) {
+                    throw new Error(`El IMEI ${imei} ya se encuentra activo en el stock o en reparación.`);
                 }
+
                 if (paraReparar) {
                     const reparacionData = { ...commonData, estado_reparacion: 'en_proceso', defecto: formData.get('defecto'), repuesto_necesario: formData.get('repuesto') };
                     t.set(reparacionRef, reparacionData);
@@ -4512,13 +4603,16 @@ async function handleProductFormSubmit(e) {
                 }
             });
             
-            // ===== LÓGICA DE FEEDBACK CORREGIDA =====
             if (batchLoadContext && batchLoadContext.currentModel) {
                 const modeloActual = batchLoadContext.currentModel;
                 if (!batchLoadContext.modelosCargados[modeloActual]) {
                     batchLoadContext.modelosCargados[modeloActual] = [];
                 }
                 batchLoadContext.modelosCargados[modeloActual].push(imei);
+                
+                // Actualizamos el contexto del lote con los datos y el costo
+                batchLoadContext.totalCostoAcumulado += costoIndividual;
+                batchLoadContext.itemsCargados.push(commonData);
 
                 const count = batchLoadContext.modelosCargados[modeloActual].length;
                 let message = `¡Éxito! ${modeloActual} añadido. Cargados de este modelo: ${count}`;
@@ -4530,7 +4624,7 @@ async function handleProductFormSubmit(e) {
                 
                 setTimeout(() => { resetManagementView(true); }, 1500);
 
-            } else { // Si NO es carga de lote, redirigir
+            } else {
                 let message = `¡Éxito! ${commonData.modelo} añadido.`;
                 if (paraReparar) {
                     message = `¡Éxito! ${commonData.modelo} enviado a la lista de reparación.`;
@@ -4561,6 +4655,7 @@ async function handleProductFormSubmit(e) {
     }
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 function resetManagementView(isBatchLoad = false, isCanje = false, isWholesaleSale = false) {
     s.promptContainer.innerHTML = '';
     s.feedbackMessage.classList.add('hidden');
@@ -4589,8 +4684,6 @@ function resetManagementView(isBatchLoad = false, isCanje = false, isWholesaleSa
         }
     }
 
-    // --- INICIO DE LA CORRECCIÓN CLAVE ---
-    // Eliminamos CUALQUIER botón de proceso anterior para evitar duplicados.
     const existingEndBtn = s.managementView.querySelector('.control-btn[id^="btn-end-"]');
     if (existingEndBtn) existingEndBtn.remove();
     
@@ -4598,7 +4691,6 @@ function resetManagementView(isBatchLoad = false, isCanje = false, isWholesaleSa
     if (existingTitleBtn && existingTitleBtn.matches('.control-btn')) {
         existingTitleBtn.remove();
     }
-    // --- FIN DE LA CORRECCIÓN CLAVE ---
     
     if (batchLoadContext && batchLoadContext.currentModel) {
         const count = batchLoadContext.modelosCargados[batchLoadContext.currentModel]?.length || 0;
@@ -4610,14 +4702,11 @@ function resetManagementView(isBatchLoad = false, isCanje = false, isWholesaleSa
         endModelLoadBtn.style.backgroundColor = 'var(--info-bg)';
         endModelLoadBtn.textContent = `Finalizar Carga de ${batchLoadContext.currentModel}`;
         
-        // --- LÓGICA DE CLICK CORREGIDA ---
         endModelLoadBtn.onclick = () => {
             batchLoadContext.currentModel = null;
-            // Ocultamos la vista de gestión de IMEI y volvemos a mostrar la pantalla de selección de modelos.
             s.managementView.classList.add('hidden'); 
             showModelSelectionStep(); 
         };
-        // --- FIN DE LÓGICA DE CLICK ---
 
         s.managementTitle.insertAdjacentElement('afterend', endModelLoadBtn);
     }
@@ -4636,14 +4725,85 @@ function resetManagementView(isBatchLoad = false, isCanje = false, isWholesaleSa
         endBtn.id = 'btn-end-process';
         endBtn.className = 'control-btn';
         endBtn.style.backgroundColor = 'var(--success-bg)';
-        endBtn.textContent = 'Finalizar y Registrar Venta';
-        endBtn.onclick = () => finalizeWholesaleSale();
+        endBtn.textContent = 'Finalizar Carga y Registrar Venta';
+        // MODIFICADO: Ahora llama al prompt final
+        endBtn.onclick = () => promptToFinalizeWholesaleSale(); 
         s.managementTitle.insertAdjacentElement('afterend', endBtn);
     }
     
     delete s.productForm.dataset.mode;
     delete s.productForm.dataset.canjeId;
 }
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+function promptToFinalizeWholesaleSale() {
+    if (!wholesaleSaleContext || wholesaleSaleContext.items.length === 0) {
+        showGlobalFeedback("No has agregado ningún equipo a la venta.", "error");
+        return;
+    }
+
+    const { clientName, totalSaleValue } = wholesaleSaleContext;
+
+    const metodosDePagoHtml = `
+        <div class="form-group">
+            <label>Monto(s) que paga AHORA</label>
+            <div id="payment-methods-container">
+                <div class="payment-option"><label class="toggle-switch-group"><input type="checkbox" name="metodo_pago_check" value="Dólares"><span class="toggle-switch-label">Paga con Dólares</span><span class="toggle-switch-slider"></span></label><div class="payment-input-container hidden"><input type="number" name="monto_dolares" placeholder="Monto en USD" step="0.01"></div></div>
+                <div class="payment-option"><label class="toggle-switch-group"><input type="checkbox" name="metodo_pago_check" value="Pesos (Efectivo)"><span class="toggle-switch-label">Paga con Pesos (Efectivo)</span><span class="toggle-switch-slider"></span></label><div class="payment-input-container hidden"><input type="number" name="monto_efectivo" placeholder="Monto en ARS" step="0.01"></div></div>
+                <div class="payment-option"><label class="toggle-switch-group"><input type="checkbox" name="metodo_pago_check" value="Pesos (Transferencia)"><span class="toggle-switch-label">Paga con Pesos (Transf.)</span><span class="toggle-switch-slider"></span></label><div class="payment-input-container hidden"><input type="number" name="monto_transferencia" placeholder="Monto en ARS" step="0.01"></div></div>
+            </div>
+        </div>
+    `;
+
+    s.promptContainer.innerHTML = `
+    <div class="container container-sm wholesale-sale-modal-box">
+        <h3>Finalizar Venta a ${clientName}</h3>
+        <form id="wholesale-sale-finalize-form" novalidate>
+
+            <div class="details-box" style="text-align:center; padding: 1rem; margin-bottom: 2rem;">
+                <div class="detail-item" style="flex-direction: column;">
+                    <span style="font-size: 1rem; color: var(--text-muted);">Monto Total de la Venta</span>
+                    <strong style="font-size: 2.2rem; color: var(--brand-yellow);">${formatearUSD(totalSaleValue)}</strong>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>ID de la Venta (Ej: VTA-050)</label>
+                <input type="text" name="sale_id" required>
+            </div>
+            ${metodosDePagoHtml}
+            <div class="form-group">
+                <label>Cotización del Dólar (si se paga en ARS)</label>
+                <input type="number" name="cotizacion_dolar" placeholder="Ej: 1200">
+            </div>
+            
+            <div class="prompt-buttons">
+                <button type="submit" class="prompt-button confirm spinner-btn">
+                    <span class="btn-text">Confirmar y Guardar Venta</span>
+                    <div class="spinner"></div>
+                </button>
+                <button type="button" class="prompt-button cancel">Cancelar</button>
+            </div>
+        </form>
+    </div>`;
+
+    const form = document.getElementById('wholesale-sale-finalize-form');
+    form.querySelectorAll('input[name="metodo_pago_check"]').forEach(checkbox => {
+        checkbox.addEventListener('change', (e) => {
+            const container = e.target.closest('.payment-option').querySelector('.payment-input-container');
+            container.classList.toggle('hidden', !e.target.checked);
+        });
+    });
+
+    // ===== LÍNEAS ELIMINADAS =====
+    // Se ha quitado el siguiente bloque de código que causaba la duplicación:
+    // form.addEventListener('submit', (e) => {
+    //     e.preventDefault();
+    //     finalizeWholesaleSale(e.target);
+    // });
+    // =============================
+}
+
 
 function showFeedback(message, type = 'info') {
     s.feedbackMessage.textContent = message;
@@ -4652,14 +4812,13 @@ function showFeedback(message, type = 'info') {
 }
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
 async function showWholesaleHistory(clientId, clientName) {
     s.promptContainer.innerHTML = `
     <div class="container wholesale-history-modal">
-        <h3>Historial de Compras</h3>
+        <h3>Historial de Movimientos</h3>
         <p class="client-name-subtitle">${clientName}</p>
         <div id="wholesale-history-content" class="table-container">
-            <p class="dashboard-loader">Cargando historial de compras...</p>
+            <p class="dashboard-loader">Cargando historial...</p>
         </div>
         <div class="prompt-buttons" style="justify-content: center; margin-top: 1.5rem;">
             <button class="prompt-button cancel">Cerrar</button>
@@ -4668,51 +4827,81 @@ async function showWholesaleHistory(clientId, clientName) {
 
     const contentDiv = document.getElementById('wholesale-history-content');
     try {
-        const snapshot = await db.collection('ventas_mayoristas')
+        const salesPromise = db.collection('ventas_mayoristas')
             .where('clienteId', '==', clientId)
-            .orderBy('fecha_venta', 'desc')
+            .get();
+        const paymentsPromise = db.collection('pagos_mayoristas')
+            .where('clienteId', '==', clientId)
             .get();
 
-        if (snapshot.empty) {
-            contentDiv.innerHTML = '<p class="dashboard-loader">Este cliente no tiene compras registradas.</p>';
+        const [salesSnapshot, paymentsSnapshot] = await Promise.all([salesPromise, paymentsPromise]);
+
+        let transactions = [];
+        salesSnapshot.forEach(doc => {
+            const data = doc.data();
+            transactions.push({ ...data, id: doc.id, type: 'venta', date: data.fecha_venta.toDate() });
+        });
+        paymentsSnapshot.forEach(doc => {
+            const data = doc.data();
+            transactions.push({ ...data, id: doc.id, type: 'pago', date: data.fecha.toDate() });
+        });
+
+        transactions.sort((a, b) => b.date - a.date); // Ordenar por fecha, más reciente primero
+
+        if (transactions.length === 0) {
+            contentDiv.innerHTML = '<p class="dashboard-loader">Este cliente no tiene movimientos registrados.</p>';
             return;
         }
-
-        const sales = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
         const tableHTML = `
             <table>
                 <thead>
                     <tr>
                         <th>Fecha</th>
-                        <th>ID Venta</th>
-                        <th>Equipos</th>
-                        <th>Total Venta</th>
+                        <th>Tipo</th>
+                        <th>Detalle</th>
+                        <th style="color: var(--error-bg);">Debe</th>
+                        <th style="color: var(--success-bg);">Haber</th>
                         <th style="text-align:right;">Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
-                    ${sales.map(sale => {
-                        const saleJSON = JSON.stringify(sale).replace(/'/g, "\\'");
-                        return `
-                        <tr data-sale-id="${sale.id}" data-sale-item='${saleJSON}'>
-                            <td>${sale.fecha_venta.toDate().toLocaleString('es-AR')}</td>
-                            <td>${sale.venta_id_manual}</td>
-                            <td>${sale.cantidad_equipos}</td>
-                            <td>${formatearUSD(sale.total_venta_usd)}</td>
-                            <td class="actions-cell">
-                                <!-- Botón "Ver Detalle" ahora es funcional -->
-                                <button class="control-btn btn-view-sale-detail" style="background-color: var(--info-bg);">Ver Detalle</button>
-                                <button class="control-btn btn-revert-sale">Revertir</button>
-                            </td>
-                        </tr>
-                    `}).join('')}
+                    ${transactions.map(item => {
+                        if (item.type === 'venta') {
+                            const saleJSON = JSON.stringify(item).replace(/'/g, "\\'");
+                            return `
+                            <tr data-sale-id="${item.id}" data-sale-item='${saleJSON}'>
+                                <td>${item.date.toLocaleString('es-AR')}</td>
+                                <td>Venta</td>
+                                <td>ID: ${item.venta_id_manual} (${item.cantidad_equipos} equipos)</td>
+                                <td>${formatearUSD(item.total_venta_usd)}</td>
+                                <td>${formatearUSD(item.pago_recibido.total_pagado_usd || 0)}</td>
+                                <td class="actions-cell">
+                                    <button class="control-btn btn-view-sale-detail" style="background-color: var(--info-bg);">Ver Detalle</button>
+                                    <button class="control-btn btn-revert-sale">Revertir</button>
+                                </td>
+                            </tr>`;
+                        } else { // type === 'pago'
+                            return `
+                            <tr class="payment-row">
+                                <td>${item.date.toLocaleString('es-AR')}</td>
+                                <td>Pago</td>
+                                <td>${item.notas || 'Pago a cuenta'}</td>
+                                <td></td>
+                                <td style="color: var(--success-bg); font-weight: bold;">${formatearUSD(item.monto_total_usd)}</td>
+                                <td class="actions-cell">
+                                    <button class="delete-btn btn-delete-ws-payment" title="Eliminar Pago" disabled>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                    </button>
+                                </td>
+                            </tr>`;
+                        }
+                    }).join('')}
                 </tbody>
             </table>`;
         contentDiv.innerHTML = tableHTML;
         
-        // --- INICIO DE LA MODIFICACIÓN ---
-        // Listener para el nuevo botón "Ver Detalle"
+        // ... (el resto de los listeners para Ver Detalle y Revertir quedan igual)
         contentDiv.querySelectorAll('.btn-view-sale-detail').forEach(button => {
             button.addEventListener('click', (e) => {
                 const row = e.currentTarget.closest('tr');
@@ -4720,7 +4909,6 @@ async function showWholesaleHistory(clientId, clientName) {
                 showWholesaleSaleDetail(row.dataset.saleId, saleItem);
             });
         });
-        // --- FIN DE LA MODIFICACIÓN ---
         
         contentDiv.querySelectorAll('.btn-revert-sale').forEach(button => {
             button.addEventListener('click', (e) => {
@@ -4734,8 +4922,6 @@ async function showWholesaleHistory(clientId, clientName) {
         handleDBError(error, contentDiv, 'historial de compras');
     }
 }
-
-// AÑADE ESTA FUNCIÓN NUEVA A TU SCRIPT.JS
 
 async function showWholesaleSaleDetail(masterSaleId, masterSaleData) {
     s.promptContainer.innerHTML = `
@@ -4903,16 +5089,22 @@ async function resyncWholesaleClientTotal(clientId, clientName) {
     });
 }
 
-// REEMPLAZA ESTA FUNCIÓN EN TU SCRIPT.JS
-
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
 function renderWholesaleClients(clients) {
     s.wholesaleClientsListContainer.innerHTML = clients.map(client => {
         const totalComprado = client.total_comprado_usd || 0;
+        const deuda = client.deuda_usd || 0;
         const ultimaCompra = client.fecha_ultima_compra ? new Date(client.fecha_ultima_compra.seconds * 1000).toLocaleDateString('es-AR') : 'Nunca';
         
         const deleteTitle = 'Eliminar Cliente y todas sus ventas asociadas';
+
+        const debtHtml = `
+            <div class="provider-card-debt">
+                <div class="debt-label" style="color: var(--error-bg);">Saldo Deudor</div>
+                <div class="debt-amount client-debt-value ${deuda === 0 ? 'zero' : ''}" style="color: ${deuda > 0 ? 'var(--error-bg)' : 'var(--success-bg)'};">
+                    ${formatearUSD(deuda)}
+                </div>
+            </div>`;
 
         return `
         <div class="provider-card" data-client-id="${client.id}">
@@ -4922,18 +5114,16 @@ function renderWholesaleClients(clients) {
                     <p>Última Compra: ${ultimaCompra}</p>
                 </div>
                 <button class="delete-icon-btn btn-delete-wholesale-client" title="${deleteTitle}">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="3 6 5 6 21 6"></polyline>
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                        <line x1="10" y1="11" x2="10" y2="17"></line>
-                        <line x1="14" y1="11" x2="14" y2="17"></line>
-                    </svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
                 </button>
             </div>
 
-            <div class="provider-card-debt">
-                <div class="debt-label">Total Comprado</div>
-                <div class="debt-amount" style="color: var(--brand-yellow);">${formatearUSD(totalComprado)}</div>
+            <div style="display: flex; justify-content: space-around; gap: 1rem; margin-bottom: 1rem;">
+                <div class="provider-card-debt" style="flex: 1;">
+                    <div class="debt-label">Total Comprado</div>
+                    <div class="debt-amount" style="color: var(--brand-yellow); font-size: 1.5rem;">${formatearUSD(totalComprado)}</div>
+                </div>
+                ${deuda > 0 ? `<div style="flex: 1;">${debtHtml}</div>` : ''}
             </div>
 
             <div class="provider-card-actions">
@@ -4943,7 +5133,11 @@ function renderWholesaleClients(clients) {
                         <span>Registrar Venta</span>
                     </button>
                 </div>
-                <div class="provider-secondary-actions" style="grid-template-columns: 1fr 1fr;">
+                <div class="provider-secondary-actions" style="grid-template-columns: 1fr 1fr 1fr;">
+                     <button class="control-btn btn-secondary btn-register-ws-payment" title="Registrar Pago a Cuenta" ${deuda <= 0 ? 'disabled' : ''}>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+                        <span>Registrar Pago</span>
+                    </button>
                      <button class="control-btn btn-secondary btn-view-wholesale-history">
                         <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                         <span>Ver Historial</span>
@@ -4957,7 +5151,6 @@ function renderWholesaleClients(clients) {
         </div>`;
     }).join('');
 }
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
 function deleteWholesaleClient(clientId, clientName) {
     const message = `¿Estás seguro de que quieres eliminar al cliente "<strong>${clientName}</strong>"?<br><br><strong style="color: var(--error-bg);">¡ATENCIÓN!</strong> Esta acción es irreversible y también <strong>eliminará TODAS sus ventas asociadas</strong> y devolverá los equipos al stock.`;
@@ -5012,7 +5205,6 @@ function deleteWholesaleClient(clientId, clientName) {
     });
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA
 async function loadReparaciones() {
     s.reparacionTableContainer.innerHTML = `<p class="dashboard-loader">Cargando equipos para reparar...</p>`;
     try {
@@ -5022,7 +5214,6 @@ async function loadReparaciones() {
             return;
         }
 
-        // ===== NUEVA COLUMNA "ORIGEN" AÑADIDA AQUÍ =====
         let tableHTML = `<table><thead><tr><th>Fecha Carga</th><th>Modelo</th><th>Origen</th><th>Defecto</th><th>Repuesto Necesario</th><th>Costo (USD)</th><th>Acción</th></tr></thead><tbody>`;
 
         querySnapshot.forEach(doc => {
@@ -5061,8 +5252,6 @@ async function loadReparaciones() {
     }
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA
-// REEMPLAZA ESTA FUNCIÓN COMPLETA
 async function marcarComoReparado(itemId, itemData) {
     showGlobalFeedback("Moviendo equipo a stock...", "loading");
     try {
@@ -5194,5 +5383,286 @@ async function saveFinalizedReparacion(form) {
         showGlobalFeedback("Error al mover el equipo a stock. Revisa la consola.", "error");
     } finally {
         toggleSpinner(btn, false);
+    }
+}
+
+// REEMPLAZA TU FUNCIÓN loadSales ACTUAL POR ESTA
+async function loadSales(direction = 'first') {
+    const type = 'sales';
+
+    const newFiltersJSON = JSON.stringify([s.filterSalesVendedor.value, s.filterSalesStartDate.value, s.filterSalesEndDate.value]);
+    if (!paginationState[type] || paginationState[type].lastFilters !== newFiltersJSON) {
+        direction = 'first';
+    }
+    
+    if (direction === 'first') {
+        paginationState[type] = {
+            lastFilters: newFiltersJSON,
+            currentPage: 1,
+            lastVisible: null,
+            pageHistory: [null]
+        };
+    }
+    
+    const filters = [];
+    if (s.filterSalesStartDate.value) filters.push(['fecha_venta', '>=', new Date(s.filterSalesStartDate.value + 'T00:00:00')]);
+    if (s.filterSalesEndDate.value) filters.push(['fecha_venta', '<=', new Date(s.filterSalesEndDate.value + 'T23:59:59')]);
+    if (s.filterSalesVendedor.value) filters.push(['vendedor', '==', s.filterSalesVendedor.value]);
+
+    await loadPaginatedData({
+        type: type,
+        collectionName: 'ventas',
+        filters: filters,
+        orderByField: 'fecha_venta',
+        orderByDirection: 'desc',
+        direction: direction,
+        renderFunction: (doc) => {
+            const venta = doc.data();
+            const fechaObj = venta.fecha_venta ? venta.fecha_venta.toDate() : new Date();
+            let fechaFormateada = `${String(fechaObj.getDate()).padStart(2, '0')}/${String(fechaObj.getMonth() + 1).padStart(2, '0')}/${fechaObj.getFullYear()}<br><small class="time-muted">${String(fechaObj.getHours()).padStart(2, '0')}:${String(fechaObj.getMinutes()).padStart(2, '0')} hs</small>`;
+            const hoy = new Date();
+            const diffDias = Math.floor((hoy.getTime() - fechaObj.getTime()) / (1000 * 3600 * 24));
+            const diasRestantes = 30 - diffDias;
+
+            let garantiaHtml = '';
+            if (diasRestantes > 0) {
+                garantiaHtml = `<div class="garantia-icon" data-tooltip="Quedan ${diasRestantes} día${diasRestantes > 1 ? 's' : ''} de garantía"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2ecc71" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><polyline points="9 12 12 15 15 9"></polyline></svg></div>`;
+            } else {
+                garantiaHtml = `<div class="garantia-icon" data-tooltip="Garantía vencida"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#e74c3c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg></div>`;
+            }
+            const ventaJSON = JSON.stringify(venta).replace(/'/g, "\\'");
+            return `<tr data-sale-id="${doc.id}" data-sale-item='${ventaJSON}'><td>${fechaFormateada}</td><td>${venta.producto.modelo || ''} ${venta.producto.color || ''}</td><td>${venta.nombre_cliente || '-'}</td><td>${venta.vendedor}</td><td>${formatearUSD(venta.precio_venta_usd)}</td><td>${venta.metodo_pago}</td><td class="garantia-cell">${garantiaHtml}</td><td class="actions-cell"><button class="edit-btn btn-edit-sale" title="Editar Venta"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button><button class="delete-btn btn-delete-sale" title="Revertir Venta"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button></td></tr>`;
+        },
+        setupEventListeners: () => {
+             document.querySelectorAll('.garantia-icon').forEach(icon => { let tooltip = null; icon.addEventListener('mouseenter', (e) => { const text = e.currentTarget.dataset.tooltip; tooltip = document.createElement('div'); tooltip.className = 'garantia-tooltip'; tooltip.textContent = text; e.currentTarget.appendChild(tooltip); setTimeout(() => { tooltip.classList.add('visible'); }, 10); }); icon.addEventListener('mouseleave', () => { if (tooltip) { tooltip.classList.remove('visible'); tooltip.addEventListener('transitionend', () => tooltip.remove()); } }); });
+            document.querySelectorAll('.btn-edit-sale').forEach(button => button.addEventListener('click', e => { const row = e.currentTarget.closest('tr'); const saleItem = JSON.parse(row.dataset.saleItem.replace(/\\'/g, "'")); promptToEditSale(saleItem, row.dataset.saleId); }));
+            document.querySelectorAll('.btn-delete-sale').forEach(button => button.addEventListener('click', e => { const row = e.currentTarget.closest('tr'); const saleItem = JSON.parse(row.dataset.saleItem.replace(/\\'/g, "'")); const message = `Producto: ${saleItem.producto.modelo}\nIMEI: ${saleItem.imei_vendido}\n\nEsta acción devolverá el equipo al stock y eliminará la venta permanentemente.`; showConfirmationModal('¿Seguro que quieres revertir esta venta?', message, () => deleteSale(row.dataset.saleId)); }));
+        }
+    });
+}
+
+async function loadPaginatedData(config) {
+    const { type, collectionName, filters, orderByField, orderByDirection = 'asc', direction, renderFunction, setupEventListeners } = config;
+    
+    const s_pagination = s[`${type}PaginationControls`];
+    const s_tableContainer = s[`${type}TableContainer`];
+    const s_itemsPerPage = s[`${type}ItemsPerPage`];
+    const s_prevPage = s[`${type}PrevPage`];
+    const s_nextPage = s[`${type}NextPage`];
+    const s_pageInfo = s[`${type}PageInfo`];
+    const s_filterBtn = type === 'stock' ? s.btnApplyStockFilters : s.btnApplySalesFilters;
+    
+    s_tableContainer.innerHTML = `<p class="dashboard-loader">Cargando...</p>`;
+    toggleSpinner(s_filterBtn, true);
+
+    try {
+        const state = paginationState[type];
+        let itemsPerPage = parseInt(s_itemsPerPage.value);
+        const seeAll = s_itemsPerPage.value === 'all';
+        if (seeAll) itemsPerPage = 500;
+
+        let query = db.collection(collectionName);
+
+        filters.forEach(filter => {
+            query = query.where(filter[0], filter[1], filter[2]);
+        });
+        
+        query = query.orderBy(orderByField, orderByDirection);
+
+        if (direction === 'next' && state.lastVisible) {
+            state.currentPage++;
+            state.pageHistory.push(state.lastVisible);
+            query = query.startAfter(state.lastVisible);
+        } else if (direction === 'prev' && state.currentPage > 1) {
+            state.currentPage--;
+            state.pageHistory.pop();
+            const prevPageStart = state.pageHistory[state.pageHistory.length - 1];
+            if (prevPageStart) {
+                query = query.startAfter(prevPageStart);
+            }
+        }
+        
+        query = query.limit(itemsPerPage);
+        const querySnapshot = await query.get();
+
+        s_pagination.classList.remove('hidden');
+
+        if (querySnapshot.empty && state.currentPage === 1) {
+            s_tableContainer.innerHTML = `<p class="dashboard-loader">No se encontraron resultados con los filtros aplicados.</p>`;
+            s_pagination.classList.add('hidden');
+            return;
+        }
+        
+        if (querySnapshot.empty) {
+            s_tableContainer.innerHTML = `<p class="dashboard-loader">No hay más resultados para mostrar.</p>`;
+            s_nextPage.disabled = true;
+            return;
+        }
+
+        let tableHeader = type === 'stock' 
+            ? '<tr><th class="hide-on-mobile">Fecha Carga</th><th>Modelo</th><th class="hide-on-mobile">Proveedor</th><th>Color</th><th class="hide-on-mobile">GB</th><th>Batería</th><th class="hide-on-mobile">Costo (USD)</th><th>Acciones</th></tr>'
+            : '<tr><th>Fecha</th><th>Producto</th><th>Cliente</th><th>Vendedor</th><th>Precio (USD)</th><th>Pago</th><th>Garantía</th><th>Acciones</th></tr>';
+
+        let tableHTML = `<table><thead>${tableHeader}</thead><tbody>`;
+        querySnapshot.forEach(doc => {
+            tableHTML += renderFunction(doc);
+        });
+        s_tableContainer.innerHTML = tableHTML + `</tbody></table>`;
+        
+        state.lastVisible = querySnapshot.docs[querySnapshot.docs.length - 1];
+        
+        s_pageInfo.textContent = `Página ${state.currentPage}`;
+        s_prevPage.disabled = state.currentPage === 1 || seeAll;
+        
+        let nextQuery = db.collection(collectionName);
+        filters.forEach(filter => { nextQuery = nextQuery.where(filter[0], filter[1], filter[2]); });
+        nextQuery = nextQuery.orderBy(orderByField, orderByDirection).startAfter(state.lastVisible).limit(1);
+        const nextSnapshot = await nextQuery.get();
+        s_nextPage.disabled = nextSnapshot.empty || seeAll;
+        
+        if(seeAll) {
+             s_pageInfo.textContent = `Mostrando todos (${querySnapshot.size})`;
+        }
+
+        if (setupEventListeners) setupEventListeners();
+
+    } catch (error) {
+        handleDBError(error, s_tableContainer, type);
+        s_pagination.classList.add('hidden');
+    } finally {
+        toggleSpinner(s_filterBtn, false);
+    }
+}
+
+// AÑADE ESTAS DOS NUEVAS FUNCIONES COMPLETAS A TU SCRIPT.JS
+
+function promptToRegisterWholesalePayment(clientId, clientName, currentDebt) {
+    // Guardamos el contexto del cliente para usarlo al guardar
+    paymentContext = { id: clientId, name: clientName };
+
+    s.promptContainer.innerHTML = `
+        <div class="container container-sm">
+            <div class="prompt-box">
+                <h3>Registrar Pago de ${clientName}</h3>
+                <p>Deuda actual: <strong>${formatearUSD(currentDebt)}</strong></p>
+                <form id="wholesale-payment-form">
+                    <div class="form-group">
+                        <label for="payment-total">Monto del Pago (USD)</label>
+                        <input type="number" id="payment-total" name="total" step="0.01" max="${currentDebt}" required>
+                    </div>
+                    <div class="form-group payment-details-group">
+                        <label>Ingresa a Caja como</label>
+                        <div class="checkbox-group" style="margin-bottom: 0.5rem;"><input type="checkbox" id="pay-usd" name="pay-usd" class="payment-method-cb"><label for="pay-usd">Dólares</label></div>
+                        <div id="pay-usd-fields" class="hidden" style="padding-left: 25px;"><input type="number" name="dolares" placeholder="Monto USD"></div>
+                        
+                        <div class="checkbox-group" style="margin-bottom: 0.5rem;"><input type="checkbox" id="pay-ars-efectivo" name="pay-ars-efectivo" class="payment-method-cb"><label for="pay-ars-efectivo">Pesos (Efectivo)</label></div>
+                        <div id="pay-ars-efectivo-fields" class="hidden" style="padding-left: 25px;"><input type="number" name="efectivo" placeholder="Monto ARS"></div>
+                        
+                        <div class="checkbox-group" style="margin-bottom: 0.5rem;"><input type="checkbox" id="pay-ars-transfer" name="pay-ars-transfer" class="payment-method-cb"><label for="pay-ars-transfer">Pesos (Transferencia)</label></div>
+                        <div id="pay-ars-transfer-fields" class="hidden" style="padding-left: 25px;"><input type="number" name="transferencia" placeholder="Monto ARS"></div>
+                    </div>
+                    <div class="form-group">
+                        <label for="payment-notes">Notas (Opcional)</label>
+                        <textarea id="payment-notes" name="notas" rows="2" placeholder="Ej: Saldo de la VTA-050"></textarea>
+                    </div>
+                    <div class="prompt-buttons">
+                        <button type="submit" class="prompt-button confirm spinner-btn"><span class="btn-text">Registrar Pago</span><div class="spinner"></div></button>
+                        <button type="button" class="prompt-button cancel">Cancelar</button>
+                    </div>
+                </form>
+            </div>
+        </div>`;
+    
+    const form = document.getElementById('wholesale-payment-form');
+    const totalInput = document.getElementById('payment-total');
+    const paymentCheckboxes = form.querySelectorAll('.payment-method-cb');
+
+    paymentCheckboxes.forEach(cb => {
+        cb.addEventListener('change', () => {
+            const fieldsDiv = document.getElementById(`${cb.id}-fields`);
+            if (fieldsDiv) fieldsDiv.classList.toggle('hidden', !cb.checked);
+            
+            if (cb.id === 'pay-usd' && cb.checked && totalInput.value) {
+                form.querySelector('[name="dolares"]').value = totalInput.value;
+            }
+        });
+    });
+
+    totalInput.addEventListener('input', () => {
+        const usdCheckbox = document.getElementById('pay-usd');
+        if (usdCheckbox && usdCheckbox.checked) {
+            form.querySelector('[name="dolares"]').value = totalInput.value;
+        }
+    });
+}
+
+async function saveWholesalePayment(form) {
+    const btn = form.querySelector('button[type="submit"]');
+    toggleSpinner(btn, true);
+
+    const clientId = paymentContext.id;
+    const clientName = paymentContext.name;
+    const formData = new FormData(form);
+    const totalPaymentUSD = parseFloat(formData.get('total'));
+    const notas = (formData.get('notas') || '').trim();
+
+    if (isNaN(totalPaymentUSD) || totalPaymentUSD <= 0) {
+        showGlobalFeedback("El monto del pago debe ser válido y mayor a cero.", "error");
+        toggleSpinner(btn, false);
+        return;
+    }
+
+    const usdAmount = parseFloat(formData.get('dolares')) || 0;
+    const arsEfectivoAmount = parseFloat(formData.get('efectivo')) || 0;
+    const arsTransferAmount = parseFloat(formData.get('transferencia')) || 0;
+
+    if ((usdAmount + arsEfectivoAmount + arsTransferAmount) === 0) {
+        showGlobalFeedback("Debes especificar cómo ingresa el pago a la caja.", "error");
+        toggleSpinner(btn, false);
+        return;
+    }
+
+    try {
+        await db.runTransaction(async t => {
+            const fecha = firebase.firestore.FieldValue.serverTimestamp();
+            const clientRef = db.collection('clientes_mayoristas').doc(clientId);
+            
+            // 1. Actualizar la deuda del cliente
+            t.update(clientRef, { deuda_usd: firebase.firestore.FieldValue.increment(-totalPaymentUSD) });
+
+            // 2. Registrar el pago en un nuevo historial (buena práctica)
+            const pagoRef = db.collection('pagos_mayoristas').doc();
+            t.set(pagoRef, {
+                clienteId: clientId,
+                clienteNombre: clientName,
+                monto_total_usd: totalPaymentUSD,
+                fecha,
+                notas
+            });
+
+            // 3. Registrar el ingreso en la caja
+            const descripcionBase = `Cobranza de C/C a ${clientName}`;
+            if (usdAmount > 0) {
+                t.set(db.collection('ingresos_caja').doc(), { categoria: 'Cobranza Mayorista', descripcion: descripcionBase, monto: usdAmount, metodo: 'Dólares', fecha });
+            }
+            if (arsEfectivoAmount > 0) {
+                t.set(db.collection('ingresos_caja').doc(), { categoria: 'Cobranza Mayorista', descripcion: descripcionBase, monto: arsEfectivoAmount, metodo: 'Pesos (Efectivo)', fecha });
+            }
+            if (arsTransferAmount > 0) {
+                t.set(db.collection('ingresos_caja').doc(), { categoria: 'Cobranza Mayorista', descripcion: descripcionBase, monto: arsTransferAmount, metodo: 'Pesos (Transferencia)', fecha });
+            }
+        });
+
+        showGlobalFeedback('Pago de cliente registrado con éxito.', 'success');
+        s.promptContainer.innerHTML = '';
+        loadWholesaleClients(); // Recargamos para ver la deuda actualizada
+        updateReports(); // Actualizamos los KPIs de caja
+
+    } catch (error) {
+        console.error("Error al registrar el pago del cliente:", error);
+        showGlobalFeedback('Error al registrar el pago.', 'error');
+    } finally {
+        toggleSpinner(btn, false);
+        paymentContext = null;
     }
 }
