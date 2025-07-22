@@ -340,14 +340,10 @@ function addEventListeners() {
     s.btnAddProvider.addEventListener('click', promptToAddProvider);
     s.btnAddWholesaleClient.addEventListener('click', promptToAddWholesaleClient);
 
-    // =======================================================================
-    // === INICIO DEL BLOQUE CORREGIDO PARA LAS TARJETAS DE PROVEEDOR ===
-    // =======================================================================
     s.providersView.addEventListener('click', (e) => {
         const button = e.target.closest('button');
         if (!button) return;
         
-        // CORRECCIÓN 1: Buscar la nueva clase de la tarjeta
         const card = button.closest('.provider-card-modern'); 
         if (!card) return;
 
@@ -355,7 +351,6 @@ function addEventListeners() {
         const providerName = card.querySelector('h3').textContent;
 
         if (button.classList.contains('btn-register-payment')) {
-            // CORRECCIÓN 2: Usar el nuevo selector para la deuda y manejar el caso de deuda cero
             const debtString = card.querySelector('.stat-value.debt')?.textContent || 'US$ 0,00';
             const debtAmount = parseFloat(debtString.replace(/[^0-9,-]+/g,"").replace(',', '.'));
             
@@ -371,18 +366,22 @@ function addEventListeners() {
             deleteProvider(providerId, providerName);
         }
     });
-    // =====================================================================
-    // === FIN DEL BLOQUE CORREGIDO ===
-    // =====================================================================
     
+    // =======================================================================
+    // === INICIO DEL BLOQUE CORREGIDO PARA LA VISTA DE VENTA MAYORISTA ===
+    // =======================================================================
     s.wholesaleView.addEventListener('click', e => {
         const button = e.target.closest('button');
         if (!button) return;
-        const clientCard = button.closest('.provider-card'); 
+    
+        // ----- ESTA ES LA LÍNEA CORREGIDA -----
+        const clientCard = button.closest('.provider-card-modern'); 
+        // ------------------------------------
+    
         if (!clientCard) return;
         const clientId = clientCard.dataset.clientId;
         const clientName = clientCard.querySelector('h3').textContent;
-
+    
         if (button.classList.contains('btn-new-wholesale-sale')) {
             wholesaleSaleContext = {
                 clientId: clientId,
@@ -392,12 +391,13 @@ function addEventListeners() {
             };
             switchView('management', s.tabManagement);
             resetManagementView(false, false, true);
-
+    
         } else if (button.classList.contains('btn-register-ws-payment')) {
-            const debtString = clientCard.querySelector('.client-debt-value').textContent;
+            // ----- CORRECCIÓN PARA LEER LA DEUDA DE LA NUEVA TARJETA -----
+            const debtString = clientCard.querySelector('.stat-value.debt')?.textContent || 'US$ 0,00';
             const debtAmount = parseFloat(debtString.replace(/[^0-9,-]+/g,"").replace(',', '.'));
             promptToRegisterWholesalePayment(clientId, clientName, debtAmount);
-
+    
         } else if (button.classList.contains('btn-view-wholesale-history')) {
             showWholesaleHistory(clientId, clientName);
         } else if (button.classList.contains('btn-resync-client')) {
@@ -406,6 +406,9 @@ function addEventListeners() {
             deleteWholesaleClient(clientId, clientName);
         }
     });
+    // =====================================================================
+    // === FIN DEL BLOQUE CORREGIDO ===
+    // =====================================================================
 
     s.commissionsResultsContainer.addEventListener('click', (e) => {
         const payButton = e.target.closest('.btn-pay-commission');
@@ -5101,63 +5104,63 @@ async function resyncWholesaleClientTotal(clientId, clientName) {
 }
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 function renderWholesaleClients(clients) {
+    // Si no hay clientes, muestra un mensaje amigable
+    if (!clients || clients.length === 0) {
+        s.wholesaleClientsListContainer.innerHTML = `<p class="dashboard-loader">No hay clientes mayoristas. ¡Agrega el primero!</p>`;
+        return;
+    }
+
+    // Usamos la nueva estructura 'provider-card-modern' para cada cliente
     s.wholesaleClientsListContainer.innerHTML = clients.map(client => {
         const totalComprado = client.total_comprado_usd || 0;
         const deuda = client.deuda_usd || 0;
         const ultimaCompra = client.fecha_ultima_compra ? new Date(client.fecha_ultima_compra.seconds * 1000).toLocaleDateString('es-AR') : 'Nunca';
-        
-        const deleteTitle = 'Eliminar Cliente y todas sus ventas asociadas';
-
-        const debtHtml = `
-            <div class="provider-card-debt">
-                <div class="debt-label" style="color: var(--error-bg);">Saldo Deudor</div>
-                <div class="debt-amount client-debt-value ${deuda === 0 ? 'zero' : ''}" style="color: ${deuda > 0 ? 'var(--error-bg)' : 'var(--success-bg)'};">
-                    ${formatearUSD(deuda)}
-                </div>
-            </div>`;
+        const deleteTitle = 'Eliminar Cliente (irreversible)';
 
         return `
-        <div class="provider-card" data-client-id="${client.id}">
-            <div class="provider-card-header">
-                <div class="provider-card-info">
+        <div class="provider-card-modern" data-client-id="${client.id}">
+            
+            <div class="pcm-header">
+                <div class="pcm-info">
                     <h3>${client.nombre}</h3>
                     <p>Última Compra: ${ultimaCompra}</p>
                 </div>
-                <button class="delete-icon-btn btn-delete-wholesale-client" title="${deleteTitle}">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                <button class="pcm-delete-btn btn-delete-wholesale-client" title="${deleteTitle}">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                 </button>
             </div>
 
-            <div style="display: flex; justify-content: space-around; gap: 1rem; margin-bottom: 1rem;">
-                <div class="provider-card-debt" style="flex: 1;">
-                    <div class="debt-label">Total Comprado</div>
-                    <div class="debt-amount" style="color: var(--brand-yellow); font-size: 1.5rem;">${formatearUSD(totalComprado)}</div>
+            <div class="pcm-stats">
+                <div class="stat-item">
+                    <span class="stat-label">Total Comprado</span>
+                    <span class="stat-value" style="color: var(--brand-yellow);">${formatearUSD(totalComprado)}</span>
                 </div>
-                ${deuda > 0 ? `<div style="flex: 1;">${debtHtml}</div>` : ''}
+                <div class="stat-item">
+                    <span class="stat-label">Saldo Deudor</span>
+                    <span class="stat-value ${deuda === 0 ? 'zero' : 'debt'}">${formatearUSD(deuda)}</span>
+                </div>
             </div>
 
-            <div class="provider-card-actions">
-                <div class="provider-primary-action">
-                    <button class="control-btn btn-new-wholesale-sale">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                        <span>Registrar Venta</span>
-                    </button>
-                </div>
-                <div class="provider-secondary-actions" style="grid-template-columns: 1fr 1fr 1fr;">
-                     <button class="control-btn btn-secondary btn-register-ws-payment" title="Registrar Pago a Cuenta" ${deuda <= 0 ? 'disabled' : ''}>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
-                        <span>Registrar Pago</span>
-                    </button>
-                     <button class="control-btn btn-secondary btn-view-wholesale-history">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                        <span>Ver Historial</span>
-                    </button>
-                     <button class="control-btn btn-secondary btn-resync-client" title="Recalcular Total Comprado">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
-                        <span>Resincronizar</span>
-                    </button>
-                </div>
+            <button class="pcm-primary-action btn-new-wholesale-sale" style="margin-bottom: 1rem;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                <span>Registrar Venta</span>
+            </button>
+
+            <div class="pcm-actions">
+                <button class="pcm-action-btn btn-register-ws-payment" title="Registrar Pago a Cuenta" ${deuda <= 0 ? 'disabled' : ''}>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+                    <span>Registrar Pago</span>
+                </button>
+                <button class="pcm-action-btn btn-view-wholesale-history" title="Ver historial de ventas y pagos">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                    <span>Ver Historial</span>
+                </button>
+                <button class="pcm-action-btn btn-resync-client" title="Recalcular el total comprado del cliente">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                    <span>Resincronizar</span>
+                </button>
             </div>
         </div>`;
     }).join('');
