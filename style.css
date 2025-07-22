@@ -2454,3 +2454,262 @@ td.actions-cell {
 .payment-row:hover {
     background-color: #20382a;
 }
+
+/* ======================================================================= */
+/* === ESTILOS MINIMALISTAS PARA TARJETAS DE PROVEEDOR (VERSIÓN CORREGIDA) === */
+/* ======================================================================= */
+
+/* Ocultamos las tarjetas con el estilo antiguo por si queda alguna */
+.provider-card {
+    display: none;
+}
+
+/* La nueva tarjeta principal */
+.provider-card-modern {
+    background-color: var(--container-dark);
+    border: 1px solid var(--border-dark);
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.2s ease-in-out;
+}
+
+.provider-card-modern:hover {
+    border-color: #3a3a3a;
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px rgba(0,0,0,0.3);
+}
+
+/* Encabezado */
+.pcm-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-dark);
+}
+
+.pcm-info h3 {
+    margin: 0;
+    color: var(--text-light);
+    font-size: 1.6rem;
+    font-weight: 600;
+}
+
+.pcm-info p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+/* Botón de eliminar (sutil) */
+.pcm-delete-btn {
+    background: transparent;
+    border: none;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+.pcm-delete-btn svg {
+    stroke: var(--text-muted);
+    transition: stroke 0.2s;
+}
+.pcm-delete-btn:hover {
+    background-color: var(--error-bg);
+}
+.pcm-delete-btn:hover svg {
+    stroke: white;
+}
+.pcm-delete-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+    background-color: transparent !important;
+}
+.pcm-delete-btn:disabled svg {
+    stroke: var(--text-muted) !important;
+}
+
+/* Sección de estadísticas (la parte de las "líneas") */
+.pcm-stats {
+    display: flex;
+    padding: 1.5rem 0;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid var(--border-dark);
+}
+
+.stat-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0 1rem; /* <-- AÑADE ESTA LÍNEA */
+}
+
+.stat-item:first-child {
+    border-right: 1px solid var(--border-dark);
+}
+
+.stat-label {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.stat-value {
+    font-size: 2.2rem;
+    font-weight: 700;
+    line-height: 1;
+}
+.stat-value.debt { color: var(--error-bg); }
+.stat-value.zero { color: var(--success-bg); }
+
+
+/* === INICIO DE LA CORRECCIÓN PARA EL BOTÓN PRINCIPAL === */
+
+/* Botón de acción principal (estilo 'outline' por defecto) */
+.pcm-primary-action {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.8rem 1.2rem;
+    border-radius: 8px;
+    
+    /* ESTADO POR DEFECTO: Transparente con borde y texto de color */
+    background: transparent !important; /* Forzamos el fondo transparente */
+    border: 2px solid var(--brand-yellow);
+    color: var(--brand-yellow);
+    
+    font-weight: bold;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+}
+
+.pcm-primary-action svg {
+    stroke: var(--brand-yellow); /* Icono del mismo color que el texto */
+    transition: all 0.2s ease-in-out;
+}
+
+/* ESTADO HOVER: Se rellena de color y el texto/icono se vuelve negro */
+.pcm-primary-action:hover {
+    background: var(--brand-yellow) !important;
+    color: #000;
+}
+
+.pcm-primary-action:hover svg {
+    stroke: #000;
+}
+
+/* === FIN DE LA CORRECCIÓN === */
+
+
+/* Barra de acciones secundarias (iconos) */
+.pcm-actions {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    margin-top: auto;
+}
+
+.pcm-action-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    width: 100px;
+    border-radius: 8px;
+    transition: all 0.2s ease-in-out;
+}
+.pcm-action-btn svg {
+    width: 28px;
+    height: 28px;
+    stroke-width: 1.5;
+    transition: stroke 0.2s ease-in-out;
+}
+
+.pcm-action-btn:hover {
+    color: var(--brand-yellow);
+    background-color: rgba(253, 209, 0, 0.07);
+}
+.pcm-action-btn:hover svg {
+    stroke: var(--brand-yellow);
+}
+
+.pcm-action-btn:disabled {
+    color: #444;
+    cursor: not-allowed;
+    background-color: transparent !important;
+}
+.pcm-action-btn:disabled svg {
+    stroke: #444 !important;
+}
+
+/* ======================================================================= */
+/* === ESTILO MINIMALISTA PARA EL BOTÓN 'AGREGAR PROVEEDOR' === */
+/* ======================================================================= */
+
+/*
+  Este bloque apunta específicamente al botón "+ Agregar Proveedor" por su ID
+  para darle un estilo único y moderno.
+*/
+#btn-add-provider {
+    /* Quitamos el fondo sólido y lo hacemos transparente */
+    background: transparent !important;
+    
+    /* Añadimos un borde sutil con el color de éxito */
+    border: 2px solid var(--success-bg);
+    
+    /* El texto ahora toma el color del borde */
+    color: var(--success-bg);
+
+    /* Ajustes para que no ocupe todo el ancho */
+    width: auto;
+    padding: 0.8rem 1.5rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+
+    /* Añadimos un ícono '+' para mejorar la visual */
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    
+    /* Transición suave para el efecto hover */
+    transition: all 0.2s ease-in-out;
+}
+
+/* Le damos forma al ícono '+' que vamos a añadir con JavaScript */
+#btn-add-provider::before {
+    content: '+';
+    font-size: 1.5rem;
+    font-weight: 300;
+    line-height: 1;
+}
+
+/* 
+  Efecto al pasar el mouse:
+  El botón se rellena con el color verde y el texto se vuelve blanco.
+*/
+#btn-add-provider:hover {
+    background: var(--success-bg) !important;
+    color: var(--text-light);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+}

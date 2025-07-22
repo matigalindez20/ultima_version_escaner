@@ -210,7 +210,8 @@ function populateAllSelects() {
     populateSelect(s.proveedorFormSelect, proveedoresConCanje, "Selecciona..."); 
 }
 
-// REEMPLAZA TU FUNCIÓN addEventListeners COMPLETA POR ESTA VERSIÓN
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU ARCHIVO SCRIPT.JS
+
 function addEventListeners() {
     s.logoutButton.addEventListener('click', () => auth.signOut());
     
@@ -339,15 +340,25 @@ function addEventListeners() {
     s.btnAddProvider.addEventListener('click', promptToAddProvider);
     s.btnAddWholesaleClient.addEventListener('click', promptToAddWholesaleClient);
 
+    // =======================================================================
+    // === INICIO DEL BLOQUE CORREGIDO PARA LAS TARJETAS DE PROVEEDOR ===
+    // =======================================================================
     s.providersView.addEventListener('click', (e) => {
         const button = e.target.closest('button');
         if (!button) return;
-        const card = button.closest('.provider-card');
+        
+        // CORRECCIÓN 1: Buscar la nueva clase de la tarjeta
+        const card = button.closest('.provider-card-modern'); 
         if (!card) return;
+
         const providerId = card.dataset.providerId;
         const providerName = card.querySelector('h3').textContent;
+
         if (button.classList.contains('btn-register-payment')) {
-            const debtAmount = parseFloat(card.querySelector('.debt-amount').textContent.replace(/[^0-9,-]+/g,"").replace(',', '.'));
+            // CORRECCIÓN 2: Usar el nuevo selector para la deuda y manejar el caso de deuda cero
+            const debtString = card.querySelector('.stat-value.debt')?.textContent || 'US$ 0,00';
+            const debtAmount = parseFloat(debtString.replace(/[^0-9,-]+/g,"").replace(',', '.'));
+            
             paymentContext = { id: providerId, name: providerName };
             promptToRegisterPayment(providerName, debtAmount);
         } else if (button.classList.contains('btn-batch-load')) {
@@ -360,6 +371,9 @@ function addEventListeners() {
             deleteProvider(providerId, providerName);
         }
     });
+    // =====================================================================
+    // === FIN DEL BLOQUE CORREGIDO ===
+    // =====================================================================
     
     s.wholesaleView.addEventListener('click', e => {
         const button = e.target.closest('button');
@@ -380,9 +394,7 @@ function addEventListeners() {
             resetManagementView(false, false, true);
 
         } else if (button.classList.contains('btn-register-ws-payment')) {
-            // ===== ESTA ES LA LÍNEA CORREGIDA =====
             const debtString = clientCard.querySelector('.client-debt-value').textContent;
-            // ======================================
             const debtAmount = parseFloat(debtString.replace(/[^0-9,-]+/g,"").replace(',', '.'));
             promptToRegisterWholesalePayment(clientId, clientName, debtAmount);
 
@@ -1832,61 +1844,60 @@ async function loadProviders() {
     }
 }
 
-// REEMPLAZA ESTA FUNCIÓN EN TU SCRIPT.JS
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
 function renderProviders(providers) {
     s.providersListContainer.innerHTML = providers.map(provider => {
         const debt = provider.deuda_usd || 0;
-        const deleteTitle = debt !== 0 ? 'No se puede eliminar un proveedor con deuda pendiente' : 'Eliminar Proveedor';
+        const deleteTitle = debt > 0 ? 'No se puede eliminar un proveedor con deuda pendiente' : 'Eliminar Proveedor';
         
+        // --- INICIO DE LA NUEVA ESTRUCTURA HTML ---
         return `
-        <div class="provider-card" data-provider-id="${provider.id}">
-            <div class="provider-card-header">
-                <div class="provider-card-info">
+        <div class="provider-card-modern" data-provider-id="${provider.id}">
+            
+            <div class="pcm-header">
+                <div class="pcm-info">
                     <h3>${provider.nombre}</h3>
-                    <p>Contacto: ${provider.contacto || 'No especificado'}</p>
+                    <p>${provider.contacto || 'Sin contacto especificado'}</p>
                 </div>
-                <!-- === ESTE ES EL BOTÓN CORREGIDO === -->
-                <button class="delete-icon-btn btn-delete-provider" title="${deleteTitle}" ${debt !== 0 ? 'disabled' : ''}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="3 6 5 6 21 6"></polyline>
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                        <line x1="10" y1="11" x2="10" y2="17"></line>
-                        <line x1="14" y1="11" x2="14" y2="17"></line>
-                    </svg>
+                <button class="pcm-delete-btn btn-delete-provider" title="${deleteTitle}" ${debt > 0 ? 'disabled' : ''}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                 </button>
             </div>
 
-            <div class="provider-card-debt">
-                <div class="debt-label">Deuda Pendiente</div>
-                <div class="debt-amount ${debt === 0 ? 'zero' : ''}">${formatearUSD(debt)}</div>
+            <div class="pcm-stats">
+                <div class="stat-item">
+                    <span class="stat-label">Deuda Pendiente</span>
+                    <span class="stat-value ${debt === 0 ? 'zero' : 'debt'}">${formatearUSD(debt)}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Acción Principal</span>
+                    <button class="pcm-primary-action btn-batch-load">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        <span>Cargar Lote</span>
+                    </button>
+                </div>
             </div>
 
-            <div class="provider-card-actions">
-                <div class="provider-primary-action">
-                    <button class="control-btn btn-batch-load">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                        <span>Carga de Lote</span>
-                    </button>
-                </div>
-                <div class="provider-secondary-actions">
-                    <button class="control-btn btn-secondary btn-register-payment" ${debt === 0 ? 'disabled' : ''}>
-                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
-                        <span>Registrar Pago</span>
-                    </button>
-                     <button class="control-btn btn-secondary btn-view-payments">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                        <span>Ver Pagos</span>
-                    </button>
-                    <button class="control-btn btn-secondary btn-view-batches">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
-                        <span>Ver Lotes</span>
-                    </button>
-                </div>
+            <div class="pcm-actions">
+                <button class="pcm-action-btn btn-register-payment" title="Registrar un pago para saldar la deuda" ${debt === 0 ? 'disabled' : ''}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+                    <span>Registrar Pago</span>
+                </button>
+                <button class="pcm-action-btn btn-view-batches" title="Ver el historial de lotes cargados">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                    <span>Ver Lotes</span>
+                </button>
+                <button class="pcm-action-btn btn-view-payments" title="Ver el historial de pagos realizados">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                    <span>Ver Pagos</span>
+                </button>
             </div>
         </div>`;
+        // --- FIN DE LA NUEVA ESTRUCTURA HTML ---
     }).join('');
 }
+
 
 function promptToAddProvider() {
     s.promptContainer.innerHTML = `
