@@ -2713,3 +2713,71 @@ td.actions-cell {
     transform: translateY(-2px);
     box-shadow: 0 8px 16px rgba(0,0,0,0.2);
 }
+
+/* ======================================================================= */
+/* === AJUSTES RESPONSIVOS PARA TARJETAS DE PROVEEDOR (MÓVIL) === */
+/* ======================================================================= */
+
+@media (max-width: 767px) {
+
+    /* Hacemos que la tarjeta tenga un poco menos de padding en móvil */
+    .provider-card-modern {
+        padding: 1.25rem;
+    }
+
+    /* 
+      LA MAGIA OCURRE AQUÍ:
+      Cambiamos la dirección de la sección de estadísticas a 'columna'
+      para que los elementos se apilen verticalmente.
+    */
+    .pcm-stats {
+        flex-direction: column;
+        align-items: stretch; /* Hacemos que los items ocupen todo el ancho */
+        padding: 0;
+        margin-bottom: 0;
+    }
+
+    /* 
+      Quitamos la línea vertical que separaba los dos items,
+      ya que ahora no tiene sentido.
+    */
+    .stat-item:first-child {
+        border-right: none;
+    }
+
+    /* 
+      Creamos una separación horizontal entre los dos items apilados
+      para que no estén pegados.
+    */
+    .stat-item {
+        padding: 1.25rem 0;
+    }
+    
+    .stat-item:first-child {
+        border-bottom: 1px solid var(--border-dark);
+    }
+    
+    /* Reducimos ligeramente el tamaño de la fuente de la deuda en móviles */
+    .stat-value {
+        font-size: 2rem;
+    }
+
+    /* 
+      Ajustamos la barra de acciones inferior para que los botones
+      no estén tan apretados en pantallas muy pequeñas.
+    */
+    .pcm-actions {
+        padding-top: 1.25rem;
+    }
+
+    .pcm-action-btn {
+        width: auto; /* Dejamos que el ancho sea flexible */
+        flex: 1; /* Hacemos que compartan el espacio disponible */
+        font-size: 0.7rem; /* Un poco más pequeño para que quepa bien */
+    }
+
+    .pcm-action-btn svg {
+        width: 24px;
+        height: 24px;
+    }
+}
