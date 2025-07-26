@@ -2781,3 +2781,330 @@ td.actions-cell {
         height: 24px;
     }
 }
+
+/* ======================================================================= */
+/* ============= INICIO: NUEVO ESTILO PROFESIONAL FINANCIERA ============= */
+/* ======================================================================= */
+
+/* --- Contenedor Principal de la Vista --- */
+#financiera-view {
+    animation: fadeIn 0.5s ease-out;
+}
+
+/* --- Encabezado de la Sección (Título y Botón) --- */
+.financiera-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 1.5rem;
+    margin-bottom: 2rem;
+    border-bottom: 1px solid var(--border-dark);
+}
+
+.financiera-title {
+    font-size: 2rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+/* --- Botón "Crear Cuenta" (Estilo profesional) --- */
+.financiera-btn-add {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.7rem 1.2rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    width: auto;
+    background-color: var(--brand-yellow);
+    color: #000;
+    border: none;
+    transition: all 0.2s ease-in-out;
+}
+.financiera-btn-add:hover {
+    background-color: var(--brand-yellow-hover);
+    transform: translateY(-2px);
+}
+
+/* --- Tarjeta de Balance General (Ahora un KPI sutil) --- */
+.financiera-balance-card {
+    background-color: #111;
+    border: 1px solid var(--border-dark);
+    padding: 1.5rem 2rem;
+    border-radius: var(--border-radius);
+    margin-bottom: 2.5rem;
+}
+.balance-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+.balance-label {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text-muted);
+}
+.balance-amount {
+    font-family: 'SF Mono', 'Courier New', monospace; /* Tipografía para números */
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--brand-yellow);
+    letter-spacing: -1px;
+}
+
+/* --- Contenedor para la LISTA de Cuentas --- */
+.financiera-accounts-grid { /* Reutilizamos la clase, pero la estilizamos como lista */
+    display: flex;
+    flex-direction: column;
+}
+
+/* --- Fila de Cuenta Individual (Reemplaza las tarjetas) --- */
+.account-card { /* Reutilizamos la clase para la fila */
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.25rem 1rem;
+    border-bottom: 1px solid var(--border-dark);
+    transition: background-color 0.2s ease-in-out;
+}
+.account-card:hover {
+    background-color: rgba(253, 209, 0, 0.05); /* Sutil brillo amarillo */
+}
+
+/* Contenedor para Nombre y Alias a la izquierda */
+.account-card-header {
+    flex-grow: 1; /* Ocupa todo el espacio disponible */
+}
+.account-name {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--text-light);
+    display: block; /* Para que el alias se ponga debajo */
+}
+.account-alias {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+
+/* Saldo de la cuenta a la derecha */
+.account-card-balance .balance-value {
+    font-family: 'SF Mono', 'Courier New', monospace; /* Misma fuente que el total */
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-light);
+    white-space: nowrap; /* Evita que el saldo se parta */
+}
+
+/* Acciones (Editar/Eliminar) al final */
+/* Añade esto a tu CSS global o al archivo correspondiente */
+.account-card-actions .action-btn-icon {
+    background: #222; /* o el color que prefieras */
+    color: #fff;      /* hace los íconos blancos */
+    border: none;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 8px;
+    transition: background 0.2s;
+}
+.account-card-actions .action-btn-icon:hover {
+    background: #444;
+}
+
+.account-card-actions {
+    display: flex;
+    gap: 0.5rem;
+    opacity: 1; /* <<<< CORRECCIÓN #1: SIEMPRE VISIBLES */
+    transition: opacity 0.2s ease-in-out;
+}
+
+.action-btn-icon {
+    background-color: #252525;
+    border: 1px solid var(--border-dark);
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+/* Busca esta regla en tu CSS y reemplázala por la siguiente */
+
+.account-card-actions .action-btn-icon,
+.action-btn-icon {
+    width: 48px !important;
+    height: 48px !important;
+    min-width: 48px !important;
+    min-height: 48px !important;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #222;
+    color: #fff;
+    border: none;
+    margin-left: 8px;
+    transition: background 0.2s;
+    font-size: 1.2rem;
+}
+
+.action-btn-icon svg {
+    width: 32px !important;
+    height: 32px !important;
+    stroke: var(--text-light) !important;
+    transition: stroke 0.2s ease;
+}
+.action-btn-icon:hover {
+    border-color: var(--text-light);
+}
+.action-btn-icon:hover svg {
+    stroke: var(--text-light);
+}
+.action-btn-icon.btn-delete-account:hover {
+    border-color: var(--error-bg);
+    background-color: rgba(177, 42, 41, 0.1);
+}
+.action-btn-icon.btn-delete-account:hover svg {
+    stroke: var(--error-bg);
+}
+
+/* ======================================================================= */
+/* ============== FIN: NUEVO ESTILO PROFESIONAL FINANCIERA =============== */
+/* ======================================================================= */
+
+/* ======================================================================= */
+/* =========== ESTILOS PARA MODAL DE CREACIÓN DE CUENTA MODERNO ========== */
+/* ======================================================================= */
+
+#prompt-container .financiera-modal-box {
+    background-color: rgba(29, 29, 29, 0.7);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--border-radius);
+    padding: 2.5rem;
+    max-width: 550px;
+    width: 100%;
+}
+
+#prompt-container .financiera-modal-box h3 {
+    color: var(--brand-yellow);
+    margin-bottom: 3rem;
+    font-size: 1.8rem;
+    text-align: center;
+}
+
+#prompt-container .financiera-modal-box .form-group {
+    position: relative;
+    margin-bottom: 3rem;
+}
+
+#prompt-container .financiera-modal-box label {
+    position: absolute;
+    top: 10px;
+    left: 0;
+    font-size: 1.1rem;
+    color: var(--text-muted);
+    transition: all 0.2s ease-in-out;
+    pointer-events: none;
+}
+
+#prompt-container .financiera-modal-box input[type="text"],
+#prompt-container .financiera-modal-box textarea {
+    background-color: transparent !important;
+    border: none;
+    border-bottom: 2px solid #444;
+    border-radius: 0;
+    padding: 10px 0;
+    font-size: 1.1rem;
+    color: var(--text-light) !important;
+    width: 100%;
+    transition: border-color 0.2s ease-in-out;
+}
+
+#prompt-container .financiera-modal-box input:focus,
+#prompt-container .financiera-modal-box textarea:focus {
+    outline: none;
+    border-bottom-color: var(--brand-yellow);
+}
+
+#prompt-container .financiera-modal-box input:focus + label,
+#prompt-container .financiera-modal-box input:not(:placeholder-shown) + label,
+#prompt-container .financiera-modal-box textarea:focus + label,
+#prompt-container .financiera-modal-box textarea:not(:placeholder-shown) + label {
+    top: -20px;
+    left: 0;
+    font-size: 0.8rem;
+    color: var(--brand-yellow);
+}
+
+#prompt-container .financiera-modal-box textarea {
+    resize: none;
+    overflow-y: hidden;
+    padding-bottom: 8px;
+}
+
+/* ======================================================================= */
+/* =========== ESTILOS PARA EL HISTORIAL DESPLEGABLE DE CUENTAS ========== */
+/* ======================================================================= */
+
+/* Hacemos que la fila de la cuenta sea un cursor de puntero */
+.account-card {
+    cursor: pointer;
+}
+/* Añadimos un pequeño indicador visual para la fila activa */
+.account-card.active {
+    background-color: rgba(253, 209, 0, 0.08) !important;
+    border-color: var(--brand-yellow);
+}
+
+/* El contenedor del desplegable */
+.account-history-container {
+    max-height: 0; /* Por defecto está cerrado */
+    overflow: hidden;
+    transition: max-height 0.5s cubic-bezier(0.25, 0.1, 0.25, 1.0); /* Animación suave */
+    background-color: #111; /* Fondo ligeramente más oscuro para diferenciar */
+}
+
+/* Un wrapper dentro del contenedor para añadir padding */
+.history-content-wrapper {
+    padding: 0 1.5rem 1.5rem 1.5rem;
+    border-bottom: 1px solid var(--border-dark);
+}
+
+/* Estilos para la tabla dentro del desplegable */
+.account-history-container table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+.account-history-container th, .account-history-container td {
+    padding: 0.75rem 0.5rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border-dark);
+}
+.account-history-container th {
+    color: var(--text-muted);
+    font-weight: 500;
+}
+.account-history-container tr:last-child td {
+    border-bottom: none; /* Quitamos la última línea para un look más limpio */
+}
+
+/* AÑADE ESTO AL FINAL DE TU CSS */
+.action-btn-icon.btn-move-money:hover {
+    border-color: var(--success-bg);
+    background-color: rgba(29, 106, 60, 0.1);
+}
+.action-btn-icon.btn-move-money:hover svg {
+    stroke: var(--success-bg);
+}

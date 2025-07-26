@@ -48,6 +48,9 @@
             <div id="tab-providers" class="nav-tab">Proveedores</div>
             <div id="tab-wholesale" class="nav-tab">Venta Mayorista</div>
             <div id="tab-reports" class="nav-tab">Informes</div>
+            <!-- ================== PESTAÑA NUEVA AÑADIDA ================== -->
+            <div id="tab-financiera" class="nav-tab">Financiera</div>
+            <!-- ========================================================== -->
             <div id="tab-management" class="nav-tab">Gestión de IMEI</div>
         </div>
 
@@ -80,7 +83,6 @@
                     <div class="filter-group"><button id="btn-apply-stock-filters">Filtrar Stock</button></div>
                 </div>
                 <div id="stock-table-container" class="table-container"></div>
-                <!-- ===== INICIO: Controles de Paginación para Stock (MODIFICADO) ===== -->
                 <div id="stock-pagination-controls" class="pagination-controls hidden">
                     <select id="stock-items-per-page">
                         <option value="10">10 por página</option>
@@ -97,7 +99,6 @@
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
                     </button>
                 </div>
-                <!-- ===== FIN: Controles de Paginación para Stock (MODIFICADO) ===== -->
             </div>
             <div id="sales-section" class="hidden">
                  <h2>Historial de Ventas</h2>
@@ -114,7 +115,6 @@
                     </div>
                 </div>
                 <div id="sales-table-container" class="table-container"></div>
-                <!-- ===== INICIO: Controles de Paginación para Ventas (MODIFICADO) ===== -->
                 <div id="sales-pagination-controls" class="pagination-controls hidden">
                     <select id="sales-items-per-page">
                         <option value="10">10 por página</option>
@@ -131,7 +131,6 @@
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
                     </button>
                 </div>
-                <!-- ===== FIN: Controles de Paginación para Ventas (MODIFICADO) ===== -->
             </div>
             <div id="commissions-section" class="hidden">
                 <h2>Reporte de Comisiones</h2>
@@ -329,6 +328,39 @@
                 </div>
             </div>
         </div>
+
+        <!-- =================================================================== -->
+        <!-- =================== INICIO: VISTA FINANCIERA ====================== -->
+        <!-- =================================================================== -->
+        <div id="financiera-view" class="hidden">
+
+            <!-- Encabezado de la Sección -->
+            <div class="financiera-header">
+                <h2 class="financiera-title">Cuentas y Balances</h2>
+                <button id="btn-add-account" class="financiera-btn-add">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    <span>Crear Cuenta</span>
+                </button>
+            </div>
+
+            <!-- Tarjeta de Balance General (KPI Principal) -->
+            <div class="financiera-balance-card">
+                <div class="balance-content">
+                    <span class="balance-label">Balance Total en Transferencias</span>
+                    <h3 id="financiera-total-balance" class="balance-amount">Cargando...</h3>
+                </div>
+                <div class="balance-bg-shape"></div>
+            </div>
+            
+            <!-- Contenedor para las Tarjetas de Cuentas Individuales -->
+            <div id="accounts-list-container" class="financiera-accounts-grid">
+                <!-- Las tarjetas de cada cuenta se generarán aquí con JavaScript -->
+            </div>
+
+        </div>
+        <!-- =================================================================== -->
+        <!-- ===================== FIN: VISTA FINANCIERA ======================= -->
+        <!-- =================================================================== -->
 
         <div id="management-view" class="container-sm hidden" style="margin: auto;">
             <h2 id="management-title">Gestión de IMEI</h2>
