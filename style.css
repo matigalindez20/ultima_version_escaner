@@ -3393,3 +3393,59 @@ td.actions-cell {
         margin-top: 0.5rem; /* Un poco más de espacio arriba */
     }
 }
+
+.account-history-container td:last-child {
+    text-align: right;
+}
+
+/* ======================================================================= */
+/* ====== MEJORA RESPONSIVA PARA MODAL DE DETALLES (INFORMES) ========= */
+/* ======================================================================= */
+
+@media (max-width: 767px) {
+    /* Ocultamos la cabecera de la tabla original en el modal */
+    .kpi-detail-modal thead {
+        display: none;
+    }
+
+    /* Cada fila (<tr>) del modal se convierte en una tarjeta */
+    .kpi-detail-modal tr {
+        display: block;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        border-radius: var(--border-radius);
+        background-color: #252525;
+        border: 1px solid var(--border-dark);
+    }
+
+    /* Cada celda (<td>) se apila verticalmente dentro de la tarjeta */
+    .kpi-detail-modal td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.3rem 0;
+        border: none;
+        text-align: right;
+        /* Hacemos que la celda de acciones se alinee al final */
+        flex-wrap: wrap; 
+    }
+    
+    .kpi-detail-modal td.actions-cell {
+        justify-content: flex-end;
+        padding-top: 0.75rem;
+    }
+
+    /* Creamos las etiquetas dinámicas usando el atributo data-label */
+    .kpi-detail-modal td::before {
+        content: attr(data-label);
+        font-weight: 500;
+        color: var(--text-muted);
+        text-align: left;
+        margin-right: 1rem;
+    }
+    
+    /* Evitamos que la etiqueta aparezca en la celda de acciones, ya que no la necesita */
+    .kpi-detail-modal td.actions-cell::before {
+        content: ""; 
+    }
+}

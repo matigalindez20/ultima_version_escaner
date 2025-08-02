@@ -2606,8 +2606,7 @@ function deleteBatch(batchId, batchNumber, providerId, providerName, batchCost) 
     });
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
+// REEMPLAZA ESTA FUNCIÓN COMPLETA (VERSIÓN FINAL Y CORREGIDA)
 async function showKpiDetail(kpiType, period) {
     const now = new Date();
     let startDate, endDate, title = '';
@@ -2629,6 +2628,9 @@ async function showKpiDetail(kpiType, period) {
         const transactions = [];
         const kpiMoneda = kpiType.includes('dolares') ? 'USD' : 'ARS';
         
+        // ===================== INICIO DE LA CORRECCIÓN =====================
+        // Se corrige el error de tipeo en la consulta de 'ingresos_caja'.
+        // Ahora usa 'fecha' para ambos filtros de rango.
         const promises = [
             db.collection('ventas').where('fecha_venta', '>=', startDate).where('fecha_venta', '<=', endDate).get(),
             db.collection('ingresos_caja').where('fecha', '>=', startDate).where('fecha', '<=', endDate).get(),
@@ -2636,42 +2638,16 @@ async function showKpiDetail(kpiType, period) {
             db.collection('ventas_mayoristas').where('fecha_venta', '>=', startDate).where('fecha_venta', '<=', endDate).get(),
             db.collection('movimientos_internos').where('fecha', '>=', startDate).where('fecha', '<=', endDate).get()
         ];
+        // ====================== FIN DE LA CORRECCIÓN =======================
+        
         const [salesSnap, miscIncomesSnap, expensesSnap, wholesaleSalesSnap, internalMovesSnap] = await Promise.all(promises);
         
-        const addTransaction = (data) => {
-            if (data.monto && data.monto > 0) transactions.push(data);
-        };
+        const addTransaction = (data) => { if (data.monto && data.monto > 0) transactions.push(data); };
 
-        salesSnap.forEach(doc => {
-            const venta = doc.data();
-            if (kpiType === 'efectivo_ars') addTransaction({ id: doc.id, fecha: venta.fecha_venta.toDate(), tipo: 'Ingreso', concepto: `Venta: ${venta.producto.modelo}`, monto: venta.monto_efectivo, moneda: kpiMoneda, data: venta, collection: 'ventas' });
-            if (kpiType === 'transferencia_ars') addTransaction({ id: doc.id, fecha: venta.fecha_venta.toDate(), tipo: 'Ingreso', concepto: `Venta: ${venta.producto.modelo}`, monto: venta.monto_transferencia, moneda: kpiMoneda, data: venta, collection: 'ventas' });
-            if (kpiType === 'dolares') addTransaction({ id: doc.id, fecha: venta.fecha_venta.toDate(), tipo: 'Ingreso', concepto: `Venta: ${venta.producto.modelo}`, monto: venta.monto_dolares, moneda: kpiMoneda, data: venta, collection: 'ventas' });
-        });
-        
-        miscIncomesSnap.forEach(doc => {
-            const ingreso = doc.data();
-            if ((kpiType === 'efectivo_ars' && ingreso.metodo === 'Pesos (Efectivo)') || (kpiType === 'transferencia_ars' && ingreso.metodo === 'Pesos (Transferencia)') || (kpiType === 'dolares' && ingreso.metodo === 'Dólares')) {
-                addTransaction({ id: doc.id, fecha: ingreso.fecha.toDate(), tipo: 'Ingreso', concepto: `Ingreso: ${ingreso.categoria}`, monto: ingreso.monto, moneda: kpiMoneda, data: ingreso, collection: 'ingresos_caja' });
-            }
-        });
-
-        wholesaleSalesSnap.forEach(doc => {
-            const sale = doc.data(), payment = sale.pago_recibido || {};
-            let monto = 0, concepto = `Cobranza Mayorista: ${sale.venta_id_manual}`;
-            if (kpiType === 'efectivo_ars') monto = payment.ars_efectivo;
-            if (kpiType === 'transferencia_ars') monto = payment.ars_transferencia;
-            if (kpiType === 'dolares') monto = payment.usd;
-            addTransaction({ id: doc.id, fecha: sale.fecha_venta.toDate(), tipo: 'Ingreso', concepto, monto, moneda: kpiMoneda, data: sale, collection: 'ventas_mayoristas' });
-        });
-        
-        expensesSnap.forEach(doc => {
-            const gasto = doc.data();
-            if ((kpiType === 'efectivo_ars' && gasto.metodo_pago === 'Pesos (Efectivo)') || (kpiType === 'transferencia_ars' && gasto.metodo_pago === 'Pesos (Transferencia)') || (kpiType === 'dolares' && gasto.metodo_pago === 'Dólares')) {
-                addTransaction({ id: doc.id, fecha: gasto.fecha.toDate(), tipo: 'Egreso', concepto: `Gasto: ${gasto.descripcion || gasto.categoria}`, monto: gasto.monto, moneda: kpiMoneda, data: gasto, collection: 'gastos' });
-            }
-        });
-        
+        salesSnap.forEach(doc => { const venta = doc.data(); if (kpiType === 'efectivo_ars') addTransaction({ id: doc.id, fecha: venta.fecha_venta.toDate(), tipo: 'Ingreso', concepto: `Venta: ${venta.producto.modelo}`, monto: venta.monto_efectivo, moneda: kpiMoneda, data: venta, collection: 'ventas' }); if (kpiType === 'transferencia_ars') addTransaction({ id: doc.id, fecha: venta.fecha_venta.toDate(), tipo: 'Ingreso', concepto: `Venta: ${venta.producto.modelo}`, monto: venta.monto_transferencia, moneda: kpiMoneda, data: venta, collection: 'ventas' }); if (kpiType === 'dolares') addTransaction({ id: doc.id, fecha: venta.fecha_venta.toDate(), tipo: 'Ingreso', concepto: `Venta: ${venta.producto.modelo}`, monto: venta.monto_dolares, moneda: kpiMoneda, data: venta, collection: 'ventas' }); });
+        miscIncomesSnap.forEach(doc => { const ingreso = doc.data(); if ((kpiType === 'efectivo_ars' && ingreso.metodo === 'Pesos (Efectivo)') || (kpiType === 'transferencia_ars' && ingreso.metodo === 'Pesos (Transferencia)') || (kpiType === 'dolares' && ingreso.metodo === 'Dólares')) { addTransaction({ id: doc.id, fecha: ingreso.fecha.toDate(), tipo: 'Ingreso', concepto: `Ingreso: ${ingreso.categoria}`, monto: ingreso.monto, moneda: kpiMoneda, data: ingreso, collection: 'ingresos_caja' }); } });
+        wholesaleSalesSnap.forEach(doc => { const sale = doc.data(), payment = sale.pago_recibido || {}; let monto = 0, concepto = `Cobranza Mayorista: ${sale.venta_id_manual}`; if (kpiType === 'efectivo_ars') monto = payment.ars_efectivo; if (kpiType === 'transferencia_ars') monto = payment.ars_transferencia; if (kpiType === 'dolares') monto = payment.usd; addTransaction({ id: doc.id, fecha: sale.fecha_venta.toDate(), tipo: 'Ingreso', concepto, monto, moneda: kpiMoneda, data: sale, collection: 'ventas_mayoristas' }); });
+        expensesSnap.forEach(doc => { const gasto = doc.data(); if ((kpiType === 'efectivo_ars' && gasto.metodo_pago === 'Pesos (Efectivo)') || (kpiType === 'transferencia_ars' && gasto.metodo_pago === 'Pesos (Transferencia)') || (kpiType === 'dolares' && gasto.metodo_pago === 'Dólares')) { addTransaction({ id: doc.id, fecha: gasto.fecha.toDate(), tipo: 'Egreso', concepto: `Gasto: ${gasto.descripcion || gasto.categoria}`, monto: gasto.monto, moneda: kpiMoneda, data: gasto, collection: 'gastos' }); } });
         internalMovesSnap.forEach(doc => {
             const move = doc.data();
             if (kpiType === 'transferencia_ars' && move.cuenta_origen_id) {
@@ -2698,9 +2674,11 @@ async function showKpiDetail(kpiType, period) {
             <tbody>${transactions.map(t => {
                 const deleteButtonHtml = t.collection !== 'movimientos_internos' ? `<button class="delete-btn btn-delete-kpi-item" title="Eliminar/Revertir"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button>` : '';
                 return `<tr data-id="${t.id}" data-type="${t.tipo}" data-collection="${t.collection}" data-item='${JSON.stringify(t.data).replace(/'/g, "\\'")}'>
-                    <td>${t.fecha.toLocaleString('es-AR')}</td><td>${t.tipo}</td><td>${t.concepto}</td>
-                    <td class="${t.tipo === 'Ingreso' ? 'income' : 'outcome'}">${t.tipo === 'Egreso' ? '-' : ''}${t.moneda === 'USD' ? formatearUSD(t.monto) : formatearARS(t.monto)}</td>
-                    <td class="actions-cell">${deleteButtonHtml}</td></tr>`;
+                    <td data-label="Fecha">${t.fecha.toLocaleString('es-AR')}</td>
+                    <td data-label="Tipo">${t.tipo}</td>
+                    <td data-label="Concepto">${t.concepto}</td>
+                    <td data-label="Monto" class="${t.tipo === 'Ingreso' ? 'income' : 'outcome'}">${t.tipo === 'Egreso' ? '-' : ''}${t.moneda === 'USD' ? formatearUSD(t.monto) : formatearARS(t.monto)}</td>
+                    <td data-label="Acciones" class="actions-cell">${deleteButtonHtml}</td></tr>`;
             }).join('')}</tbody></table></div>`;
         detailContent.innerHTML = tableHTML;
 
@@ -2722,7 +2700,7 @@ async function showKpiDetail(kpiType, period) {
     }
 }
 
-// NUEVA FUNCIÓN PARA VER DETALLE DE GANANCIAS
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 async function showProfitDetail(period) {
     const now = new Date();
     let startDate, endDate, title;
@@ -2731,57 +2709,30 @@ async function showProfitDetail(period) {
         startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
         endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
         title = 'Detalle de Ganancias del Día';
-    } else { // 'mes'
+    } else {
         startDate = new Date(now.getFullYear(), now.getMonth(), 1);
         endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
         title = 'Detalle de Ganancias del Mes';
     }
 
-    s.promptContainer.innerHTML = `
-        <div class="container kpi-detail-modal">
-            <h3>${title}</h3>
-            <div id="kpi-profit-detail-content" class="table-container">
-                <p class="dashboard-loader">Cargando detalle de ganancias...</p>
-            </div>
-            <div class="prompt-buttons" style="justify-content: center;">
-                <button class="prompt-button cancel">Cerrar</button>
-            </div>
-        </div>`;
-    
+    s.promptContainer.innerHTML = `<div class="container kpi-detail-modal"><h3>${title}</h3><div id="kpi-profit-detail-content" class="table-container"><p class="dashboard-loader">Cargando detalle de ganancias...</p></div><div class="prompt-buttons" style="justify-content: center;"><button class="prompt-button cancel">Cerrar</button></div></div>`;
     const detailContent = document.getElementById('kpi-profit-detail-content');
 
     try {
-        const salesQuery = db.collection('ventas')
-            .where('fecha_venta', '>=', startDate)
-            .where('fecha_venta', '<=', endDate);
-        
+        const salesQuery = db.collection('ventas').where('fecha_venta', '>=', startDate).where('fecha_venta', '<=', endDate);
         const salesSnapshot = await salesQuery.get();
-
         if (salesSnapshot.empty) {
             detailContent.innerHTML = `<p class="dashboard-loader">No hay ventas con ganancias en este período.</p>`;
             return;
         }
 
-        const costPromises = salesSnapshot.docs.map(saleDoc => 
-            db.collection("stock_individual").doc(saleDoc.data().imei_vendido).get()
-        );
+        const costPromises = salesSnapshot.docs.map(saleDoc => db.collection("stock_individual").doc(saleDoc.data().imei_vendido).get());
         const costDocs = await Promise.all(costPromises);
         const costMap = new Map(costDocs.map(doc => [doc.id, doc.data()?.precio_costo_usd || 0]));
 
-        let tableHTML = `
-            <table>
-                <thead>
-                    <tr>
-                        <th>Producto</th>
-                        <th>Precio Venta</th>
-                        <th>Costo Producto</th>
-                        <th>Comisión</th>
-                        <th>Ganancia Neta</th>
-                    </tr>
-                </thead>
-                <tbody>
-        `;
-
+        // ===================== INICIO DE LA MODIFICACIÓN =====================
+        // Añadimos el atributo 'data-label' a cada celda (<td>)
+        let tableHTML = `<table><thead><tr><th>Producto</th><th>Precio Venta</th><th>Costo Producto</th><th>Comisión</th><th>Ganancia Neta</th></tr></thead><tbody>`;
         salesSnapshot.forEach(doc => {
             const venta = doc.data();
             const precioVenta = venta.precio_venta_usd || 0;
@@ -2789,17 +2740,15 @@ async function showProfitDetail(period) {
             const comision = venta.comision_vendedor_usd || 0;
             const ganancia = precioVenta - costoProducto - comision;
 
-            tableHTML += `
-                <tr>
-                    <td>${venta.producto.modelo || 'Producto Desc.'}</td>
-                    <td class="income">${formatearUSD(precioVenta)}</td>
-                    <td class="outcome">-${formatearUSD(costoProducto)}</td>
-                    <td class="outcome">-${formatearUSD(comision)}</td>
-                    <td style="font-weight:bold; color:var(--brand-yellow);">${formatearUSD(ganancia)}</td>
-                </tr>
-            `;
+            tableHTML += `<tr>
+                    <td data-label="Producto">${venta.producto.modelo || 'Producto Desc.'}</td>
+                    <td data-label="Precio Venta" class="income">${formatearUSD(precioVenta)}</td>
+                    <td data-label="Costo Producto" class="outcome">-${formatearUSD(costoProducto)}</td>
+                    <td data-label="Comisión" class="outcome">-${formatearUSD(comision)}</td>
+                    <td data-label="Ganancia Neta" style="font-weight:bold; color:var(--brand-yellow);">${formatearUSD(ganancia)}</td>
+                </tr>`;
         });
-
+        // ====================== FIN DE LA MODIFICACIÓN =======================
         tableHTML += '</tbody></table>';
         detailContent.innerHTML = tableHTML;
 
@@ -2807,7 +2756,6 @@ async function showProfitDetail(period) {
         handleDBError(error, detailContent, `el detalle de ganancias`);
     }
 }
-
 
 async function deleteSimpleTransaction(id, collectionName, kpiType, period) {
     try {
