@@ -6016,6 +6016,7 @@ function deleteFinancialAccount(accountId) {
     });
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 async function toggleAccountHistory(accountCard, accountId) {
     const historyContainer = s.accountsListContainer.querySelector(`[data-container-for="${accountId}"]`);
     
@@ -6040,93 +6041,36 @@ async function toggleAccountHistory(accountCard, accountId) {
             const ingresosPromise = db.collection('ingresos_caja').where('cuenta_destino_id', '==', accountId).get();
             const transferInPromise = db.collection('movimientos_internos').where('cuenta_destino_id', '==', accountId).get();
             const transferOutPromise = db.collection('movimientos_internos').where('cuenta_origen_id', '==', accountId).get();
-            
-            // ===================== INICIO DE LA MODIFICACIÓN =====================
-            // Añadimos una nueva promesa para buscar los pagos de comisiones que SALIERON de esta cuenta
-            const commissionPaymentsPromise = db.collection('gastos')
-                .where('cuenta_origen_id', '==', accountId)
-                .where('categoria', '==', 'Comisiones')
-                .get();
-            // ====================== FIN DE LA MODIFICACIÓN =======================
+            const commissionPaymentsPromise = db.collection('gastos').where('cuenta_origen_id', '==', accountId).where('categoria', '==', 'Comisiones').get();
             
             const [
-                salesSnapshot, 
-                ingresosSnapshot, 
-                transferInSnapshot, 
-                transferOutSnapshot,
-                commissionPaymentsSnapshot // <-- Nueva variable para los resultados
+                salesSnapshot, ingresosSnapshot, transferInSnapshot, 
+                transferOutSnapshot, commissionPaymentsSnapshot 
             ] = await Promise.all([
-                salesPromise, 
-                ingresosPromise, 
-                transferInPromise, 
-                transferOutPromise,
-                commissionPaymentsPromise // <-- Nueva promesa en la consulta
+                salesPromise, ingresosPromise, transferInPromise, 
+                transferOutPromise, commissionPaymentsPromise 
             ]);
 
             let transactions = [];
-            salesSnapshot.forEach(doc => {
-                const data = doc.data();
-                transactions.push({ 
-                    date: data.fecha_venta.toDate(), 
-                    type: 'Ingreso',
-                    description: `Venta Minorista: ${data.producto.modelo}`,
-                    amount: data.monto_transferencia
-                });
-            });
-            ingresosSnapshot.forEach(doc => {
-                const data = doc.data();
-                transactions.push({ 
-                    date: data.fecha.toDate(), 
-                    type: 'Ingreso',
-                    description: `Ingreso Vario: ${data.categoria}`,
-                    amount: data.monto
-                });
-            });
-            transferInSnapshot.forEach(doc => {
-                const data = doc.data();
-                transactions.push({
-                    date: data.fecha.toDate(),
-                    type: 'Ingreso',
-                    description: `Recibido de: ${data.cuenta_origen_nombre}`,
-                    amount: data.monto_ars
-                });
-            });
+            salesSnapshot.forEach(doc => { const data = doc.data(); transactions.push({ date: data.fecha_venta.toDate(), type: 'Ingreso', description: `Venta: ${data.producto.modelo}`, amount: data.monto_transferencia }); });
+            ingresosSnapshot.forEach(doc => { const data = doc.data(); transactions.push({ date: data.fecha.toDate(), type: 'Ingreso', description: `Ingreso: ${data.categoria}`, amount: data.monto }); });
+            transferInSnapshot.forEach(doc => { const data = doc.data(); transactions.push({ date: data.fecha.toDate(), type: 'Ingreso', description: `Recibido de: ${data.cuenta_origen_nombre}`, amount: data.monto_ars }); });
+            commissionPaymentsSnapshot.forEach(doc => { const data = doc.data(); transactions.push({ date: data.fecha.toDate(), type: 'Egreso', description: `Comisión: ${data.vendedor || 'N/A'}`, amount: -data.monto }); });
             transferOutSnapshot.forEach(doc => {
-                const data = doc.data();
-                let description = '';
-                if (data.tipo === 'Transferencia entre Cuentas') {
-                    description = `Enviado a: ${data.cuenta_destino_nombre}`;
-                } else if (data.tipo === 'Retiro a Caja') {
-                    description = `Retiro a Caja (Efectivo)`;
-                } else if (data.tipo === 'Retiro a Caja (USD)') {
-                    description = `Retiro a Caja (Dólares)`;
-                }
-                transactions.push({
-                    date: data.fecha.toDate(),
-                    type: 'Egreso',
-                    description: description,
-                    amount: -data.monto_ars 
-                });
+                const data = doc.data(); let description = '';
+                if (data.tipo === 'Transferencia entre Cuentas') { description = `Enviado a: ${data.cuenta_destino_nombre}`;
+                } else if (data.tipo === 'Retiro a Caja') { description = `Retiro a Caja (Efectivo)`;
+                } else if (data.tipo === 'Retiro a Caja (USD)') { description = `Retiro a Caja (Dólares)`; }
+                transactions.push({ date: data.fecha.toDate(), type: 'Egreso', description: description, amount: -data.monto_ars });
             });
-
-            // ===================== INICIO DE LA MODIFICACIÓN =====================
-            // Añadimos los pagos de comisiones al array de transacciones
-            commissionPaymentsSnapshot.forEach(doc => {
-                const data = doc.data();
-                transactions.push({
-                    date: data.fecha.toDate(),
-                    type: 'Egreso',
-                    description: `Pago de Comisión: ${data.vendedor || 'N/A'}`,
-                    amount: -data.monto // El 'monto' en ARS del gasto
-                });
-            });
-            // ====================== FIN DE LA MODIFICACIÓN =======================
 
             transactions.sort((a, b) => b.date - a.date);
 
             if (transactions.length === 0) {
-                historyContainer.innerHTML = `<div class="history-content-wrapper"><p class="dashboard-loader">No hay movimientos de transferencia para esta cuenta.</p></div>`;
+                historyContainer.innerHTML = `<div class="history-content-wrapper"><p class="dashboard-loader">No hay movimientos para esta cuenta.</p></div>`;
             } else {
+                // ===================== INICIO DE LA MODIFICACIÓN =====================
+                // Añadimos el atributo 'data-label' a cada celda (<td>)
                 const tableHTML = `
                     <div class="history-content-wrapper">
                         <table>
@@ -6134,10 +6078,10 @@ async function toggleAccountHistory(accountCard, accountId) {
                             <tbody>
                                 ${transactions.map(item => `
                                     <tr>
-                                        <td>${item.date.toLocaleDateString('es-AR')}</td>
-                                        <td><span style="color: ${item.type === 'Ingreso' ? 'var(--success-bg)' : 'var(--error-bg)'}; font-weight: 500;">${item.type}</span></td>
-                                        <td>${item.description}</td>
-                                        <td style="text-align:right; font-weight: 600; color: ${item.amount > 0 ? 'inherit' : 'var(--error-bg)'};">
+                                        <td data-label="Fecha">${item.date.toLocaleDateString('es-AR')}</td>
+                                        <td data-label="Tipo"><span style="color: ${item.type === 'Ingreso' ? 'var(--success-bg)' : 'var(--error-bg)'}; font-weight: 500;">${item.type}</span></td>
+                                        <td data-label="Concepto">${item.description}</td>
+                                        <td data-label="Monto" style="font-weight: 600; color: ${item.amount > 0 ? 'inherit' : 'var(--error-bg)'};">
                                             ${formatearARS(item.amount)}
                                         </td>
                                     </tr>
@@ -6145,6 +6089,7 @@ async function toggleAccountHistory(accountCard, accountId) {
                             </tbody>
                         </table>
                     </div>`;
+                // ====================== FIN DE LA MODIFICACIÓN =======================
                 historyContainer.innerHTML = tableHTML;
             }
         } catch (error) {

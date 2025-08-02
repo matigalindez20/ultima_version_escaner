@@ -3344,3 +3344,52 @@ td.actions-cell {
         padding: 0 1rem 1rem 1rem;
     }
 }
+
+/* ======================================================================= */
+/* ====== MEJORA RESPONSIVA PARA HISTORIAL FINANCIERO (MÓVIL) ========= */
+/* ======================================================================= */
+
+@media (max-width: 767px) {
+
+    /* Ocultamos la cabecera de la tabla original (Fecha, Tipo, etc.) */
+    .account-history-container thead {
+        display: none;
+    }
+
+    /* Cada fila (<tr>) ahora se comportará como una tarjeta */
+    .account-history-container tr {
+        display: block; /* Hacemos que ocupe todo el ancho */
+        padding: 1rem 0;
+        border-bottom: 1px solid var(--border-dark);
+    }
+    .account-history-container tr:last-child {
+        border-bottom: none; /* Quitamos el borde de la última tarjeta */
+    }
+
+    /* Cada celda (<td>) se apilará verticalmente */
+    .account-history-container td {
+        display: flex; /* Usamos flexbox para alinear el "label" y el "valor" */
+        justify-content: space-between; /* Ponemos el label a la izq y el valor a la der */
+        align-items: center;
+        padding: 0.25rem 0; /* Espaciado vertical pequeño */
+        border: none; /* Quitamos los bordes originales de las celdas */
+        text-align: right; /* Alineamos el texto del valor a la derecha */
+    }
+
+    /* La magia ocurre aquí: usamos el pseudoelemento ::before para
+       crear las etiquetas (Fecha, Tipo, Concepto) dinámicamente */
+    .account-history-container td::before {
+        content: attr(data-label); /* El contenido será el texto del atributo 'data-label' */
+        font-weight: 500;
+        color: var(--text-muted);
+        text-align: left; /* Alineamos el label a la izquierda */
+        margin-right: 1rem; /* Espacio entre el label y el valor */
+    }
+
+    /* Le damos un estilo especial a la celda del monto para que destaque */
+    .account-history-container td:last-child {
+        font-size: 1.1rem;
+        font-weight: bold;
+        margin-top: 0.5rem; /* Un poco más de espacio arriba */
+    }
+}
