@@ -3449,3 +3449,39 @@ td.actions-cell {
         content: ""; 
     }
 }
+
+/* ======================================================================= */
+/* ====== MEJORA RESPONSIVA PARA LISTA DE GASTOS (MÓVIL) ============== */
+/* ======================================================================= */
+
+@media (max-width: 767px) {
+    /* Hacemos que la tarjeta principal apile sus elementos verticalmente */
+    .gasto-item {
+        flex-direction: column;
+        align-items: flex-start; /* Alineamos todo a la izquierda */
+        gap: 0.75rem; /* Espacio entre la info de arriba y el footer de abajo */
+    }
+
+    /* La sección de información ocupará todo el ancho superior */
+    .gasto-item-info {
+        width: 100%;
+    }
+
+    /* El nuevo footer contendrá el monto y el botón de eliminar */
+    .gasto-item-footer {
+        display: flex;
+        justify-content: space-between; /* Ponemos el monto a la izq y el botón a la der */
+        align-items: center;
+        width: 100%;
+        margin-top: 0.5rem;
+        padding-top: 0.5rem;
+        border-top: 1px solid var(--border-dark); /* Línea separadora sutil */
+    }
+
+    /* Ajustamos los detalles (monto y fecha) para que se apilen */
+    .gasto-item-details {
+        flex-direction: column;
+        align-items: flex-start; /* Alineamos a la izquierda */
+        text-align: left;
+    }
+}

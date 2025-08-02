@@ -3638,32 +3638,16 @@ function renderGastosList(gastos) {
         let montoFormateado;
         let deleteButton;
         
-        // ===================== INICIO DE LA MODIFICACIÓN =====================
-        // Generamos la etiqueta (badge) para el método de pago
         let metodoPagoBadge = '';
         if (gasto.metodo_pago) {
-            let badgeClass = '';
-            let badgeText = '';
-
+            let badgeClass = ''; let badgeText = '';
             switch (gasto.metodo_pago) {
-                case 'Pesos (Efectivo)':
-                    badgeClass = 'efectivo';
-                    badgeText = 'Efectivo';
-                    break;
-                case 'Pesos (Transferencia)':
-                    badgeClass = 'transferencia';
-                    badgeText = 'Transferencia';
-                    break;
-                case 'Dólares':
-                    badgeClass = 'dolares';
-                    badgeText = 'Dólares';
-                    break;
+                case 'Pesos (Efectivo)': badgeClass = 'efectivo'; badgeText = 'Efectivo'; break;
+                case 'Pesos (Transferencia)': badgeClass = 'transferencia'; badgeText = 'Transferencia'; break;
+                case 'Dólares': badgeClass = 'dolares'; badgeText = 'Dólares'; break;
             }
-            if (badgeText) {
-                 metodoPagoBadge = `<span class="payment-badge payment-badge--${badgeClass}">${badgeText}</span>`;
-            }
+            if (badgeText) { metodoPagoBadge = `<span class="payment-badge payment-badge--${badgeClass}">${badgeText}</span>`; }
         }
-        // ====================== FIN DE LA MODIFICACIÓN =======================
 
         if (gasto.categoria === 'Comisiones') {
             desc = `Pago a ${gasto.vendedor}. ${gasto.descripcion || ''}`;
@@ -3681,7 +3665,7 @@ function renderGastosList(gastos) {
         }
 
         // ===================== INICIO DE LA MODIFICACIÓN =====================
-        // Se añade una nueva estructura 'gasto-item-header' para alinear la categoría y la etiqueta
+        // Se agrupan 'details' y 'actions' en un nuevo div 'gasto-item-footer'
         return `<div class="gasto-item" style="border-color: ${categoriaColores[gasto.categoria] || '#cccccc'};">
             <div class="gasto-item-info">
                 <div class="gasto-item-header">
@@ -3690,11 +3674,13 @@ function renderGastosList(gastos) {
                 </div>
                 <div class="gasto-item-desc">${desc}</div>
             </div>
-            <div class="gasto-item-details">
-                <div class="gasto-item-amount">${montoFormateado}</div>
-                <div class="gasto-item-date">${new Date((gasto.fecha?.seconds || 0) * 1000).toLocaleDateString('es-AR')}</div>
+            <div class="gasto-item-footer">
+                <div class="gasto-item-details">
+                    <div class="gasto-item-amount">${montoFormateado}</div>
+                    <div class="gasto-item-date">${new Date((gasto.fecha?.seconds || 0) * 1000).toLocaleDateString('es-AR')}</div>
+                </div>
+                <div class="gasto-item-actions">${deleteButton}</div>
             </div>
-            <div class="gasto-item-actions">${deleteButton}</div>
         </div>`;
         // ====================== FIN DE LA MODIFICACIÓN =======================
     }).join('');
