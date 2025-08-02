@@ -2132,11 +2132,10 @@ async function initiateBatchLoad(providerId, providerName, model, batchCost, bat
     }
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+// REEMPLAZA ESTA FUNCIÓN COMPLETA (VERSIÓN FINAL Y ROBUSTA)
 async function promptToRegisterPayment(providerName, currentDebt) {
     paymentContext = { id: paymentContext.id, name: providerName };
 
-    // Aseguramos tener la lista de cuentas actualizada
     if (!financialAccounts || financialAccounts.length === 0) {
         try {
             const accountsSnapshot = await db.collection('cuentas_financieras').orderBy('nombre').get();
@@ -2152,21 +2151,25 @@ async function promptToRegisterPayment(providerName, currentDebt) {
         return `<option value="${lote.numero_lote}">${lote.numero_lote} (${loteDescripcion})</option>`;
     }).join('');
 
-    // ===================== INICIO DE LA MODIFICACIÓN =====================
-    // Creamos el HTML para el selector de cuentas de origen
     const accountsOptionsHtml = financialAccounts.length > 0
         ? financialAccounts.map(acc => `<option value="${acc.id}|${acc.nombre}">${acc.nombre} (${formatearARS(acc.saldo_actual_ars)})</option>`).join('')
         : '<option value="" disabled>No hay cuentas creadas</option>';
 
     const accountSelectHtml = `
         <div id="pago-cuenta-group" class="form-group hidden" style="margin-top: 1rem; padding-left: 25px;">
-            <select name="cuenta_origen" required>
+            <select name="cuenta_origen">
                 <option value="" disabled selected></option>
                 ${accountsOptionsHtml}
             </select>
             <label>Pagar desde la Cuenta</label>
         </div>`;
-    // ====================== FIN DE LA MODIFICACIÓN =======================
+    
+    const cotizacionHtml = `
+        <div id="cotizacion-dolar-group" class="form-group hidden" style="padding-left: 25px; margin-top: 1rem;">
+            <input type="number" name="cotizacion_dolar" placeholder="Valor del dólar blue" step="0.01">
+            <label>Cotización del Dólar</label>
+        </div>
+    `;
 
     s.promptContainer.innerHTML = `
         <div class="container container-sm"> <div class="prompt-box">
@@ -2183,8 +2186,8 @@ async function promptToRegisterPayment(providerName, currentDebt) {
                         <div id="pay-ars-efectivo-fields" class="hidden" style="padding-left: 25px;"><input type="number" name="efectivo" placeholder="Monto ARS"></div>
                         <div class="checkbox-group" style="margin-bottom: 0.5rem;"><input type="checkbox" id="pay-ars-transfer" name="pay-ars-transfer" class="payment-method-cb"><label for="pay-ars-transfer">Pesos (Transferencia)</label></div>
                         <div id="pay-ars-transfer-fields" class="hidden" style="padding-left: 25px;"><input type="number" name="transferencia" placeholder="Monto ARS"></div>
-                        <!-- Insertamos el selector de cuentas aquí -->
                         ${accountSelectHtml}
+                        ${cotizacionHtml}
                     </div>
                     <div class="form-group"><label for="payment-notes">Notas (Opcional)</label><textarea id="payment-notes" name="notas" rows="2" placeholder="Ej: Pago parcial del Lote-123"></textarea></div>
                     <div class="prompt-buttons"><button type="submit" class="prompt-button confirm spinner-btn"><span class="btn-text">Registrar Pago</span><div class="spinner"></div></button><button type="button" class="prompt-button cancel">Cancelar</button></div>
@@ -2192,38 +2195,47 @@ async function promptToRegisterPayment(providerName, currentDebt) {
             </div> </div>`;
     
     const form = document.getElementById('payment-form');
-    const totalInput = document.getElementById('payment-total');
-    const paymentCheckboxes = form.querySelectorAll('.payment-method-cb');
-    // ===================== INICIO DE LA MODIFICACIÓN =====================
-    const cuentaGroup = document.getElementById('pago-cuenta-group');
-    // ====================== FIN DE LA MODIFICACIÓN =======================
-
-    paymentCheckboxes.forEach(cb => {
-        cb.addEventListener('change', () => {
-            const fieldsDiv = document.getElementById(`${cb.id}-fields`);
-            if (fieldsDiv) fieldsDiv.classList.toggle('hidden', !cb.checked);
-            
-            // Lógica para el nuevo selector de cuenta
-            if (cb.id === 'pay-ars-transfer') {
-                cuentaGroup.classList.toggle('hidden', !cb.checked);
-                cuentaGroup.querySelector('select').required = cb.checked;
+    
+    // ===================== INICIO DE LA CORRECCIÓN =====================
+    // Centralizamos los listeners en el formulario para evitar errores de timing
+    form.addEventListener('input', (e) => {
+        // Si se cambia el monto total, y el checkbox de USD está marcado, se autocompleta.
+        if (e.target.id === 'payment-total') {
+            const usdCheckbox = form.querySelector('#pay-usd');
+            if (usdCheckbox && usdCheckbox.checked) {
+                form.querySelector('[name="dolares"]').value = e.target.value;
             }
-            
-            if (cb.id === 'pay-usd' && cb.checked && totalInput.value) {
-                form.querySelector('[name="dolares"]').value = totalInput.value;
-            }
-        });
-    });
-
-    totalInput.addEventListener('input', () => {
-        const usdCheckbox = document.getElementById('pay-usd');
-        if (usdCheckbox && usdCheckbox.checked) {
-            form.querySelector('[name="dolares"]').value = totalInput.value;
         }
     });
+
+    form.addEventListener('change', (e) => {
+        // Si cambia un checkbox de método de pago
+        if (e.target.matches('.payment-method-cb')) {
+            const fieldsDiv = document.getElementById(`${e.target.id}-fields`);
+            if (fieldsDiv) fieldsDiv.classList.toggle('hidden', !e.target.checked);
+            
+            const cuentaGroup = document.getElementById('pago-cuenta-group');
+            if (e.target.id === 'pay-ars-transfer') {
+                cuentaGroup.classList.toggle('hidden', !e.target.checked);
+                cuentaGroup.querySelector('select').required = e.target.checked;
+            }
+            
+            // Lógica para el campo de cotización
+            const cotizacionGroup = document.getElementById('cotizacion-dolar-group');
+            const pagoEnPesos = form.querySelector('#pay-ars-efectivo').checked || form.querySelector('#pay-ars-transfer').checked;
+            cotizacionGroup.classList.toggle('hidden', !pagoEnPesos);
+            cotizacionGroup.querySelector('input').required = pagoEnPesos;
+            
+            // Lógica para autocompletar el monto en USD
+            const totalInput = document.getElementById('payment-total');
+            if (e.target.id === 'pay-usd' && e.target.checked && totalInput.value) {
+                form.querySelector('[name="dolares"]').value = totalInput.value;
+            }
+        }
+    });
+    // ====================== FIN DE LA CORRECCIÓN =======================
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 async function saveProviderPayment(form) {
     const btn = form.querySelector('button[type="submit"]');
     toggleSpinner(btn, true);
@@ -2243,16 +2255,23 @@ async function saveProviderPayment(form) {
     const usdAmount = parseFloat(formData.get('dolares')) || 0;
     const arsEfectivoAmount = parseFloat(formData.get('efectivo')) || 0;
     const arsTransferAmount = parseFloat(formData.get('transferencia')) || 0;
+    // ===================== INICIO DE LA MODIFICACIÓN =====================
+    const cotizacion = parseFloat(formData.get('cotizacion_dolar')) || 0;
+    // ====================== FIN DE LA MODIFICACIÓN =======================
     
     if ((usdAmount + arsEfectivoAmount + arsTransferAmount) === 0) {
         showGlobalFeedback("Debes especificar al menos un método de pago con su monto.", "error");
         toggleSpinner(btn, false); return;
     }
     
-    // ===================== INICIO DE LA MODIFICACIÓN =====================
     const cuentaOrigenValue = formData.get('cuenta_origen');
     if (arsTransferAmount > 0 && !cuentaOrigenValue) {
         showGlobalFeedback("Debes seleccionar una cuenta de origen para la transferencia.", "error");
+        toggleSpinner(btn, false); return;
+    }
+    // ===================== INICIO DE LA MODIFICACIÓN =====================
+    if ((arsEfectivoAmount > 0 || arsTransferAmount > 0) && cotizacion <= 0) {
+        showGlobalFeedback("Debes ingresar una cotización válida para pagos en pesos.", "error");
         toggleSpinner(btn, false); return;
     }
     // ====================== FIN DE LA MODIFICACIÓN =======================
@@ -2269,24 +2288,23 @@ async function saveProviderPayment(form) {
             
             if (usdAmount > 0) {
                 pagosParaHistorial.push({ monto: usdAmount, moneda: 'USD' });
-                gastosParaCaja.push({ categoria: 'Pago a Proveedor', descripcion: descripcionBase, monto: usdAmount, metodo_pago: 'Dólares', fecha: fecha, pagoId: newPagoId, providerId: providerId });
+                gastosParaCaja.push({ categoria: 'Pago a Proveedor', descripcion: descripcionBase, monto: usdAmount, metodo_pago: 'Dólares', fecha, pagoId: newPagoId, providerId });
             }
             if (arsEfectivoAmount > 0) {
                 pagosParaHistorial.push({ monto: arsEfectivoAmount, moneda: 'ARS (Efectivo)' });
-                gastosParaCaja.push({ categoria: 'Pago a Proveedor', descripcion: descripcionBase, monto: arsEfectivoAmount, metodo_pago: 'Pesos (Efectivo)', fecha: fecha, pagoId: newPagoId, providerId: providerId });
+                gastosParaCaja.push({ categoria: 'Pago a Proveedor', descripcion: descripcionBase, monto: arsEfectivoAmount, metodo_pago: 'Pesos (Efectivo)', fecha, pagoId: newPagoId, providerId, cotizacion_dolar: cotizacion });
             }
             if (arsTransferAmount > 0) {
                 pagosParaHistorial.push({ monto: arsTransferAmount, moneda: 'ARS (Transferencia)' });
                 const [id, nombre] = cuentaOrigenValue.split('|');
-                const gastoTransf = { categoria: 'Pago a Proveedor', descripcion: descripcionBase, monto: arsTransferAmount, metodo_pago: 'Pesos (Transferencia)', fecha: fecha, pagoId: newPagoId, providerId: providerId, cuenta_origen_id: id, cuenta_origen_nombre: nombre };
+                const gastoTransf = { categoria: 'Pago a Proveedor', descripcion: descripcionBase, monto: arsTransferAmount, metodo_pago: 'Pesos (Transferencia)', fecha, pagoId: newPagoId, providerId, cuenta_origen_id: id, cuenta_origen_nombre: nombre, cotizacion_dolar: cotizacion };
                 gastosParaCaja.push(gastoTransf);
 
-                // Descontamos el saldo de la cuenta financiera
                 const cuentaRef = db.collection('cuentas_financieras').doc(id);
                 t.update(cuentaRef, { saldo_actual_ars: firebase.firestore.FieldValue.increment(-arsTransferAmount) });
             }
 
-            t.set(paymentRef, { providerId: providerId, proveedorNombre: providerName, monto_total_usd: totalPaymentUSD, lote_asociado: loteAsociado || null, detalle_pago: pagosParaHistorial, fecha, notas: notas });
+            t.set(paymentRef, { providerId, proveedorNombre: providerName, monto_total_usd: totalPaymentUSD, lote_asociado: loteAsociado || null, detalle_pago: pagosParaHistorial, fecha, notas, cotizacion_dolar: cotizacion });
             gastosParaCaja.forEach(gasto => { const gastoRef = db.collection('gastos').doc(); t.set(gastoRef, gasto); });
             const providerRef = db.collection('proveedores').doc(providerId);
             t.update(providerRef, { deuda_usd: firebase.firestore.FieldValue.increment(-totalPaymentUSD) });
@@ -2296,7 +2314,7 @@ async function saveProviderPayment(form) {
         s.promptContainer.innerHTML = '';
         loadProviders();
         updateReports();
-        loadFinancialData(); // Recargamos datos financieros
+        loadFinancialData();
 
     } catch (error) {
         console.error("Error al registrar el pago:", error);
@@ -2306,10 +2324,6 @@ async function saveProviderPayment(form) {
         paymentContext = null;
     }
 }
-
-// AÑADE ESTA NUEVA FUNCIÓN
-// REEMPLAZA ESTA FUNCIÓN
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
 async function revertProviderPayment(gastoId, pagoId, kpiType, period) {
     try {
@@ -2365,8 +2379,7 @@ async function revertProviderPayment(gastoId, pagoId, kpiType, period) {
     }
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA
-
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 async function showPaymentHistory(providerId, providerName) {
     s.promptContainer.innerHTML = `
     <div class="container kpi-detail-modal">
@@ -2381,8 +2394,6 @@ async function showPaymentHistory(providerId, providerName) {
 
     const contentDiv = document.getElementById('payment-history-content');
     try {
-        // --- ESTA ES LA CORRECCIÓN CLAVE ---
-        // Buscamos directamente por el campo 'providerId' que ahora nos aseguramos de guardar.
         const snapshot = await db.collection('pagos_proveedores')
             .where('providerId', '==', providerId)
             .orderBy('fecha', 'desc')
@@ -2407,15 +2418,21 @@ async function showPaymentHistory(providerId, providerName) {
                     </tr>
                 </thead>
                 <tbody>
-                    ${pagos.map(pago => `
+                    ${pagos.map(pago => {
+                        // ===================== INICIO DE LA MODIFICACIÓN =====================
+                        // Añadimos la cotización al detalle si existe
+                        const detallePago = pago.detalle_pago.map(d => `${d.moneda === 'USD' ? formatearUSD(d.monto) : formatearARS(d.monto)}`).join(' + ');
+                        const cotizacionInfo = pago.cotizacion_dolar ? `<br><small class="time-muted">CT: ${formatearARS(pago.cotizacion_dolar)}</small>` : '';
+                        // ====================== FIN DE LA MODIFICACIÓN =======================
+                        return `
                         <tr>
                             <td>${pago.fecha.toDate().toLocaleString('es-AR')}</td>
                             <td>${formatearUSD(pago.monto_total_usd)}</td>
                             <td>${pago.lote_asociado || 'N/A'}</td>
-                            <td>${pago.detalle_pago.map(d => `${d.moneda === 'USD' ? formatearUSD(d.monto) : formatearARS(d.monto)}`).join(' + ')}</td>
+                            <td>${detallePago}${cotizacionInfo}</td>
                             <td>${pago.notas || ''}</td>
-                        </tr>
-                    `).join('')}
+                        </tr>`
+                    }).join('')}
                 </tbody>
             </table>`;
         contentDiv.innerHTML = tableHTML;
@@ -2425,7 +2442,6 @@ async function showPaymentHistory(providerId, providerName) {
     }
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 async function showBatchHistory(providerId, providerName) {
     s.promptContainer.innerHTML = `
     <div class="container batch-history-modal">
