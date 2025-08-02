@@ -48,9 +48,7 @@
             <div id="tab-providers" class="nav-tab">Proveedores</div>
             <div id="tab-wholesale" class="nav-tab">Venta Mayorista</div>
             <div id="tab-reports" class="nav-tab">Informes</div>
-            <!-- ================== PESTAÑA NUEVA AÑADIDA ================== -->
             <div id="tab-financiera" class="nav-tab">Financiera</div>
-            <!-- ========================================================== -->
             <div id="tab-management" class="nav-tab">Gestión de IMEI</div>
         </div>
 
@@ -132,16 +130,33 @@
                     </button>
                 </div>
             </div>
+            
+            <!-- ===================== INICIO DEL CÓDIGO ACTUALIZADO ===================== -->
             <div id="commissions-section" class="hidden">
-                <h2>Reporte de Comisiones</h2>
+                <div class="providers-header">
+                    <h2>Reporte de Comisiones</h2>
+                    <button onclick="promptToAddVendedor()" class="control-btn" style="background-color: var(--success-bg);">+ Nuevo Vendedor</button>
+                </div>
+            
                 <div class="filters-container">
-                    <div class="filter-group"><label for="filter-commissions-vendedor">Vendedor</label><select id="filter-commissions-vendedor"></select></div>
-                    <div class="filter-group"><label for="filter-commissions-start-date">Fecha Desde</label><input type="date" id="filter-commissions-start-date"></div>
-                    <div class="filter-group"><label for="filter-commissions-end-date">Fecha Hasta</label><input type="date" id="filter-commissions-end-date"></div>
-                    <div class="filter-group"><button id="btn-calculate-commissions">Calcular Comisiones</button></div>
+                    <div class="filter-group">
+                        <label for="filter-commissions-vendedor">Vendedor</label>
+                        <select id="filter-commissions-vendedor"></select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="filter-commissions-start-date">Fecha Desde</label>
+                        <input type="date" id="filter-commissions-start-date">
+                    </div>
+                    <div class="filter-group">
+                        <label for="filter-commissions-end-date">Fecha Hasta</label>
+                        <input type="date" id="filter-commissions-end-date">
+                    </div>
+                    <!-- El botón de Calcular se ha eliminado -->
                 </div>
                 <div id="commissions-results-container"></div>
             </div>
+            <!-- ====================== FIN DEL CÓDIGO ACTUALIZADO ======================= -->
+
             <div id="gastos-section" class="hidden">
                 <div class="gastos-header">
                     <h2>Resumen de Gastos</h2>
@@ -329,12 +344,7 @@
             </div>
         </div>
 
-        <!-- =================================================================== -->
-        <!-- =================== INICIO: VISTA FINANCIERA ====================== -->
-        <!-- =================================================================== -->
         <div id="financiera-view" class="hidden">
-
-            <!-- Encabezado de la Sección -->
             <div class="financiera-header">
                 <h2 class="financiera-title">Cuentas y Balances</h2>
                 <button id="btn-add-account" class="financiera-btn-add">
@@ -343,7 +353,6 @@
                 </button>
             </div>
 
-            <!-- Tarjeta de Balance General (KPI Principal) -->
             <div class="financiera-balance-card">
                 <div class="balance-content">
                     <span class="balance-label">Balance Total en Transferencias</span>
@@ -352,15 +361,8 @@
                 <div class="balance-bg-shape"></div>
             </div>
             
-            <!-- Contenedor para las Tarjetas de Cuentas Individuales -->
-            <div id="accounts-list-container" class="financiera-accounts-grid">
-                <!-- Las tarjetas de cada cuenta se generarán aquí con JavaScript -->
-            </div>
-
+            <div id="accounts-list-container" class="financiera-accounts-grid"></div>
         </div>
-        <!-- =================================================================== -->
-        <!-- ===================== FIN: VISTA FINANCIERA ======================= -->
-        <!-- =================================================================== -->
 
         <div id="management-view" class="container-sm hidden" style="margin: auto;">
             <h2 id="management-title">Gestión de IMEI</h2>

@@ -3108,3 +3108,239 @@ td.actions-cell {
 .action-btn-icon.btn-move-money:hover svg {
     stroke: var(--success-bg);
 }
+
+/* AÑADE ESTO AL FINAL DE TU ARCHIVO STYLE.CSS */
+
+/* Contenedor principal para cada grupo de categoría */
+.ingreso-group-card {
+    background-color: #252525;
+    border-radius: var(--border-radius);
+    border-left: 6px solid var(--success-bg);
+    margin-bottom: 1rem;
+    transition: all 0.3s ease-in-out;
+}
+.ingreso-group-card.open {
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+}
+
+/* Cabecera de la tarjeta (siempre visible y clicable) */
+.ingreso-group-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.25rem;
+    cursor: pointer;
+}
+.header-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+.header-icon {
+    flex-shrink: 0;
+    background-color: rgba(29, 106, 60, 0.2);
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.header-icon svg {
+    width: 24px;
+    height: 24px;
+    stroke: var(--success-bg);
+    stroke-width: 2.5;
+}
+.header-text {
+    display: flex;
+    flex-direction: column;
+}
+.header-category {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--text-light);
+}
+.header-item-count {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+.header-summary {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+.header-total-amount {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--brand-yellow);
+}
+.ingreso-group-card .chevron-down {
+    transition: transform 0.3s ease;
+}
+.ingreso-group-card.open .chevron-down {
+    transform: rotate(180deg);
+}
+
+/* Contenedor de detalles (desplegable) */
+.ingreso-group-details {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s ease-in-out;
+    padding: 0 1.25rem;
+}
+
+/* Cada ítem de ingreso individual dentro del desplegable */
+.ingreso-detail-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.8rem 0;
+    border-top: 1px solid var(--border-dark);
+}
+.detail-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.detail-description {
+    font-size: 0.9rem;
+    color: var(--text-light);
+}
+.detail-date {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+.detail-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+.detail-amount {
+    font-weight: 600;
+    color: var(--text-light);
+    font-size: 1rem;
+}
+
+/* AÑADE ESTO AL FINAL DE TU ARCHIVO STYLE.CSS */
+
+/* Nuevo contenedor para alinear categoría y etiqueta */
+.gasto-item-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 4px;
+}
+
+/* Quitamos el margen inferior de la categoría, ya que ahora lo maneja el header */
+.gasto-item-cat {
+    margin-bottom: 0;
+}
+
+/* Estilos base para la nueva etiqueta de método de pago */
+.payment-badge {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    line-height: 1;
+}
+
+/* Colores específicos para cada método de pago */
+.payment-badge--dolares {
+    background-color: rgba(253, 209, 0, 0.2);
+    color: var(--brand-yellow);
+}
+.payment-badge--efectivo {
+    background-color: rgba(46, 204, 113, 0.15);
+    color: #2ecc71;
+}
+.payment-badge--transferencia {
+    background-color: rgba(52, 152, 219, 0.15);
+    color: #3498db;
+}
+
+/* ======================================================================= */
+/* =========== AJUSTES RESPONSIVOS PARA VISTA FINANCIERA (MÓVIL) ========= */
+/* ======================================================================= */
+
+@media (max-width: 767px) {
+
+    /* --- Ajuste del Encabezado --- */
+    /* Hacemos que el título y el botón se apilen verticalmente */
+    .financiera-header {
+        flex-direction: column;
+        align-items: stretch; /* Hacemos que ocupen todo el ancho */
+        gap: 1.25rem; /* Aumentamos el espacio entre título y botón */
+    }
+    .financiera-title {
+        text-align: center; /* Centramos el título */
+    }
+    .financiera-btn-add {
+        width: 100%; /* El botón ahora ocupa todo el ancho */
+    }
+
+    /* --- Ajuste de la Tarjeta de Balance Total --- */
+    .financiera-balance-card {
+        padding: 1.25rem;
+    }
+    .balance-content {
+        flex-direction: column; /* Apilamos el label y el monto */
+        gap: 0.5rem;
+    }
+    .balance-label {
+        font-size: 0.9rem;
+    }
+    .balance-amount {
+        font-size: 2.2rem;
+    }
+
+    /* --- Ajuste de la Fila de cada Cuenta --- */
+    .account-card {
+        flex-wrap: wrap; /* Permitimos que los elementos se reorganicen */
+        padding: 1rem;
+        position: relative; /* Necesario para los botones de acción */
+    }
+    .account-card-header {
+        /* Hacemos que el nombre y el alias ocupen casi todo el ancho,
+           dejando espacio para el saldo */
+        flex-basis: calc(100% - 120px); 
+    }
+    .account-card-balance {
+        text-align: right;
+    }
+
+    /* --- LÓGICA DE BOTONES DE ACCIÓN (LA MAGIA OCURRE AQUÍ) --- */
+    .account-card-actions {
+        /* Por defecto, los botones están ocultos y posicionados
+           en la parte inferior de la tarjeta */
+        position: absolute;
+        bottom: 1rem;
+        right: 1rem;
+        opacity: 0;
+        transform: translateY(10px);
+        transition: all 0.3s ease-in-out;
+        pointer-events: none; /* Evita que se pueda hacer clic cuando están ocultos */
+    }
+    
+    /* Cuando la tarjeta está activa (desplegada), hacemos visibles los botones */
+    .account-card.active .account-card-actions {
+        opacity: 1;
+        transform: translateY(0);
+        pointer-events: auto; /* Se pueden clickear */
+    }
+    
+    /* Cuando la tarjeta está activa, movemos el saldo hacia arriba
+       para dejar espacio a los botones que aparecerán abajo */
+    .account-card.active .account-card-balance {
+        transform: translateY(-15px);
+        transition: transform 0.3s ease-in-out;
+    }
+    
+    /* Ajustamos el historial para que no tenga tanto padding en móvil */
+    .history-content-wrapper {
+        padding: 0 1rem 1rem 1rem;
+    }
+}

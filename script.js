@@ -11,7 +11,7 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
 
-const vendedores = ["Equipo Twins", "Pollo", "Victo", "Mili", "Hasha","Juan"];
+let vendedores = ["Equipo Twins", "Pollo", "Victo", "Mili", "Hasha","Juan"];
 const colores = ["Negro espacial", "Plata", "Dorado", "Púrpura oscuro", "Rojo (Product RED)", "Azul", "Verde", "Blanco estelar", "Medianoche", "Titanio Natural", "Titanio Azul", "Otro"];
 const almacenamientos = ["64GB", "128GB", "256GB", "512GB", "1TB"];
 const detallesEsteticos = ["Como Nuevo (Sin detalles)", "Excelente (Mínimos detalles)", "Bueno (Detalles de uso visibles)", "Regular (Marcas o rayones notorios)"];
@@ -181,19 +181,31 @@ function initApp() {
     auth.onAuthStateChanged(handleAuthStateChange);
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
 async function loadAndPopulateSelects() {
     try {
         const proveedoresPromise = db.collection('proveedores').orderBy('nombre').get();
         const ingresosCatPromise = db.collection('ingresos_categorias').orderBy('nombre').get();
+        // ===================== INICIO DE LA MODIFICACIÓN =====================
+        // Ahora cargamos los vendedores desde la base de datos
+        const vendedoresPromise = db.collection('vendedores').orderBy('nombre').get();
         
-        const [provSnapshot, ingCatSnapshot] = await Promise.all([proveedoresPromise, ingresosCatPromise]);
+        const [provSnapshot, ingCatSnapshot, vendSnapshot] = await Promise.all([
+            proveedoresPromise, 
+            ingresosCatPromise, 
+            vendedoresPromise
+        ]);
         
         proveedoresStock = provSnapshot.docs.map(doc => doc.data().nombre);
         ingresosCategorias = ingCatSnapshot.docs.map(doc => doc.data().nombre);
+        // Sobrescribimos la variable global 'vendedores' con los datos de la BD
+        vendedores = vendSnapshot.docs.map(doc => doc.data().nombre); 
+        // ====================== FIN DE LA MODIFICACIÓN =======================
 
         populateAllSelects();
     } catch (error) {
         console.error("Error al cargar datos para los selects:", error);
+        // Aún así poblamos los selects con los datos que tengamos en memoria
         populateAllSelects();
     }
 }
@@ -267,7 +279,6 @@ function addEventListeners() {
         if (s.exportMenu && !s.btnExport.contains(e.target)) {
             s.exportMenu.classList.remove('show');
         }
-
         if (e.target.matches('#prompt-container .prompt-button.cancel')) {
              e.preventDefault();
              s.promptContainer.innerHTML = '';
@@ -280,50 +291,36 @@ function addEventListeners() {
         const form = e.target;
         if (s.promptContainer && s.promptContainer.contains(form)) {
             e.preventDefault();
-            if (form.id === 'payment-form') {
-                saveProviderPayment(form);
-            } else if (form.id === 'provider-form') {
-                saveProvider(form.querySelector('button[type="submit"]'));
-            } else if (form.id === 'gasto-form') {
-                saveGasto(form.querySelector('button[type="submit"]'));
+            if (form.id === 'payment-form') { saveProviderPayment(form);
+            } else if (form.id === 'provider-form') { saveProvider(form.querySelector('button[type="submit"]'));
+            } else if (form.id === 'gasto-form') { saveGasto(form.querySelector('button[type="submit"]'));
             } else if (form.id === 'ingreso-form') {
                 const mode = form.dataset.mode || 'create';
-                if (mode === 'create') {
-                    saveIngreso(form.querySelector('button[type="submit"]'));
-                } else {
-                    updateIngreso(form.dataset.ingresoId, form.querySelector('button[type="submit"]'));
-                }
-            } else if (form.id === 'commission-payment-form') {
-                saveCommissionPayment(form);
+                if (mode === 'create') { saveIngreso(form.querySelector('button[type="submit"]'));
+                } else { updateIngreso(form.dataset.ingresoId, form.querySelector('button[type="submit"]')); }
+            } else if (form.id === 'commission-payment-form') { saveCommissionPayment(form);
             } else if (form.id === 'batch-id-form') {
                 const batchIdManual = form.batchNumber.value.trim();
-                if (!batchIdManual) {
-                    showGlobalFeedback("El ID del lote no puede estar vacío.", "error");
-                    return;
-                }
+                if (!batchIdManual) { showGlobalFeedback("El ID del lote no puede estar vacío.", "error"); return; }
                 batchLoadContext.batchIdManual = batchIdManual;
                 showModelSelectionStep();
-            } else if (form.id === 'lote-cost-form') {
-                promptToAssignLoteCost(form);
-            
-            } else if (form.id === 'finalize-reparacion-form') {
-                saveFinalizedReparacion(form);
-            
-            } else if (form.id === 'wholesale-client-form') {
-                saveWholesaleClient(form.querySelector('button[type="submit"]'));
-            } else if (form.id === 'wholesale-sale-finalize-form') {
-                finalizeWholesaleSale(form);
-            } else if (form.id === 'wholesale-payment-form') {
-                saveWholesalePayment(form);
-            } else if (form.id === 'financiera-account-form') { 
-                saveFinancialAccount(form.querySelector('button[type="submit"]'));
-            } else if (form.id === 'move-money-form') { // <-- NUEVO FORMULARIO
-                executeMoneyMovement(form.querySelector('button[type="submit"]'));
+            } else if (form.id === 'lote-cost-form') { promptToAssignLoteCost(form);
+            } else if (form.id === 'finalize-reparacion-form') { saveFinalizedReparacion(form);
+            } else if (form.id === 'wholesale-client-form') { saveWholesaleClient(form.querySelector('button[type="submit"]'));
+            } else if (form.id === 'wholesale-sale-finalize-form') { finalizeWholesaleSale(form);
+            } else if (form.id === 'wholesale-payment-form') { saveWholesalePayment(form);
+            } else if (form.id === 'financiera-account-form') { saveFinancialAccount(form.querySelector('button[type="submit"]'));
+            } else if (form.id === 'move-money-form') { executeMoneyMovement(form.querySelector('button[type="submit"]'));
+            } else if (form.id === 'vendedor-form') {
+                saveVendedor(form.querySelector('button[type="submit"]'));
             }
         }
     });
     
-    s.btnCalculateCommissions.addEventListener('click', loadCommissions);
+    s.filterCommissionsVendedor.addEventListener('change', loadCommissions);
+    s.filterCommissionsStartDate.addEventListener('change', loadCommissions);
+    s.filterCommissionsEndDate.addEventListener('change', loadCommissions);
+
     s.btnApplyStockFilters.addEventListener('click', () => loadStock('first'));
     s.btnApplySalesFilters.addEventListener('click', () => loadSales('first'));
     s.btnApplyGastosFilter.addEventListener('click', loadGastos);
@@ -369,7 +366,7 @@ function addEventListeners() {
 
             if (button) {
                 e.stopPropagation(); 
-                if (button.classList.contains('btn-move-money')) { // <-- NUEVO LISTENER
+                if (button.classList.contains('btn-move-money')) {
                     promptToMoveMoney(accountId, accountName);
                 } else if (button.classList.contains('btn-delete-account')) {
                     deleteFinancialAccount(accountId);
@@ -383,17 +380,13 @@ function addEventListeners() {
     s.providersView.addEventListener('click', (e) => {
         const button = e.target.closest('button');
         if (!button) return;
-        
         const card = button.closest('.provider-card-modern'); 
         if (!card) return;
-
         const providerId = card.dataset.providerId;
         const providerName = card.querySelector('h3').textContent;
-
         if (button.classList.contains('btn-register-payment')) {
             const debtString = card.querySelector('.stat-value.debt')?.textContent || 'US$ 0,00';
             const debtAmount = parseFloat(debtString.replace(/[^0-9,-]+/g,"").replace(',', '.'));
-            
             paymentContext = { id: providerId, name: providerName };
             promptToRegisterPayment(providerName, debtAmount);
         } else if (button.classList.contains('btn-batch-load')) {
@@ -410,28 +403,18 @@ function addEventListeners() {
     s.wholesaleView.addEventListener('click', e => {
         const button = e.target.closest('button');
         if (!button) return;
-    
         const clientCard = button.closest('.provider-card-modern'); 
-    
         if (!clientCard) return;
         const clientId = clientCard.dataset.clientId;
         const clientName = clientCard.querySelector('h3').textContent;
-    
         if (button.classList.contains('btn-new-wholesale-sale')) {
-            wholesaleSaleContext = {
-                clientId: clientId,
-                clientName: clientName,
-                items: [],
-                totalSaleValue: 0
-            };
+            wholesaleSaleContext = { clientId: clientId, clientName: clientName, items: [], totalSaleValue: 0 };
             switchView('management', s.tabManagement);
             resetManagementView(false, false, true);
-    
         } else if (button.classList.contains('btn-register-ws-payment')) {
             const debtString = clientCard.querySelector('.stat-value.debt')?.textContent || 'US$ 0,00';
             const debtAmount = parseFloat(debtString.replace(/[^0-9,-]+/g,"").replace(',', '.'));
             promptToRegisterWholesalePayment(clientId, clientName, debtAmount);
-    
         } else if (button.classList.contains('btn-view-wholesale-history')) {
             showWholesaleHistory(clientId, clientName);
         } else if (button.classList.contains('btn-resync-client')) {
@@ -442,12 +425,16 @@ function addEventListeners() {
     });
 
     s.commissionsResultsContainer.addEventListener('click', (e) => {
-        const payButton = e.target.closest('.btn-pay-commission');
-        if (payButton) {
-            const card = payButton.closest('.commission-vendor-card');
-            const vendorName = card.dataset.vendorName;
-            const pendingAmount = parseFloat(payButton.dataset.pendingAmount);
+        const button = e.target.closest('button');
+        if (!button) return;
+        const card = button.closest('.commission-vendor-card');
+        const vendorName = card.dataset.vendorName;
+        if (button.classList.contains('btn-pay-commission')) {
+            const pendingAmount = parseFloat(button.dataset.pendingAmount);
             promptToPayCommission(vendorName, pendingAmount);
+        }
+        else if (button.classList.contains('btn-delete-vendedor')) {
+            deleteVendedor(vendorName);
         }
     });
     
@@ -455,40 +442,49 @@ function addEventListeners() {
         s.reportsView.addEventListener('click', (e) => {
             const kpiCard = e.target.closest('.kpi-card');
             if (!kpiCard) return;
-
             const kpiValueDiv = kpiCard.querySelector('.kpi-value');
             if (!kpiValueDiv) return;
-            
             const id = kpiValueDiv.id;
-
             switch (id) {
-                case 'kpi-dollars-day':
-                    showKpiDetail('dolares', 'dia');
-                    break;
-                case 'kpi-cash-day':
-                    showKpiDetail('efectivo_ars', 'dia');
-                    break;
-                case 'kpi-transfer-day':
-                    showKpiDetail('transferencia_ars', 'dia');
-                    break;
-                case 'kpi-dollars-month':
-                    showKpiDetail('dolares', 'mes');
-                    break;
-                case 'kpi-cash-month':
-                    showKpiDetail('efectivo_ars', 'mes');
-                    break;
-                case 'kpi-transfer-month':
-                    showKpiDetail('transferencia_ars', 'mes');
-                    break;
-                case 'kpi-profit-day':
-                    showProfitDetail('dia');
-                    break;
-                case 'kpi-profit-month':
-                    showProfitDetail('mes');
-                    break;
+                case 'kpi-dollars-day': showKpiDetail('dolares', 'dia'); break;
+                case 'kpi-cash-day': showKpiDetail('efectivo_ars', 'dia'); break;
+                case 'kpi-transfer-day': showKpiDetail('transferencia_ars', 'dia'); break;
+                case 'kpi-dollars-month': showKpiDetail('dolares', 'mes'); break;
+                case 'kpi-cash-month': showKpiDetail('efectivo_ars', 'mes'); break;
+                case 'kpi-transfer-month': showKpiDetail('transferencia_ars', 'mes'); break;
+                case 'kpi-profit-day': showProfitDetail('dia'); break;
+                case 'kpi-profit-month': showProfitDetail('mes'); break;
             }
         });
     }
+
+    // ===================== INICIO DEL CÓDIGO AÑADIDO =====================
+    if (s.ingresosList) {
+        s.ingresosList.addEventListener('click', (e) => {
+            const header = e.target.closest('.ingreso-group-header');
+            if (!header) return; 
+
+            if (e.target.closest('.edit-btn') || e.target.closest('.delete-btn')) {
+                return;
+            }
+
+            const card = header.closest('.ingreso-group-card');
+            const details = card.querySelector('.ingreso-group-details');
+            
+            if (card.classList.contains('open')) {
+                card.classList.remove('open');
+                details.style.maxHeight = null;
+            } else {
+                s.ingresosList.querySelectorAll('.ingreso-group-card.open').forEach(openCard => {
+                    openCard.classList.remove('open');
+                    openCard.querySelector('.ingreso-group-details').style.maxHeight = null;
+                });
+                card.classList.add('open');
+                details.style.maxHeight = details.scrollHeight + "px";
+            }
+        });
+    }
+    // ====================== FIN DEL CÓDIGO AÑADIDO =======================
 
     s.stockItemsPerPage.addEventListener('change', () => loadStock('first'));
     s.stockNextPage.addEventListener('click', () => loadStock('next'));
@@ -901,7 +897,6 @@ async function handleLogin(e) {
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 function switchView(view, tabElement) {
-    // AÑADIMOS 'financiera' A LA LISTA DE VISTAS
     const views = ['dashboard', 'providers', 'wholesale', 'reports', 'financiera', 'management'];
     
     document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
@@ -915,7 +910,6 @@ function switchView(view, tabElement) {
         if (viewElement) viewElement.classList.toggle('hidden', v !== view);
     });
 
-    // AÑADIMOS LA LÓGICA PARA CARGAR LA NUEVA VISTA
     if (view === 'dashboard' && !s.stockTableContainer.innerHTML.includes('<table>')) {
         const initialButton = document.querySelector('.control-btn');
         switchDashboardView('stock', initialButton);
@@ -926,12 +920,14 @@ function switchView(view, tabElement) {
     } else if (view === 'wholesale') {
         loadWholesaleClients();
     } else if (view === 'financiera') {
-        loadFinancialData(); // <-- NUEVA LLAMADA
+        loadFinancialData();
+    // ===================== INICIO DE LA CORRECCIÓN =====================
+    // Se elimina la condición 'if' restrictiva. Ahora SIEMPRE se llamará
+    // a resetManagementView al entrar a la pestaña, asegurando que la UI se actualice.
     } else if (view === 'management') {
-        if (!batchLoadContext && !canjeContext && !wholesaleSaleContext) {
-            resetManagementView();
-        }
+        resetManagementView();
     }
+    // ====================== FIN DE LA CORRECCIÓN =======================
 }
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA
@@ -1342,6 +1338,7 @@ async function finalizeWholesaleSale(form) {
 }
 
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 async function loadIngresos() {
     s.ingresosList.innerHTML = `<p class="dashboard-loader" style="grid-column: 1 / -1;">Cargando ingresos...</p>`;
     s.ingresosPeriodTotalArsEfectivo.textContent = '...';
@@ -1382,7 +1379,20 @@ async function loadIngresos() {
         s.ingresosPeriodTotalArsTransferencia.textContent = formatearARS(totalArsTransferencia);
         s.ingresosPeriodTotalUsd.textContent = formatearUSD(totalUsd);
         
-        renderIngresosList(ingresos);
+        // ===================== INICIO DE LA MODIFICACIÓN =====================
+        // Agrupamos los ingresos por categoría
+        const ingresosAgrupados = ingresos.reduce((acc, ingreso) => {
+            const categoria = ingreso.categoria || 'Sin Categoría';
+            if (!acc[categoria]) {
+                acc[categoria] = []; // Si no existe la categoría en el acumulador, la creamos
+            }
+            acc[categoria].push(ingreso); // Añadimos el ingreso a su categoría
+            return acc;
+        }, {});
+        
+        // Pasamos el objeto agrupado a la función de renderizado
+        renderIngresosList(ingresosAgrupados);
+        // ====================== FIN DE LA MODIFICACIÓN =======================
 
     } catch (error) {
         handleDBError(error, s.ingresosList, "ingresos");
@@ -1394,58 +1404,73 @@ async function loadIngresos() {
     }
 }
 
-function renderIngresosList(ingresos) {
-    if (ingresos.length === 0) {
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+function renderIngresosList(ingresosAgrupados) {
+    if (Object.keys(ingresosAgrupados).length === 0) {
         s.ingresosList.innerHTML = `<p class="dashboard-loader" style="grid-column: 1 / -1;">No hay ingresos para mostrar en este período.</p>`;
         return;
     }
 
-    s.ingresosList.innerHTML = ingresos.map(ingreso => {
-        const montoFormateado = ingreso.metodo === 'Dólares' 
-            ? formatearUSD(ingreso.monto) 
-            : formatearARS(ingreso.monto);
+    // Usamos Object.keys para iterar sobre cada categoría del objeto
+    s.ingresosList.innerHTML = Object.keys(ingresosAgrupados).map(categoria => {
+        const ingresosDeCategoria = ingresosAgrupados[categoria];
+        const totalCategoria = ingresosDeCategoria.reduce((sum, ing) => sum + ing.monto, 0);
+        const moneda = ingresosDeCategoria[0].metodo === 'Dólares' ? 'USD' : 'ARS';
         
-        const ingresoJSON = JSON.stringify(ingreso).replace(/'/g, "\\'");
-
-        return `
-        <div class="ingreso-card" data-ingreso-id="${ingreso.id}" data-ingreso-item='${ingresoJSON}'>
-            <div class="ingreso-card-icon">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="12" y1="1" x2="12" y2="23"></line>
-                    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-                </svg>
-            </div>
-            <div class="ingreso-card-content">
-                <div class="ingreso-card-header">
-                    <span class="ingreso-card-category">${ingreso.categoria}</span>
-                    <span class="ingreso-card-amount">${montoFormateado}</span>
+        // Creamos la lista de detalles para esta categoría
+        const detallesHtml = ingresosDeCategoria.map(ingreso => {
+            const ingresoJSON = JSON.stringify(ingreso).replace(/'/g, "\\'");
+            return `
+            <div class="ingreso-detail-item">
+                <div class="detail-info">
+                    <span class="detail-description">${ingreso.descripcion || 'Ingreso general'}</span>
+                    <span class="detail-date">${new Date((ingreso.fecha?.seconds || 0) * 1000).toLocaleString('es-AR')}</span>
                 </div>
-                <p class="ingreso-card-description">${ingreso.descripcion || 'Sin detalles adicionales.'}</p>
-                <div class="ingreso-card-footer">
-                    <span>${new Date((ingreso.fecha?.seconds || 0) * 1000).toLocaleString('es-AR')}</span>
-                    <div class="actions-cell">
-                        <button class="edit-btn btn-edit-ingreso" title="Editar Ingreso">
-                           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                        </button>
-                        <button class="delete-btn" title="Eliminar Ingreso" onclick="deleteIngreso('${ingreso.id}', '${ingreso.categoria}', ${ingreso.monto}, '${ingreso.metodo}')">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                        </button>
+                <div class="detail-actions">
+                    <span class="detail-amount">${ingreso.metodo === 'Dólares' ? formatearUSD(ingreso.monto) : formatearARS(ingreso.monto)}</span>
+                    <button class="edit-btn btn-edit-ingreso" title="Editar Ingreso" data-ingreso-item='${ingresoJSON}' data-ingreso-id="${ingreso.id}">
+                       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                    </button>
+                    <button class="delete-btn" title="Eliminar Ingreso" onclick="deleteIngreso('${ingreso.id}', '${ingreso.categoria}', ${ingreso.monto}, '${ingreso.metodo}')">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    </button>
+                </div>
+            </div>`;
+        }).join('');
+
+        // Creamos la tarjeta principal de la categoría
+        return `
+        <div class="ingreso-group-card">
+            <div class="ingreso-group-header">
+                <div class="header-info">
+                    <span class="header-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+                    </span>
+                    <div class="header-text">
+                        <span class="header-category">${categoria}</span>
+                        <span class="header-item-count">${ingresosDeCategoria.length} movimiento(s)</span>
                     </div>
                 </div>
+                <div class="header-summary">
+                    <span class="header-total-amount">${moneda === 'USD' ? formatearUSD(totalCategoria) : formatearARS(totalCategoria)}</span>
+                    <svg class="chevron-down" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg>
+                </div>
+            </div>
+            <div class="ingreso-group-details">
+                ${detallesHtml}
             </div>
         </div>`;
     }).join('');
 
+    // Añadimos los listeners para los botones de editar
     document.querySelectorAll('.btn-edit-ingreso').forEach(button => {
         button.addEventListener('click', (e) => {
             e.stopPropagation();
-            const card = e.currentTarget.closest('.ingreso-card');
-            const ingresoItem = JSON.parse(card.dataset.ingresoItem.replace(/\\'/g, "'"));
-            promptToEditIngreso(ingresoItem, card.dataset.ingresoId);
+            const ingresoItem = JSON.parse(button.dataset.ingresoItem.replace(/\\'/g, "'"));
+            promptToEditIngreso(ingresoItem, button.dataset.ingresoId);
         });
     });
 }
-
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA
 async function promptToAddIngreso() {
@@ -2920,10 +2945,9 @@ async function loadCommissions() {
 }
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA
-
 function renderCommissions(vendorData, salesByVendor) {
     if (Object.keys(vendorData).length === 0) {
-        s.commissionsResultsContainer.innerHTML = `<p class="dashboard-loader">No hay datos de comisiones para mostrar.</p>`;
+        s.commissionsResultsContainer.innerHTML = `<p class="dashboard-loader">No hay vendedores creados. ¡Crea el primero!</p>`;
         return;
     }
 
@@ -2932,14 +2956,9 @@ function renderCommissions(vendorData, salesByVendor) {
         const vendor = vendorData[vendorName];
         const sales = salesByVendor[vendorName] || [];
 
-        // --- LÓGICA CORREGIDA PARA EL TOTAL ---
-        // 1. Sumamos las comisiones del período actual
         const currentPeriodCommission = sales.reduce((sum, sale) => sum + (sale.comision_vendedor_usd || 0), 0);
-        
-        // 2. Sumamos la deuda histórica con las nuevas comisiones
         const totalPendingAmount = (vendor.comision_pendiente_usd || 0) + currentPeriodCommission;
-        // --- FIN DE LA LÓGICA CORREGIDA ---
-
+        
         const salesListHtml = sales.map(sale => `
             <div class="commission-sale-item">
                 <div class="commission-sale-main">
@@ -2950,12 +2969,18 @@ function renderCommissions(vendorData, salesByVendor) {
             </div>
         `).join('');
 
+        // ===================== INICIO DE LA MODIFICACIÓN =====================
+        // Se añade un botón de eliminar en la cabecera de la tarjeta
         html += `
             <div class="commission-vendor-card" data-vendor-name="${vendorName}">
                 <div class="vendor-card-header">
-                    <h3>${vendorName}</h3>
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <h3>${vendorName}</h3>
+                        <button class="pcm-delete-btn btn-delete-vendedor" title="Eliminar Vendedor">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                        </button>
+                    </div>
                     <div class="vendor-commission-details">
-                         <!-- Ahora usamos el nuevo total calculado -->
                          <span class="vendor-total-commission" title="Comisión PENDIENTE de pago">${formatearUSD(totalPendingAmount)}</span>
                          <button class="btn-pay-commission" data-pending-amount="${totalPendingAmount}" title="Registrar un pago de comisión a este vendedor" ${totalPendingAmount <= 0 ? 'disabled' : ''}>Pagar Comisión</button>
                     </div>
@@ -2964,6 +2989,7 @@ function renderCommissions(vendorData, salesByVendor) {
                 <div class="commission-payment-history" id="history-${vendorName.replace(/\s+/g, '')}"></div>
             </div>
         `;
+        // ====================== FIN DE LA MODIFICACIÓN =======================
     }
     s.commissionsResultsContainer.innerHTML = html;
 
@@ -2972,14 +2998,36 @@ function renderCommissions(vendorData, salesByVendor) {
     });
 }
 
-// REEMPLAZA ESTA FUNCIÓN EN TU SCRIPT.JS
-
-// REEMPLAZA ESTA FUNCIÓN EN TU SCRIPT.JS
-
-// REEMPLAZA ESTA FUNCIÓN
-
 async function promptToPayCommission(vendorName, pendingAmount) {
+    // Nos aseguramos de tener la lista de cuentas financieras actualizada
+    if (!financialAccounts || financialAccounts.length === 0) {
+        try {
+            const accountsSnapshot = await db.collection('cuentas_financieras').orderBy('nombre').get();
+            financialAccounts = accountsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        } catch (error) {
+            showGlobalFeedback("Error al cargar las cuentas financieras.", "error");
+            return;
+        }
+    }
+
     const metodoOptions = metodosDePago.map(m => `<option value="${m}">${m}</option>`).join('');
+    
+    // ===================== INICIO DE LA MODIFICACIÓN =====================
+    // Creamos el HTML para el selector de cuentas, mostrando el saldo de cada una
+    const accountsOptionsHtml = financialAccounts.length > 0
+        ? financialAccounts.map(acc => `<option value="${acc.id}|${acc.nombre}">${acc.nombre} (${formatearARS(acc.saldo_actual_ars)})</option>`).join('')
+        : '<option value="" disabled>No hay cuentas creadas</option>';
+
+    const accountSelectHtml = `
+        <div class="form-group" style="margin-top: 1.5rem;">
+            <select name="cuenta_origen" required>
+                <option value="" disabled selected></option>
+                ${accountsOptionsHtml}
+            </select>
+            <label>Pagar desde la Cuenta</label>
+        </div>
+    `;
+    // ====================== FIN DE LA MODIFICACIÓN =======================
 
    s.promptContainer.innerHTML = `
    <div class="ingreso-modal-box">
@@ -2999,7 +3047,6 @@ async function promptToPayCommission(vendorName, pendingAmount) {
                <label for="payment-metodo">Pagar Con</label>
            </div>
 
-           <!-- ESTE DIV AHORA APARECERÁ SOLO CUANDO SE PAGUE EN PESOS -->
            <div id="ars-payment-fields" class="payment-details-group hidden">
                <div class="form-group">
                    <input type="number" id="payment-cotizacion" name="cotizacion_dolar" placeholder=" ">
@@ -3009,6 +3056,9 @@ async function promptToPayCommission(vendorName, pendingAmount) {
                    <input type="number" id="payment-monto-ars" name="monto_ars" placeholder=" " readonly>
                    <label for="payment-monto-ars">Monto Equivalente (ARS)</label>
                </div>
+               <!-- ===================== INICIO DE LA MODIFICACIÓN ===================== -->
+               ${accountSelectHtml} <!-- Insertamos el nuevo selector aquí -->
+               <!-- ====================== FIN DE LA MODIFICACIÓN ======================= -->
            </div>
 
            <div class="prompt-buttons">
@@ -3027,14 +3077,24 @@ async function promptToPayCommission(vendorName, pendingAmount) {
    const montoUsdInput = form.querySelector('#payment-monto-usd');
    const cotizacionInput = form.querySelector('#payment-cotizacion');
    const montoArsInput = form.querySelector('#payment-monto-ars');
+   // ===================== INICIO DE LA MODIFICACIÓN =====================
+   const cuentaSelect = form.querySelector('[name="cuenta_origen"]'); // Buscamos el nuevo selector
+   // ====================== FIN DE LA MODIFICACIÓN =======================
 
    const toggleArsFields = () => {
-       // --- LÓGICA CORREGIDA ---
        const show = metodoSelect.value.startsWith('Pesos');
-       arsFields.classList.toggle('hidden', !show);
+       const isTransfer = metodoSelect.value === 'Pesos (Transferencia)';
        
-       cotizacionInput.required = show; // Solo es requerido si se muestran los campos
-       montoArsInput.required = show;
+       arsFields.classList.toggle('hidden', !show);
+       cotizacionInput.required = show;
+       
+       // ===================== INICIO DE LA MODIFICACIÓN =====================
+       // El selector de cuenta solo es visible y requerido si es transferencia
+       if (cuentaSelect) {
+           cuentaSelect.parentElement.classList.toggle('hidden', !isTransfer);
+           cuentaSelect.required = isTransfer;
+       }
+       // ====================== FIN DE LA MODIFICACIÓN =======================
    };
 
    const calculateArs = () => {
@@ -3052,10 +3112,6 @@ async function promptToPayCommission(vendorName, pendingAmount) {
    cotizacionInput.addEventListener('input', calculateArs);
    toggleArsFields();
 }
-
-// REEMPLAZA ESTA FUNCIÓN TAMBIÉN
-
-// REEMPLAZA ESTA FUNCIÓN
 
 async function saveCommissionPayment(form) {
     const btn = form.querySelector('button[type="submit"]');
@@ -3081,7 +3137,11 @@ async function saveCommissionPayment(form) {
         monto_usd_original: montoUsd 
     };
 
-    // --- LÓGICA CORREGIDA ---
+    let montoArs = 0;
+    // ===================== INICIO DE LA MODIFICACIÓN =====================
+    let cuentaOrigenValue = null;
+    // ====================== FIN DE LA MODIFICACIÓN =======================
+
     if (metodoPago.startsWith('Pesos')) {
         const cotizacion = parseFloat(formData.get('cotizacion_dolar'));
         if (isNaN(cotizacion) || cotizacion <= 0) {
@@ -3089,7 +3149,7 @@ async function saveCommissionPayment(form) {
             toggleSpinner(btn, false);
             return;
         }
-        const montoArs = parseFloat(formData.get('monto_ars'));
+        montoArs = parseFloat(formData.get('monto_ars'));
         if (isNaN(montoArs) || montoArs <= 0) {
             showGlobalFeedback("El monto en ARS es inválido.", "error");
             toggleSpinner(btn, false);
@@ -3098,31 +3158,44 @@ async function saveCommissionPayment(form) {
         gastoData.cotizacion_dolar = cotizacion;
         gastoData.monto = montoArs;
         gastoData.metodo_pago = metodoPago;
+        
+        // ===================== INICIO DE LA MODIFICACIÓN =====================
+        // Si es transferencia, validamos y guardamos los datos de la cuenta
+        if (metodoPago === 'Pesos (Transferencia)') {
+            cuentaOrigenValue = formData.get('cuenta_origen');
+            if (!cuentaOrigenValue) {
+                showGlobalFeedback("Debes seleccionar la cuenta de origen para la transferencia.", "error");
+                toggleSpinner(btn, false);
+                return;
+            }
+            const [id, nombre] = cuentaOrigenValue.split('|');
+            gastoData.cuenta_origen_id = id;
+            gastoData.cuenta_origen_nombre = nombre;
+        }
+        // ====================== FIN DE LA MODIFICACIÓN =======================
+
     } else { // Pago en Dólares
         gastoData.monto = montoUsd;
         gastoData.metodo_pago = 'Dólares';
-        // No se guarda cotización si se paga en dólares
     }
 
     const vendorRef = db.collection('vendedores').doc(vendorName);
 
     try {
         await db.runTransaction(async (t) => {
+            // 1. Actualizar (o crear) la deuda del vendedor
             const vendorDoc = await t.get(vendorRef);
             if (!vendorDoc.exists) {
-                t.set(vendorRef, { 
-                    nombre: vendorName, 
-                    comision_pendiente_usd: -montoUsd 
-                });
+                t.set(vendorRef, { nombre: vendorName, comision_pendiente_usd: -montoUsd });
             } else {
-                t.update(vendorRef, {
-                    comision_pendiente_usd: firebase.firestore.FieldValue.increment(-montoUsd)
-                });
+                t.update(vendorRef, { comision_pendiente_usd: firebase.firestore.FieldValue.increment(-montoUsd) });
             }
 
+            // 2. Crear el registro de Gasto en la caja
             const gastoRef = db.collection('gastos').doc();
             t.set(gastoRef, gastoData);
 
+            // 3. Crear el registro en el historial de 'pagos_comisiones'
             const pagoComisionRef = db.collection('pagos_comisiones').doc();
             t.set(pagoComisionRef, {
                 monto_usd: montoUsd,
@@ -3132,12 +3205,22 @@ async function saveCommissionPayment(form) {
                 descripcion,
                 gastoAsociadoId: gastoRef.id
             });
+            
+            // ===================== INICIO DE LA MODIFICACIÓN =====================
+            // 4. (NUEVO) Si fue por transferencia, descontar el saldo de la cuenta financiera
+            if (cuentaOrigenValue) {
+                const [cuentaId] = cuentaOrigenValue.split('|');
+                const cuentaRef = db.collection('cuentas_financieras').doc(cuentaId);
+                t.update(cuentaRef, { saldo_actual_ars: firebase.firestore.FieldValue.increment(-montoArs) });
+            }
+            // ====================== FIN DE LA MODIFICACIÓN =======================
         });
 
         showGlobalFeedback('Pago de comisión registrado con éxito.', 'success');
         s.promptContainer.innerHTML = '';
         loadCommissions();
         updateReports();
+        loadFinancialData(); // Recargamos los datos financieros para ver el saldo actualizado
 
     } catch (error) {
         console.error("Error al registrar el pago de comisión:", error);
@@ -3312,10 +3395,35 @@ function mostrarReporteCaja(fecha, totalVentas, totalCosto, gananciaNeta, errore
     document.getElementById('btn-cerrar-reporte').onclick = () => { s.promptContainer.innerHTML = ''; };
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 async function promptToAddGasto() {
+    // Aseguramos tener la lista de cuentas actualizada
+    if (!financialAccounts || financialAccounts.length === 0) {
+        try {
+            const accountsSnapshot = await db.collection('cuentas_financieras').orderBy('nombre').get();
+            financialAccounts = accountsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        } catch (error) { showGlobalFeedback("Error al cargar las cuentas financieras.", "error"); return; }
+    }
+
     const categoriaOptions = gastosCategorias.map(c => `<option value="${c}">${c}</option>`).join('');
     const metodoOptions = metodosDePago.map(m => `<option value="${m}">${m}</option>`).join('');
     const accesoriosOptions = accesoriosSubcategorias.map(s => `<option value="${s}">${s}</option>`).join('');
+
+    // ===================== INICIO DE LA MODIFICACIÓN =====================
+    // Creamos el HTML para el selector de cuentas de origen
+    const accountsOptionsHtml = financialAccounts.length > 0
+        ? financialAccounts.map(acc => `<option value="${acc.id}|${acc.nombre}">${acc.nombre} (${formatearARS(acc.saldo_actual_ars)})</option>`).join('')
+        : '<option value="" disabled>No hay cuentas creadas</option>';
+
+    const accountSelectHtml = `
+        <div id="gasto-cuenta-group" class="form-group hidden" style="margin-top: 1.5rem;">
+            <select name="cuenta_origen" required>
+                <option value="" disabled selected></option>
+                ${accountsOptionsHtml}
+            </select>
+            <label>Pagar desde la Cuenta</label>
+        </div>`;
+    // ====================== FIN DE LA MODIFICACIÓN =======================
 
     s.promptContainer.innerHTML = `
     <div class="ingreso-modal-box">
@@ -3354,6 +3462,9 @@ async function promptToAddGasto() {
                 </select>
                 <label for="gasto-metodo">Pagado con</label>
             </div>
+            
+            <!-- Insertamos el nuevo selector de cuentas aquí -->
+            ${accountSelectHtml}
 
             <div class="form-group">
                 <textarea id="gasto-descripcion" name="descripcion" rows="1" placeholder=" "></textarea>
@@ -3373,12 +3484,25 @@ async function promptToAddGasto() {
     const categoriaSelect = document.getElementById('gasto-categoria');
     const accesoriosGroup = document.getElementById('accesorios-subcategoria-group');
     const otroGroup = document.getElementById('detalle-otro-group');
+    // ===================== INICIO DE LA MODIFICACIÓN =====================
+    const metodoSelect = document.getElementById('gasto-metodo');
+    const cuentaGroup = document.getElementById('gasto-cuenta-group');
+    // ====================== FIN DE LA MODIFICACIÓN =======================
 
     categoriaSelect.addEventListener('change', () => {
         const selectedCategory = categoriaSelect.value;
         accesoriosGroup.classList.toggle('hidden', selectedCategory !== 'Accesorios');
         otroGroup.classList.toggle('hidden', selectedCategory !== 'Otro' && selectedCategory !== 'Repuestos');
     });
+
+    // ===================== INICIO DE LA MODIFICACIÓN =====================
+    // Lógica para mostrar/ocultar y hacer requerido el selector de cuentas
+    metodoSelect.addEventListener('change', () => {
+        const isTransferencia = metodoSelect.value === 'Pesos (Transferencia)';
+        cuentaGroup.classList.toggle('hidden', !isTransferencia);
+        cuentaGroup.querySelector('select').required = isTransferencia;
+    });
+    // ====================== FIN DE LA MODIFICACIÓN =======================
 
     const textarea = document.getElementById('gasto-descripcion');
     if (textarea) {
@@ -3389,6 +3513,7 @@ async function promptToAddGasto() {
     }
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 async function saveGasto(btn) {
     toggleSpinner(btn, true);
     const form = btn.form;
@@ -3414,14 +3539,45 @@ async function saveGasto(btn) {
         toggleSpinner(btn, false);
         return;
     }
+    
+    // ===================== INICIO DE LA MODIFICACIÓN =====================
+    const cuentaOrigenValue = formData.get('cuenta_origen');
+    if (gastoData.metodo_pago === 'Pesos (Transferencia)') {
+        if (!cuentaOrigenValue) {
+            showGlobalFeedback("Debes seleccionar una cuenta para la transferencia.", "error");
+            toggleSpinner(btn, false);
+            return;
+        }
+        const [id, nombre] = cuentaOrigenValue.split('|');
+        gastoData.cuenta_origen_id = id;
+        gastoData.cuenta_origen_nombre = nombre;
+    }
+    // ====================== FIN DE LA MODIFICACIÓN =======================
 
     try {
-        await db.collection('gastos').add(gastoData);
+        // ===================== INICIO DE LA MODIFICACIÓN =====================
+        // Usamos una transacción para asegurar la consistencia de los datos
+        await db.runTransaction(async t => {
+            // 1. Guardamos el gasto
+            const gastoRef = db.collection('gastos').doc();
+            t.set(gastoRef, gastoData);
+
+            // 2. Si es transferencia, actualizamos el saldo de la cuenta
+            if (gastoData.cuenta_origen_id) {
+                const cuentaRef = db.collection('cuentas_financieras').doc(gastoData.cuenta_origen_id);
+                // Usamos FieldValue.increment con un número negativo para restar
+                t.update(cuentaRef, { saldo_actual_ars: firebase.firestore.FieldValue.increment(-gastoData.monto) });
+            }
+        });
+        // ====================== FIN DE LA MODIFICACIÓN =======================
+
         showGlobalFeedback('Gasto registrado con éxito', 'success');
         s.promptContainer.innerHTML = '';
         if(s.gastosSection && !s.gastosSection.classList.contains('hidden')) {
             loadGastos();
         }
+        // Actualizamos las otras vistas para que reflejen el cambio
+        loadFinancialData();
         updateReports();
     } catch (error) {
         console.error("Error al guardar el gasto:", error);
@@ -3523,6 +3679,7 @@ function renderGastosChart(gastos, gastosPorCategoria) {
     });
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 function renderGastosList(gastos) {
     if (gastos.length === 0) {
         s.gastosList.innerHTML = `<p class="dashboard-loader">No hay gastos para mostrar en este período.</p>`;
@@ -3532,6 +3689,33 @@ function renderGastosList(gastos) {
         let desc = gasto.descripcion || 'Sin detalles';
         let montoFormateado;
         let deleteButton;
+        
+        // ===================== INICIO DE LA MODIFICACIÓN =====================
+        // Generamos la etiqueta (badge) para el método de pago
+        let metodoPagoBadge = '';
+        if (gasto.metodo_pago) {
+            let badgeClass = '';
+            let badgeText = '';
+
+            switch (gasto.metodo_pago) {
+                case 'Pesos (Efectivo)':
+                    badgeClass = 'efectivo';
+                    badgeText = 'Efectivo';
+                    break;
+                case 'Pesos (Transferencia)':
+                    badgeClass = 'transferencia';
+                    badgeText = 'Transferencia';
+                    break;
+                case 'Dólares':
+                    badgeClass = 'dolares';
+                    badgeText = 'Dólares';
+                    break;
+            }
+            if (badgeText) {
+                 metodoPagoBadge = `<span class="payment-badge payment-badge--${badgeClass}">${badgeText}</span>`;
+            }
+        }
+        // ====================== FIN DE LA MODIFICACIÓN =======================
 
         if (gasto.categoria === 'Comisiones') {
             desc = `Pago a ${gasto.vendedor}. ${gasto.descripcion || ''}`;
@@ -3548,14 +3732,25 @@ function renderGastosList(gastos) {
             deleteButton = `<button class="delete-btn" title="Eliminar Gasto" onclick="deleteGasto('${gasto.id}', '${gasto.categoria}', ${gasto.monto})"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>`;
         }
 
+        // ===================== INICIO DE LA MODIFICACIÓN =====================
+        // Se añade una nueva estructura 'gasto-item-header' para alinear la categoría y la etiqueta
         return `<div class="gasto-item" style="border-color: ${categoriaColores[gasto.categoria] || '#cccccc'};">
-            <div class="gasto-item-info"><div class="gasto-item-cat">${gasto.categoria}</div><div class="gasto-item-desc">${desc}</div></div>
-            <div class="gasto-item-details"><div class="gasto-item-amount">${montoFormateado}</div><div class="gasto-item-date">${new Date((gasto.fecha?.seconds || 0) * 1000).toLocaleDateString('es-AR')}</div></div>
+            <div class="gasto-item-info">
+                <div class="gasto-item-header">
+                    <div class="gasto-item-cat">${gasto.categoria}</div>
+                    ${metodoPagoBadge}
+                </div>
+                <div class="gasto-item-desc">${desc}</div>
+            </div>
+            <div class="gasto-item-details">
+                <div class="gasto-item-amount">${montoFormateado}</div>
+                <div class="gasto-item-date">${new Date((gasto.fecha?.seconds || 0) * 1000).toLocaleDateString('es-AR')}</div>
+            </div>
             <div class="gasto-item-actions">${deleteButton}</div>
         </div>`;
+        // ====================== FIN DE LA MODIFICACIÓN =======================
     }).join('');
 }
-
 
 function deleteGasto(id, categoria, monto) {
     const message = `Categoría: ${categoria}\nMonto: ${formatearARS(monto)}\n\n¿Estás seguro de que quieres eliminar este gasto?`;
@@ -4196,16 +4391,19 @@ function promptForManualImeiInput(e) {
 }
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 async function onScanSuccess(imei) {
     s.feedbackMessage.classList.add('hidden');
     
-    // Verificamos si existe el contexto de canje
+    // ===================== INICIO DE LA CORRECCIÓN =====================
+    // La lógica de 'batchLoadContext' ahora llama a showAddProductForm sin
+    // el tercer argumento 'modelo', para que la función use el 'currentModel' del contexto.
     if (canjeContext) {
-        // Le pasamos todos los datos del contexto a la siguiente función
-        showAddProductForm(null, imei, canjeContext.modelo, canjeContext.docId, canjeContext.valorToma);
+        showAddProductForm(null, imei, canjeContext.modelo, canjeContext.docId);
     } else if (batchLoadContext) {
-        showAddProductForm(null, imei, batchLoadContext.model);
+        showAddProductForm(null, imei); // <-- LÍNEA CORREGIDA
     } else if (wholesaleSaleContext) {
+    // ====================== FIN DE LA CORRECCIÓN =======================
         await processWholesaleItem(imei);
     } else {
         showFeedback("Buscando IMEI...", "loading");
@@ -4252,45 +4450,7 @@ function promptForManualImeiInput(e) {
     });
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
-async function onScanSuccess(imei) {
-    s.feedbackMessage.classList.add('hidden');
-    
-    if (canjeContext) {
-        // --- INICIO DE LA CORRECCIÓN CLAVE ---
-        // Ahora pasamos el canjeId correctamente.
-        showAddProductForm(null, imei, canjeContext.modelo, canjeContext.docId);
-        // --- FIN DE LA CORRECCIÓN CLAVE ---
-    } else if (batchLoadContext) {
-        showAddProductForm(null, imei, batchLoadContext.model);
-    } else if (wholesaleSaleContext) {
-        await processWholesaleItem(imei);
-    } else {
-        showFeedback("Buscando IMEI...", "loading");
-        try {
-            const imeiDoc = await db.collection("stock_individual").doc(imei.trim()).get();
-            s.feedbackMessage.classList.add('hidden');
-            if (imeiDoc.exists && imeiDoc.data().estado === 'en_stock') {
-                s.managementView.classList.add('hidden');
-                promptToSell(imei.trim(), imeiDoc.data());
-            } else {
-                showAddProductForm(null, imei.trim());
-            }
-        } catch (error) { handleDBError(error, s.feedbackMessage, "búsqueda de IMEI"); }
-    }
-}
-
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
-// REEMPLAZA ESTA FUNCIÓN COMPLETA
-// REEMPLAZA ESTA FUNCIÓN COMPLETA
 function showAddProductForm(e, imei = '', modelo = '', canjeId = null, valorToma = null) {
     if(e) e.preventDefault();
     resetManagementView(batchLoadContext ? true : false); 
@@ -4344,14 +4504,10 @@ function showAddProductForm(e, imei = '', modelo = '', canjeId = null, valorToma
     } else {
         document.getElementById('bateria').focus();
     }
-}// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+}
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+// REEMPLAZA ESTA FUNCIÓN COMPLETA (VERSIÓN FINAL Y ROBUSTA)
 async function promptToSell(imei, details) {
-    // =========================================================================
-    // === INICIO DE LA CORRECCIÓN: HACEMOS LA FUNCIÓN AUTOSUFICIENTE ===
-    // =========================================================================
-    // Si la lista de cuentas en memoria está vacía, la recargamos justo ahora.
     if (!financialAccounts || financialAccounts.length === 0) {
         try {
             const accountsSnapshot = await db.collection('cuentas_financieras').orderBy('nombre').get();
@@ -4360,29 +4516,23 @@ async function promptToSell(imei, details) {
         } catch (error) {
             console.error("Error al recargar cuentas para el modal de venta:", error);
             showGlobalFeedback("Error al cargar las cuentas. Intenta refrescar la página.", "error");
-            return; // Detenemos la ejecución si no se pueden cargar las cuentas
+            return;
         }
     }
-    // =========================================================================
-    // ====================== FIN DE LA CORRECCIÓN ===========================
-    // =========================================================================
 
     const vendedoresOptions = vendedores.map(v => `<option value="${v}">${v}</option>`).join('');
     const modelosOptions = modelos.map(m => `<option value="${m}">${m}</option>`).join('');
-
-    const accountsOptionsHtml = financialAccounts.length > 0
-        ? financialAccounts.map(acc => `<option value="${acc.id}|${acc.nombre}">${acc.nombre}</option>`).join('')
-        : '<option value="" disabled>No hay cuentas creadas</option>';
+    
+    const accountsOptionsHtml = financialAccounts.length > 0 ? financialAccounts.map(acc => `<option value="${acc.id}|${acc.nombre}">${acc.nombre}</option>`).join('') : '<option value="" disabled>No hay cuentas creadas</option>';
 
     const accountSelectHtml = `
         <div class="form-group" style="margin-top: 1rem;">
             <label for="sell-cuenta-destino">Acreditar Transferencia en</label>
-            <select id="sell-cuenta-destino" name="cuenta_destino" required>
+            <select id="sell-cuenta-destino" name="cuenta_destino">
                 <option value="" disabled selected>Seleccione una cuenta...</option>
                 ${accountsOptionsHtml}
             </select>
-        </div>
-    `;
+        </div>`;
 
     const metodosDePagoHtml = `
         <div class="form-group">
@@ -4390,27 +4540,22 @@ async function promptToSell(imei, details) {
             <div id="payment-methods-container">
                 <div class="payment-option">
                     <label class="toggle-switch-group"><input type="checkbox" name="metodo_pago_check" value="Dólares"><span class="toggle-switch-label">Dólares</span><span class="toggle-switch-slider"></span></label>
-                    <div class="payment-input-container hidden">
-                        <input type="number" id="sell-monto-dolares" name="monto_dolares" placeholder="Monto en USD" step="0.01">
-                    </div>
+                    <div class="payment-input-container hidden"><input type="number" id="sell-monto-dolares" name="monto_dolares" placeholder="Monto en USD" step="0.01"></div>
                 </div>
                 <div class="payment-option">
                     <label class="toggle-switch-group"><input type="checkbox" name="metodo_pago_check" value="Pesos (Efectivo)"><span class="toggle-switch-label">Pesos (Efectivo)</span><span class="toggle-switch-slider"></span></label>
-                    <div class="payment-input-container hidden">
-                        <input type="number" id="sell-monto-efectivo" name="monto_efectivo" placeholder="Monto en ARS" step="0.01">
-                    </div>
+                    <div class="payment-input-container hidden"><input type="number" id="sell-monto-efectivo" name="monto_efectivo" placeholder="Monto en ARS" step="0.01"></div>
                 </div>
                 <div class="payment-option">
                     <label class="toggle-switch-group"><input type="checkbox" name="metodo_pago_check" value="Pesos (Transferencia)"><span class="toggle-switch-label">Pesos (Transferencia)</span><span class="toggle-switch-slider"></span></label>
                     <div class="payment-input-container hidden">
-                        <input type="number" id="sell-monto-transferencia" name="monto_transferencia" placeholder="Monto en ARS" step="0.01" required>
+                        <input type="number" id="sell-monto-transferencia" name="monto_transferencia" placeholder="Monto en ARS" step="0.01">
                         ${accountSelectHtml}
                         <textarea id="sell-obs-transferencia" name="observaciones_transferencia" rows="2" placeholder="Obs. de transferencia (opcional)" style="margin-top: 10px;"></textarea>
                     </div>
                 </div>
             </div>
-        </div>
-    `;
+        </div>`;
 
     const canjeHtml = `
         <hr style="border-color:var(--border-dark);margin:1.5rem 0;">
@@ -4422,38 +4567,51 @@ async function promptToSell(imei, details) {
             <div class="form-group"><label for="sell-canje-observaciones">Observaciones</label><textarea id="sell-canje-observaciones" name="canje-observaciones" rows="2"></textarea></div>
             <label class="toggle-switch-group"><input type="checkbox" id="canje-para-reparar-check" name="canje-para-reparar"><span class="toggle-switch-label">Equipo de Canje Dañado (Enviar a Reparación)</span><span class="toggle-switch-slider"></span></label>
             <div id="canje-reparacion-fields" class="hidden" style="animation: fadeIn 0.4s;"><div class="form-group"><label for="canje-defecto-form">Defecto del Equipo Recibido</label><input type="text" id="canje-defecto-form" name="canje-defecto" placeholder="Ej: Pantalla rota, no enciende..."></div><div class="form-group"><label for="canje-repuesto-form">Repuesto Necesario</label><input type="text" id="canje-repuesto-form" name="canje-repuesto" placeholder="Ej: Módulo de pantalla iPhone 12 Pro..."></div></div>
-        </div>
-    `;
+        </div>`;
 
     s.promptContainer.innerHTML = `<div class="container container-sm" style="margin:auto;"><div class="prompt-box"><h3>Registrar Venta</h3><form id="sell-form"><div class="details-box"><div class="detail-item"><span>Vendiendo:</span> <strong>${details.modelo || ''}</strong></div><div class="detail-item"><span>IMEI:</span> <strong>${imei}</strong></div></div><div class="form-group"><label for="sell-nombre-cliente">Nombre del Cliente (Opcional)</label><input type="text" id="sell-nombre-cliente" name="nombre_cliente"></div><div class="form-group"><label for="sell-precio-venta">Precio Venta TOTAL (USD)</label><input type="number" id="sell-precio-venta" name="precioVenta" required></div>${metodosDePagoHtml}<div class="form-group"><label for="sell-cotizacion-dolar">Cotización Dólar (si aplica)</label><input type="number" id="sell-cotizacion-dolar" name="cotizacion_dolar" placeholder="Ej: 1200"></div><div class="form-group"><label for="sell-vendedor">Vendedor</label><select id="sell-vendedor" name="vendedor" required><option value="">Seleccione...</option>${vendedoresOptions}</select></div><div id="comision-vendedor-field" class="form-group hidden"><label for="sell-comision-vendedor">Comisión Vendedor (USD)</label><input type="number" id="sell-comision-vendedor" name="comision_vendedor_usd"></div>${canjeHtml}<div class="prompt-buttons"><button type="submit" class="prompt-button confirm spinner-btn"><span class="btn-text">Registrar Venta</span><div class="spinner"></div></button><button type="button" class="prompt-button cancel">Cancelar</button></div></form></div></div>`;
     
     const form = document.getElementById('sell-form');
-    const vendedorSelect = form.querySelector('[name="vendedor"]');
     
-    form.querySelectorAll('input[name="metodo_pago_check"]').forEach(checkbox => {
-        checkbox.addEventListener('change', (e) => {
-            const container = e.target.closest('.payment-option').querySelector('.payment-input-container');
-            const isChecked = e.target.checked;
+    // ===================== INICIO DE LA CORRECCIÓN =====================
+    // Listener centralizado para TODOS los eventos 'change' dentro del formulario
+    form.addEventListener('change', (e) => {
+        const target = e.target; // El elemento que originó el cambio
+
+        // Caso 1: Checkbox de método de pago
+        if (target.matches('input[name="metodo_pago_check"]')) {
+            const container = target.closest('.payment-option').querySelector('.payment-input-container');
+            const isChecked = target.checked;
             container.classList.toggle('hidden', !isChecked);
             
-            const montoInput = container.querySelector('input[type="number"]');
-            const cuentaSelect = container.querySelector('select[name="cuenta_destino"]');
-            if(montoInput) montoInput.required = isChecked;
-            if(cuentaSelect) cuentaSelect.required = isChecked;
-        });
-    });
-    
-    vendedorSelect.addEventListener('change', () => {
-        form.querySelector('#comision-vendedor-field').classList.toggle('hidden', !vendedorSelect.value);
-    });
-    
-    document.getElementById('acepta-canje').addEventListener('change', (e) => { 
-        document.getElementById('plan-canje-fields').classList.toggle('hidden', !e.target.checked); 
-    });
+            const montoTransferenciaInput = container.querySelector('#sell-monto-transferencia');
+            const cuentaSelect = container.querySelector('#sell-cuenta-destino');
 
-    document.getElementById('canje-para-reparar-check').addEventListener('change', (e) => {
-        document.getElementById('canje-reparacion-fields').classList.toggle('hidden', !e.target.checked);
+            if (montoTransferenciaInput && cuentaSelect) {
+                montoTransferenciaInput.required = isChecked;
+                cuentaSelect.required = isChecked;
+            } else {
+                const montoInput = container.querySelector('input[type="number"]');
+                if (montoInput) montoInput.required = isChecked;
+            }
+        }
+
+        // Caso 2: Selector de vendedor
+        if (target.id === 'sell-vendedor') {
+            form.querySelector('#comision-vendedor-field').classList.toggle('hidden', !target.value);
+        }
+
+        // Caso 3: Checkbox de Plan Canje
+        if (target.id === 'acepta-canje') {
+            document.getElementById('plan-canje-fields').classList.toggle('hidden', !target.checked);
+        }
+
+        // Caso 4: Checkbox de "Canje para Reparar"
+        if (target.id === 'canje-para-reparar-check') {
+            document.getElementById('canje-reparacion-fields').classList.toggle('hidden', !target.checked);
+        }
     });
+    // ====================== FIN DE LA CORRECCIÓN =======================
     
     form.addEventListener('submit', (e) => { 
         e.preventDefault(); 
@@ -5858,7 +6016,6 @@ function deleteFinancialAccount(accountId) {
     });
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 async function toggleAccountHistory(accountCard, accountId) {
     const historyContainer = s.accountsListContainer.querySelector(`[data-container-for="${accountId}"]`);
     
@@ -5884,21 +6041,27 @@ async function toggleAccountHistory(accountCard, accountId) {
             const transferInPromise = db.collection('movimientos_internos').where('cuenta_destino_id', '==', accountId).get();
             const transferOutPromise = db.collection('movimientos_internos').where('cuenta_origen_id', '==', accountId).get();
             
-            // --- INICIO DE LA CORRECCIÓN ---
-            // El error estaba en la siguiente línea.
-            // Cambié 'transferOutSnapshot' por 'transferOutPromise' para que coincida con la declaración.
+            // ===================== INICIO DE LA MODIFICACIÓN =====================
+            // Añadimos una nueva promesa para buscar los pagos de comisiones que SALIERON de esta cuenta
+            const commissionPaymentsPromise = db.collection('gastos')
+                .where('cuenta_origen_id', '==', accountId)
+                .where('categoria', '==', 'Comisiones')
+                .get();
+            // ====================== FIN DE LA MODIFICACIÓN =======================
+            
             const [
                 salesSnapshot, 
                 ingresosSnapshot, 
                 transferInSnapshot, 
-                transferOutSnapshot 
+                transferOutSnapshot,
+                commissionPaymentsSnapshot // <-- Nueva variable para los resultados
             ] = await Promise.all([
                 salesPromise, 
                 ingresosPromise, 
                 transferInPromise, 
-                transferOutPromise 
+                transferOutPromise,
+                commissionPaymentsPromise // <-- Nueva promesa en la consulta
             ]);
-            // --- FIN DE LA CORRECCIÓN ---
 
             let transactions = [];
             salesSnapshot.forEach(doc => {
@@ -5928,7 +6091,6 @@ async function toggleAccountHistory(accountCard, accountId) {
                     amount: data.monto_ars
                 });
             });
-
             transferOutSnapshot.forEach(doc => {
                 const data = doc.data();
                 let description = '';
@@ -5939,7 +6101,6 @@ async function toggleAccountHistory(accountCard, accountId) {
                 } else if (data.tipo === 'Retiro a Caja (USD)') {
                     description = `Retiro a Caja (Dólares)`;
                 }
-
                 transactions.push({
                     date: data.fecha.toDate(),
                     type: 'Egreso',
@@ -5947,6 +6108,19 @@ async function toggleAccountHistory(accountCard, accountId) {
                     amount: -data.monto_ars 
                 });
             });
+
+            // ===================== INICIO DE LA MODIFICACIÓN =====================
+            // Añadimos los pagos de comisiones al array de transacciones
+            commissionPaymentsSnapshot.forEach(doc => {
+                const data = doc.data();
+                transactions.push({
+                    date: data.fecha.toDate(),
+                    type: 'Egreso',
+                    description: `Pago de Comisión: ${data.vendedor || 'N/A'}`,
+                    amount: -data.monto // El 'monto' en ARS del gasto
+                });
+            });
+            // ====================== FIN DE LA MODIFICACIÓN =======================
 
             transactions.sort((a, b) => b.date - a.date);
 
@@ -6150,4 +6324,75 @@ async function executeMoneyMovement(btn) {
     } finally {
         toggleSpinner(btn, false);
     }
+}
+
+// AÑADE ESTAS TRES NUEVAS FUNCIONES AL FINAL DE TU SCRIPT
+
+// Función que se dispara desde un nuevo botón en la sección de comisiones
+function promptToAddVendedor() {
+    s.promptContainer.innerHTML = `
+    <div class="ingreso-modal-box">
+        <h3>Crear Nuevo Vendedor</h3>
+        <form id="vendedor-form" novalidate>
+            <div class="form-group">
+                <input type="text" id="vendedor-name" name="nombre" required placeholder=" ">
+                <label for="vendedor-name">Nombre del Vendedor</label>
+            </div>
+            <div class="prompt-buttons">
+                <button type="submit" class="prompt-button confirm spinner-btn">
+                    <span class="btn-text">Guardar Vendedor</span>
+                    <div class="spinner"></div>
+                </button>
+                <button type="button" class="prompt-button cancel">Cancelar</button>
+            </div>
+        </form>
+    </div>`;
+}
+
+// Función que guarda el vendedor en la base de datos
+async function saveVendedor(btn) {
+    toggleSpinner(btn, true);
+    const form = btn.form;
+    const vendedorData = {
+        nombre: form.nombre.value.trim(),
+        comision_pendiente_usd: 0,
+        fecha_creacion: firebase.firestore.FieldValue.serverTimestamp()
+    };
+
+    if (!vendedorData.nombre) {
+        showGlobalFeedback("El nombre del vendedor es obligatorio.", "error");
+        toggleSpinner(btn, false);
+        return;
+    }
+
+    try {
+        // Usamos el nombre como ID del documento para evitar duplicados
+        await db.collection('vendedores').doc(vendedorData.nombre).set(vendedorData);
+        showGlobalFeedback('Vendedor agregado con éxito', 'success');
+        s.promptContainer.innerHTML = '';
+        await loadAndPopulateSelects(); // Recargamos los selects de toda la app
+        loadCommissions(); // Recargamos la vista de comisiones
+    } catch (error) {
+        console.error("Error guardando al vendedor:", error);
+        showGlobalFeedback('Error al guardar. Es posible que ya exista un vendedor con ese nombre.', 'error', 5000);
+    } finally {
+        toggleSpinner(btn, false);
+    }
+}
+
+// Función para eliminar un vendedor
+function deleteVendedor(vendorName) {
+    const message = `¿Estás seguro de que quieres eliminar al vendedor "<strong>${vendorName}</strong>"?<br><br>Esta acción es irreversible. Se eliminará de la lista y de los filtros.`;
+    
+    showConfirmationModal('Confirmar Eliminación de Vendedor', message, async () => {
+        try {
+            await db.collection('vendedores').doc(vendorName).delete();
+            showGlobalFeedback(`Vendedor "${vendorName}" eliminado correctamente.`, 'success');
+            await loadAndPopulateSelects(); // Actualizamos los selects de toda la app
+            loadCommissions(); // Recargamos la vista
+        } catch (error) {
+            console.error("Error al eliminar al vendedor:", error);
+            showGlobalFeedback('No se pudo eliminar al vendedor.', 'error');
+        }
+    });
 }
