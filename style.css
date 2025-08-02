@@ -3485,3 +3485,25 @@ td.actions-cell {
         text-align: left;
     }
 }
+
+/* AÑADE ESTO AL FINAL DE TU ARCHIVO STYLE.CSS */
+
+/* Corrección de estilos para el modal de pago a proveedores */
+#prompt-container .prompt-box .form-group label {
+    position: static;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    display: block;
+    margin-bottom: 0.5rem;
+}
+
+#prompt-container .prompt-box .form-group input,
+#prompt-container .prompt-box .form-group select,
+#prompt-container .prompt-box .form-group textarea {
+    background-color: #2c2c2e !important;
+    border: 1px solid var(--border-dark);
+    border-radius: 8px;
+    padding: 0.8rem 1rem;
+    font-size: 1rem;
+    color: var(--text-light) !important;
+}

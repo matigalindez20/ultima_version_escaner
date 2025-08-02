@@ -2133,53 +2133,48 @@ async function initiateBatchLoad(providerId, providerName, model, batchCost, bat
 }
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
 async function promptToRegisterPayment(providerName, currentDebt) {
-    // Primero, nos aseguramos de tener el contexto correcto para el proveedor
     paymentContext = { id: paymentContext.id, name: providerName };
 
+    // Aseguramos tener la lista de cuentas actualizada
+    if (!financialAccounts || financialAccounts.length === 0) {
+        try {
+            const accountsSnapshot = await db.collection('cuentas_financieras').orderBy('nombre').get();
+            financialAccounts = accountsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        } catch (error) { showGlobalFeedback("Error al cargar las cuentas financieras.", "error"); return; }
+    }
+    
     const lotesSnapshot = await db.collection('lotes').where('proveedorId', '==', paymentContext.id).orderBy('fecha_carga', 'desc').get();
     
     const lotesOptions = lotesSnapshot.docs.map(doc => {
         const lote = doc.data();
-        
-        // --- INICIO DE LA CORRECCIÓN ---
-        // Lógica para mostrar una descripción inteligente del lote
-        let loteDescripcion = '';
-        if (lote.modelo) {
-            // Caso 1: Es un lote antiguo, con un solo modelo.
-            loteDescripcion = lote.modelo;
-        } else if (lote.detalle_modelos) {
-            // Caso 2: Es un lote nuevo, con múltiples modelos.
-            const modelosEnLote = Object.keys(lote.detalle_modelos).join(', ');
-            loteDescripcion = `Múltiples (${modelosEnLote})`;
-        } else {
-            // Caso 3: Es un lote sin modelo definido (poco probable, pero lo manejamos).
-            loteDescripcion = 'Sin detalle de modelo';
-        }
-        
+        let loteDescripcion = lote.modelo || (lote.detalle_modelos ? `Múltiples (${Object.keys(lote.detalle_modelos).join(', ')})` : 'Sin detalle');
         return `<option value="${lote.numero_lote}">${lote.numero_lote} (${loteDescripcion})</option>`;
-        // --- FIN DE LA CORRECCIÓN ---
-
     }).join('');
 
+    // ===================== INICIO DE LA MODIFICACIÓN =====================
+    // Creamos el HTML para el selector de cuentas de origen
+    const accountsOptionsHtml = financialAccounts.length > 0
+        ? financialAccounts.map(acc => `<option value="${acc.id}|${acc.nombre}">${acc.nombre} (${formatearARS(acc.saldo_actual_ars)})</option>`).join('')
+        : '<option value="" disabled>No hay cuentas creadas</option>';
+
+    const accountSelectHtml = `
+        <div id="pago-cuenta-group" class="form-group hidden" style="margin-top: 1rem; padding-left: 25px;">
+            <select name="cuenta_origen" required>
+                <option value="" disabled selected></option>
+                ${accountsOptionsHtml}
+            </select>
+            <label>Pagar desde la Cuenta</label>
+        </div>`;
+    // ====================== FIN DE LA MODIFICACIÓN =======================
+
     s.promptContainer.innerHTML = `
-        <div class="container container-sm">
-            <div class="prompt-box">
+        <div class="container container-sm"> <div class="prompt-box">
                 <h3>Registrar Pago a ${providerName}</h3>
                 <p>Deuda actual: <strong>${formatearUSD(currentDebt)}</strong></p>
                 <form id="payment-form">
-                    <div class="form-group">
-                        <label for="payment-total">Monto Total del Pago (USD)</label>
-                        <input type="number" id="payment-total" name="total" step="0.01" max="${currentDebt}" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="lote-asociado">Asociar a Lote (Opcional)</label>
-                        <select id="lote-asociado" name="loteAsociado">
-                            <option value="">Ninguno / Pago general</option>
-                            ${lotesOptions}
-                        </select>
-                    </div>
+                    <div class="form-group"><label for="payment-total">Monto Total del Pago (USD)</label><input type="number" id="payment-total" name="total" step="0.01" max="${currentDebt}" required></div>
+                    <div class="form-group"><label for="lote-asociado">Asociar a Lote (Opcional)</label><select id="lote-asociado" name="loteAsociado"><option value="">Ninguno / Pago general</option>${lotesOptions}</select></div>
                     <div class="form-group payment-details-group">
                         <label>Método de Pago</label>
                         <div class="checkbox-group" style="margin-bottom: 0.5rem;"><input type="checkbox" id="pay-usd" name="pay-usd" class="payment-method-cb"><label for="pay-usd">Dólares</label></div>
@@ -2188,27 +2183,31 @@ async function promptToRegisterPayment(providerName, currentDebt) {
                         <div id="pay-ars-efectivo-fields" class="hidden" style="padding-left: 25px;"><input type="number" name="efectivo" placeholder="Monto ARS"></div>
                         <div class="checkbox-group" style="margin-bottom: 0.5rem;"><input type="checkbox" id="pay-ars-transfer" name="pay-ars-transfer" class="payment-method-cb"><label for="pay-ars-transfer">Pesos (Transferencia)</label></div>
                         <div id="pay-ars-transfer-fields" class="hidden" style="padding-left: 25px;"><input type="number" name="transferencia" placeholder="Monto ARS"></div>
+                        <!-- Insertamos el selector de cuentas aquí -->
+                        ${accountSelectHtml}
                     </div>
-                    <div class="form-group">
-                        <label for="payment-notes">Notas (Opcional)</label>
-                        <textarea id="payment-notes" name="notas" rows="2" placeholder="Ej: Pago parcial del Lote-123"></textarea>
-                    </div>
-                    <div class="prompt-buttons">
-                        <button type="submit" class="prompt-button confirm spinner-btn"><span class="btn-text">Registrar Pago</span><div class="spinner"></div></button>
-                        <button type="button" class="prompt-button cancel">Cancelar</button>
-                    </div>
+                    <div class="form-group"><label for="payment-notes">Notas (Opcional)</label><textarea id="payment-notes" name="notas" rows="2" placeholder="Ej: Pago parcial del Lote-123"></textarea></div>
+                    <div class="prompt-buttons"><button type="submit" class="prompt-button confirm spinner-btn"><span class="btn-text">Registrar Pago</span><div class="spinner"></div></button><button type="button" class="prompt-button cancel">Cancelar</button></div>
                 </form>
-            </div>
-        </div>`;
+            </div> </div>`;
     
     const form = document.getElementById('payment-form');
     const totalInput = document.getElementById('payment-total');
     const paymentCheckboxes = form.querySelectorAll('.payment-method-cb');
+    // ===================== INICIO DE LA MODIFICACIÓN =====================
+    const cuentaGroup = document.getElementById('pago-cuenta-group');
+    // ====================== FIN DE LA MODIFICACIÓN =======================
 
     paymentCheckboxes.forEach(cb => {
         cb.addEventListener('change', () => {
             const fieldsDiv = document.getElementById(`${cb.id}-fields`);
             if (fieldsDiv) fieldsDiv.classList.toggle('hidden', !cb.checked);
+            
+            // Lógica para el nuevo selector de cuenta
+            if (cb.id === 'pay-ars-transfer') {
+                cuentaGroup.classList.toggle('hidden', !cb.checked);
+                cuentaGroup.querySelector('select').required = cb.checked;
+            }
             
             if (cb.id === 'pay-usd' && cb.checked && totalInput.value) {
                 form.querySelector('[name="dolares"]').value = totalInput.value;
@@ -2224,15 +2223,11 @@ async function promptToRegisterPayment(providerName, currentDebt) {
     });
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 async function saveProviderPayment(form) {
     const btn = form.querySelector('button[type="submit"]');
     toggleSpinner(btn, true);
     
-    if (!paymentContext || !paymentContext.id) {
-        showGlobalFeedback("Error fatal: No hay contexto de pago. Refresque la página.", "error", 5000);
-        toggleSpinner(btn, false);
-        return;
-    }
     const providerId = paymentContext.id;
     const providerName = paymentContext.name;
     const formData = new FormData(form);
@@ -2242,8 +2237,7 @@ async function saveProviderPayment(form) {
     
     if (isNaN(totalPaymentUSD) || totalPaymentUSD <= 0) {
         showGlobalFeedback("El monto total del pago debe ser un número válido y mayor a cero.", "error");
-        toggleSpinner(btn, false);
-        return;
+        toggleSpinner(btn, false); return;
     }
 
     const usdAmount = parseFloat(formData.get('dolares')) || 0;
@@ -2252,17 +2246,21 @@ async function saveProviderPayment(form) {
     
     if ((usdAmount + arsEfectivoAmount + arsTransferAmount) === 0) {
         showGlobalFeedback("Debes especificar al menos un método de pago con su monto.", "error");
-        toggleSpinner(btn, false);
-        return;
+        toggleSpinner(btn, false); return;
     }
+    
+    // ===================== INICIO DE LA MODIFICACIÓN =====================
+    const cuentaOrigenValue = formData.get('cuenta_origen');
+    if (arsTransferAmount > 0 && !cuentaOrigenValue) {
+        showGlobalFeedback("Debes seleccionar una cuenta de origen para la transferencia.", "error");
+        toggleSpinner(btn, false); return;
+    }
+    // ====================== FIN DE LA MODIFICACIÓN =======================
     
     try {
         await db.runTransaction(async t => {
             const fecha = firebase.firestore.FieldValue.serverTimestamp();
             const descripcionBase = `Pago a ${providerName}${loteAsociado ? ` (Lote: ${loteAsociado})` : ' (Pago General)'}`;
-
-            // --- LÓGICA CORREGIDA ---
-
             const paymentRef = db.collection('pagos_proveedores').doc();
             const newPagoId = paymentRef.id;
 
@@ -2279,27 +2277,17 @@ async function saveProviderPayment(form) {
             }
             if (arsTransferAmount > 0) {
                 pagosParaHistorial.push({ monto: arsTransferAmount, moneda: 'ARS (Transferencia)' });
-                gastosParaCaja.push({ categoria: 'Pago a Proveedor', descripcion: descripcionBase, monto: arsTransferAmount, metodo_pago: 'Pesos (Transferencia)', fecha: fecha, pagoId: newPagoId, providerId: providerId });
+                const [id, nombre] = cuentaOrigenValue.split('|');
+                const gastoTransf = { categoria: 'Pago a Proveedor', descripcion: descripcionBase, monto: arsTransferAmount, metodo_pago: 'Pesos (Transferencia)', fecha: fecha, pagoId: newPagoId, providerId: providerId, cuenta_origen_id: id, cuenta_origen_nombre: nombre };
+                gastosParaCaja.push(gastoTransf);
+
+                // Descontamos el saldo de la cuenta financiera
+                const cuentaRef = db.collection('cuentas_financieras').doc(id);
+                t.update(cuentaRef, { saldo_actual_ars: firebase.firestore.FieldValue.increment(-arsTransferAmount) });
             }
 
-            // Guardamos el historial
-            t.set(paymentRef, {
-                providerId: providerId, // Aseguramos que el ID esté aquí
-                proveedorNombre: providerName,
-                monto_total_usd: totalPaymentUSD,
-                lote_asociado: loteAsociado || null,
-                detalle_pago: pagosParaHistorial,
-                fecha,
-                notas: notas
-            });
-
-            // Guardamos los gastos
-            gastosParaCaja.forEach(gasto => {
-                const gastoRef = db.collection('gastos').doc();
-                t.set(gastoRef, gasto);
-            });
-            
-            // Actualizamos la deuda
+            t.set(paymentRef, { providerId: providerId, proveedorNombre: providerName, monto_total_usd: totalPaymentUSD, lote_asociado: loteAsociado || null, detalle_pago: pagosParaHistorial, fecha, notas: notas });
+            gastosParaCaja.forEach(gasto => { const gastoRef = db.collection('gastos').doc(); t.set(gastoRef, gasto); });
             const providerRef = db.collection('proveedores').doc(providerId);
             t.update(providerRef, { deuda_usd: firebase.firestore.FieldValue.increment(-totalPaymentUSD) });
         });
@@ -2308,6 +2296,7 @@ async function saveProviderPayment(form) {
         s.promptContainer.innerHTML = '';
         loadProviders();
         updateReports();
+        loadFinancialData(); // Recargamos datos financieros
 
     } catch (error) {
         console.error("Error al registrar el pago:", error);
@@ -5975,21 +5964,34 @@ async function toggleAccountHistory(accountCard, accountId) {
             const ingresosPromise = db.collection('ingresos_caja').where('cuenta_destino_id', '==', accountId).get();
             const transferInPromise = db.collection('movimientos_internos').where('cuenta_destino_id', '==', accountId).get();
             const transferOutPromise = db.collection('movimientos_internos').where('cuenta_origen_id', '==', accountId).get();
-            const commissionPaymentsPromise = db.collection('gastos').where('cuenta_origen_id', '==', accountId).where('categoria', '==', 'Comisiones').get();
+            
+            // ===================== INICIO DE LA MODIFICACIÓN =====================
+            // Ahora buscamos en la colección 'gastos' por dos categorías a la vez:
+            // 'Comisiones' Y 'Pago a Proveedor', usando el operador 'in'.
+            const expensePaymentsPromise = db.collection('gastos')
+                .where('cuenta_origen_id', '==', accountId)
+                .where('categoria', 'in', ['Comisiones', 'Pago a Proveedor'])
+                .get();
+            // ====================== FIN DE LA MODIFICACIÓN =======================
             
             const [
-                salesSnapshot, ingresosSnapshot, transferInSnapshot, 
-                transferOutSnapshot, commissionPaymentsSnapshot 
+                salesSnapshot, 
+                ingresosSnapshot, 
+                transferInSnapshot, 
+                transferOutSnapshot,
+                expensePaymentsSnapshot // <-- Usamos la nueva variable
             ] = await Promise.all([
-                salesPromise, ingresosPromise, transferInPromise, 
-                transferOutPromise, commissionPaymentsPromise 
+                salesPromise, 
+                ingresosPromise, 
+                transferInPromise, 
+                transferOutPromise,
+                expensePaymentsPromise // <-- Usamos la nueva promesa
             ]);
 
             let transactions = [];
             salesSnapshot.forEach(doc => { const data = doc.data(); transactions.push({ date: data.fecha_venta.toDate(), type: 'Ingreso', description: `Venta: ${data.producto.modelo}`, amount: data.monto_transferencia }); });
             ingresosSnapshot.forEach(doc => { const data = doc.data(); transactions.push({ date: data.fecha.toDate(), type: 'Ingreso', description: `Ingreso: ${data.categoria}`, amount: data.monto }); });
             transferInSnapshot.forEach(doc => { const data = doc.data(); transactions.push({ date: data.fecha.toDate(), type: 'Ingreso', description: `Recibido de: ${data.cuenta_origen_nombre}`, amount: data.monto_ars }); });
-            commissionPaymentsSnapshot.forEach(doc => { const data = doc.data(); transactions.push({ date: data.fecha.toDate(), type: 'Egreso', description: `Comisión: ${data.vendedor || 'N/A'}`, amount: -data.monto }); });
             transferOutSnapshot.forEach(doc => {
                 const data = doc.data(); let description = '';
                 if (data.tipo === 'Transferencia entre Cuentas') { description = `Enviado a: ${data.cuenta_destino_nombre}`;
@@ -5998,13 +6000,32 @@ async function toggleAccountHistory(accountCard, accountId) {
                 transactions.push({ date: data.fecha.toDate(), type: 'Egreso', description: description, amount: -data.monto_ars });
             });
 
+            // ===================== INICIO DE LA MODIFICACIÓN =====================
+            // Procesamos los resultados de la nueva consulta de gastos
+            expensePaymentsSnapshot.forEach(doc => {
+                const data = doc.data();
+                let description = '';
+                // Personalizamos la descripción según la categoría del gasto
+                if (data.categoria === 'Comisiones') {
+                    description = `Comisión: ${data.vendedor || 'N/A'}`;
+                } else if (data.categoria === 'Pago a Proveedor') {
+                    description = data.descripcion || 'Pago a Proveedor';
+                }
+                
+                transactions.push({
+                    date: data.fecha.toDate(),
+                    type: 'Egreso',
+                    description: description,
+                    amount: -data.monto // El 'monto' en ARS del gasto
+                });
+            });
+            // ====================== FIN DE LA MODIFICACIÓN =======================
+
             transactions.sort((a, b) => b.date - a.date);
 
             if (transactions.length === 0) {
                 historyContainer.innerHTML = `<div class="history-content-wrapper"><p class="dashboard-loader">No hay movimientos para esta cuenta.</p></div>`;
             } else {
-                // ===================== INICIO DE LA MODIFICACIÓN =====================
-                // Añadimos el atributo 'data-label' a cada celda (<td>)
                 const tableHTML = `
                     <div class="history-content-wrapper">
                         <table>
@@ -6023,7 +6044,6 @@ async function toggleAccountHistory(accountCard, accountId) {
                             </tbody>
                         </table>
                     </div>`;
-                // ====================== FIN DE LA MODIFICACIÓN =======================
                 historyContainer.innerHTML = tableHTML;
             }
         } catch (error) {
