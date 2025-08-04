@@ -3640,7 +3640,7 @@ td.actions-cell {
 }
 
 /* ======================================================================= */
-/* ====== ESTILO MINIMALISTA DEFINITIVO PARA TODOS LOS FILTROS ====== */
+/* ====== ESTILO MINIMALISTA DEFINITIVO Y CORREGIDO PARA FILTROS ====== */
 /* ======================================================================= */
 
 /* --- Contenedor Principal de Filtros (para todos) --- */
@@ -3651,11 +3651,12 @@ td.actions-cell {
     box-shadow: none;
     border: none;
     border-bottom: 1px solid var(--border-dark);
-    /* Flexbox para alinear elementos */
     display: flex;
     flex-wrap: wrap;
     gap: 1.5rem;
-    align-items: flex-end; /* Alinea los elementos en la parte inferior */
+    /* Por defecto (móvil), los elementos se estirarán */
+    flex-direction: column;
+    align-items: stretch; 
 }
 
 /* --- Campos y Etiquetas (para todos) --- */
@@ -3669,7 +3670,7 @@ td.actions-cell {
 .filters-container select {
     background-color: transparent !important;
     border: none;
-    border-bottom: 2px solid #444; /* Línea inferior sutil */
+    border-bottom: 2px solid #444;
     border-radius: 0;
     padding: 10px 5px;
     font-size: 1rem;
@@ -3702,6 +3703,26 @@ td.actions-cell {
     background: var(--brand-yellow);
     color: #000;
     transform: translateY(-2px);
+}
+
+
+/* --- SOLO PARA ESCRITORIO --- */
+@media (min-width: 768px) {
+    .filters-container {
+        flex-direction: row;
+        /* La regla problemática, ahora SÓLO para escritorio */
+        align-items: flex-end; 
+    }
+}
+
+
+/* --- Pequeños ajustes específicos para el historial que no afectan al resto --- */
+#history-filter-container {
+    background-color: #1a1a1a;
+    border-radius: 8px 8px 0 0;
+    padding: 1.5rem;
+    justify-content: center;
+    flex-direction: row; /* Para que en escritorio también se vea en línea */
 }
 
 /* ======================================================================= */
