@@ -3739,3 +3739,38 @@ td.actions-cell {
     padding-bottom: 2rem;    /* Añade más espacio abajo */
     padding-left: 1rem;
 }
+
+/* ======================================================================= */
+/* ====== MEJORA RESPONSIVA PARA LISTA DE INGRESOS (MÓVIL) ============== */
+/* ======================================================================= */
+
+@media (max-width: 767px) {
+    /* --- Ajustamos la cabecera de la tarjeta colapsable --- */
+    .ingreso-group-header {
+        flex-wrap: wrap; /* Permitimos que el total baje si no hay espacio */
+        gap: 0.5rem;     /* Añadimos un pequeño espacio si se envuelve */
+    }
+
+    .header-total-amount {
+        font-size: 1.2rem; /* Reducimos un poco el tamaño del total en móvil */
+    }
+
+    /* --- El arreglo principal para el detalle del ingreso --- */
+    .ingreso-detail-item {
+        flex-direction: column;   /* Hacemos que los elementos se apilen verticalmente */
+        align-items: flex-start;  /* Alineamos todo a la izquierda */
+        gap: 0.75rem;             /* Aumentamos el espacio entre la info y las acciones */
+    }
+
+    .detail-actions {
+        width: 100%;                  /* Hacemos que la fila de acciones ocupe todo el ancho */
+        justify-content: space-between; /* Empuja el monto a la izq y los botones a la der */
+        margin-top: 0.5rem;           /* Añade un pequeño margen superior */
+        padding-top: 0.75rem;         /* Añade espaciado superior */
+        border-top: 1px solid var(--border-dark); /* Crea una línea separadora sutil */
+    }
+
+    .detail-description {
+        margin-bottom: 0.25rem; /* Pequeño espacio entre la descripción y la fecha */
+    }
+}
