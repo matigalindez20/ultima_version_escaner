@@ -234,6 +234,7 @@ function populateAllSelects() {
 }
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU ARCHIVO SCRIPT.JS
+
 function addEventListeners() {
     s.logoutButton.addEventListener('click', () => auth.signOut());
     
@@ -441,6 +442,15 @@ function addEventListeners() {
     if (s.reportsView) {
         s.reportsView.addEventListener('click', (e) => {
             const kpiCard = e.target.closest('.kpi-card');
+            
+            // ===================== INICIO DEL CÓDIGO ACTUALIZADO =====================
+            const exportButton = e.target.closest('#btn-export-daily-summary');
+            if (exportButton) {
+                exportDailySummaryToExcel();
+                return; 
+            }
+            // ====================== FIN DEL CÓDIGO ACTUALIZADO =======================
+
             if (!kpiCard) return;
             const kpiValueDiv = kpiCard.querySelector('.kpi-value');
             if (!kpiValueDiv) return;
@@ -458,7 +468,6 @@ function addEventListeners() {
         });
     }
 
-    // ===================== INICIO DEL CÓDIGO AÑADIDO =====================
     if (s.ingresosList) {
         s.ingresosList.addEventListener('click', (e) => {
             const header = e.target.closest('.ingreso-group-header');
@@ -484,7 +493,6 @@ function addEventListeners() {
             }
         });
     }
-    // ====================== FIN DEL CÓDIGO AÑADIDO =======================
 
     s.stockItemsPerPage.addEventListener('change', () => loadStock('first'));
     s.stockNextPage.addEventListener('click', () => loadStock('next'));
@@ -2419,11 +2427,11 @@ async function showPaymentHistory(providerId, providerName) {
                 </thead>
                 <tbody>
                     ${pagos.map(pago => {
-                        // ===================== INICIO DE LA MODIFICACIÓN =====================
+                        // --- INICIO DE LA MODIFICACIÓN ---
                         // Añadimos la cotización al detalle si existe
                         const detallePago = pago.detalle_pago.map(d => `${d.moneda === 'USD' ? formatearUSD(d.monto) : formatearARS(d.monto)}`).join(' + ');
                         const cotizacionInfo = pago.cotizacion_dolar ? `<br><small class="time-muted">CT: ${formatearARS(pago.cotizacion_dolar)}</small>` : '';
-                        // ====================== FIN DE LA MODIFICACIÓN =======================
+                        // --- FIN DE LA MODIFICACIÓN ---
                         return `
                         <tr>
                             <td>${pago.fecha.toDate().toLocaleString('es-AR')}</td>
@@ -2442,6 +2450,8 @@ async function showPaymentHistory(providerId, providerName) {
     }
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 async function showBatchHistory(providerId, providerName) {
     s.promptContainer.innerHTML = `
     <div class="container batch-history-modal">
@@ -2459,7 +2469,6 @@ async function showBatchHistory(providerId, providerName) {
 
     const batchListContainer = document.getElementById('batch-list-container');
     try {
-        // --- INICIO DE LA MODIFICACIÓN: Obtenemos lotes y pagos al mismo tiempo ---
         const lotesPromise = db.collection('lotes')
             .where('proveedorId', '==', providerId)
             .orderBy('fecha_carga', 'desc')
@@ -2476,7 +2485,6 @@ async function showBatchHistory(providerId, providerName) {
             return;
         }
 
-        // Procesamos los pagos para tener una suma por cada lote
         const pagosPorLote = {};
         pagosSnapshot.forEach(doc => {
             const pago = doc.data();
@@ -2486,34 +2494,49 @@ async function showBatchHistory(providerId, providerName) {
         });
 
         const lotes = lotesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        // --- FIN DE LA MODIFICACIÓN ---
         
         batchListContainer.innerHTML = lotes.map(lote => {
-            // --- CÁLCULO Y GENERACIÓN DEL ESTADO DE PAGO ---
             const costoTotal = lote.costo_total_usd || 0;
             const totalPagado = pagosPorLote[lote.numero_lote] || 0;
             let statusHtml = '';
+            // --- INICIO DE LA MODIFICACIÓN ---
+            let restanteHtml = '';
+            // --- FIN DE LA MODIFICACIÓN ---
 
             if (costoTotal > 0) {
-                if (totalPagado >= costoTotal) {
+                const restante = costoTotal - totalPagado;
+                if (restante <= 0.01) { // Usamos un margen pequeño por si hay decimales
                     statusHtml = `<div class="lote-status pagado">✓ Pagado</div>`;
+                    // --- INICIO DE LA MODIFICACIÓN ---
+                    restanteHtml = `<small class="time-muted" style="color: var(--success-bg); font-weight: 500;">Completo</small>`;
+                    // --- FIN DE LA MODIFICACIÓN ---
                 } else if (totalPagado > 0) {
                     const porcentaje = Math.round((totalPagado / costoTotal) * 100);
                     statusHtml = `<div class="lote-status parcial">${porcentaje}% Pagado</div>`;
+                    // --- INICIO DE LA MODIFICACIÓN ---
+                    restanteHtml = `<small class="time-muted" style="color: var(--error-bg); font-weight: 500;">Faltan ${formatearUSD(restante)}</small>`;
+                    // --- FIN DE LA MODIFICACIÓN ---
                 } else {
                     statusHtml = `<div class="lote-status pendiente">Pendiente</div>`;
+                    // --- INICIO DE LA MODIFICACIÓN ---
+                    restanteHtml = `<small class="time-muted" style="color: var(--error-bg); font-weight: 500;">Faltan ${formatearUSD(restante)}</small>`;
+                    // --- FIN DE LA MODIFICACIÓN ---
                 }
             }
-            // --- FIN DEL CÁLCULO ---
 
             return `
             <div class="batch-list-item" data-batch-id="${lote.id}">
                 <div class="list-item-content" style="flex-grow: 1; display: flex; justify-content: space-between; align-items: center;">
                     <div class="batch-info">
                         Lote #${lote.numero_lote} <span>(${new Date(lote.fecha_carga.seconds * 1000).toLocaleDateString('es-AR')})</span>
-                        ${statusHtml}  <!-- INDICADOR AÑADIDO AQUÍ -->
+                        ${statusHtml}
                     </div>
-                    <div class="batch-cost">${formatearUSD(lote.costo_total_usd)}</div>
+                    <!-- --- INICIO DE LA MODIFICACIÓN --- -->
+                    <div class="batch-cost" style="display: flex; flex-direction: column; align-items: flex-end;">
+                        ${formatearUSD(lote.costo_total_usd)}
+                        ${restanteHtml}
+                    </div>
+                    <!-- --- FIN DE LA MODIFICACIÓN --- -->
                 </div>
                 <button class="delete-icon-btn btn-delete-batch" title="Eliminar Lote">
                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
@@ -2546,6 +2569,7 @@ async function showBatchHistory(providerId, providerName) {
         handleDBError(error, batchListContainer, "historial de lotes");
     }
 }
+
 async function showBatchDetail(lote) {
     const detailContainer = document.getElementById('batch-detail-container');
     detailContainer.innerHTML = `<p class="dashboard-loader">Cargando detalle del lote...</p>`;
@@ -3540,6 +3564,8 @@ async function saveGasto(btn) {
     }
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 async function loadGastos() {
     s.gastosList.innerHTML = `<p class="dashboard-loader">Cargando gastos...</p>`;
     if (gastosChart) gastosChart.destroy();
@@ -3562,13 +3588,25 @@ async function loadGastos() {
         const finDelRango = new Date(endDate + 'T23:59:59.999');
         let query = db.collection('gastos').orderBy('fecha', 'desc').where('fecha', '>=', inicioDelRango).where('fecha', '<=', finDelRango);
         const snapshot = await query.get();
-        const gastos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         
-        const gastosPorCategoria = gastos.reduce((acc, gasto) => {
+        // --- INICIO DE LA MODIFICACIÓN ---
+        // 1. Obtenemos TODOS los gastos del período desde la base de datos.
+        const gastosBrutos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+        // 2. Filtramos en el código para excluir las categorías que no queremos mostrar AQUÍ.
+        const gastosFiltrados = gastosBrutos.filter(gasto => 
+            gasto.categoria !== 'Pago a Proveedor' && gasto.categoria !== 'Comisiones'
+        );
+        // --- FIN DE LA MODIFICACIÓN ---
+
+        // 3. A partir de ahora, usamos la lista ya filtrada (gastosFiltrados)
+        const gastosPorCategoria = gastosFiltrados.reduce((acc, gasto) => {
             let montoArs = 0;
             if (gasto.metodo_pago.startsWith('Pesos')) {
                 montoArs = gasto.monto || 0;
-            } else if (gasto.metodo_pago === 'Dólares' && gasto.categoria === 'Comisiones') {
+            }
+            // La lógica para comisiones en dólares ya no es necesaria aquí, pero la dejamos por si acaso
+            else if (gasto.metodo_pago === 'Dólares' && gasto.categoria === 'Comisiones') {
                 montoArs = (gasto.monto_usd_original || 0) * (gasto.cotizacion_dolar || 0);
             }
             if (montoArs > 0) {
@@ -3577,8 +3615,9 @@ async function loadGastos() {
             return acc;
         }, {});
         
-        renderGastosChart(gastos, gastosPorCategoria);
-        renderGastosList(gastos);
+        renderGastosChart(gastosFiltrados, gastosPorCategoria);
+        renderGastosList(gastosFiltrados);
+
     } catch (error) {
         handleDBError(error, s.gastosList, "gastos");
     } finally {
@@ -4980,6 +5019,7 @@ function showFeedback(message, type = 'info') {
 }
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 async function showWholesaleHistory(clientId, clientName) {
     s.promptContainer.innerHTML = `
     <div class="container wholesale-history-modal">
@@ -4995,68 +5035,42 @@ async function showWholesaleHistory(clientId, clientName) {
 
     const contentDiv = document.getElementById('wholesale-history-content');
     try {
-        const salesPromise = db.collection('ventas_mayoristas')
-            .where('clienteId', '==', clientId)
-            .get();
-        const paymentsPromise = db.collection('pagos_mayoristas')
-            .where('clienteId', '==', clientId)
-            .get();
-
+        const salesPromise = db.collection('ventas_mayoristas').where('clienteId', '==', clientId).get();
+        const paymentsPromise = db.collection('pagos_mayoristas').where('clienteId', '==', clientId).get();
         const [salesSnapshot, paymentsSnapshot] = await Promise.all([salesPromise, paymentsPromise]);
 
         let transactions = [];
-        salesSnapshot.forEach(doc => {
-            const data = doc.data();
-            transactions.push({ ...data, id: doc.id, type: 'venta', date: data.fecha_venta.toDate() });
-        });
-        paymentsSnapshot.forEach(doc => {
-            const data = doc.data();
-            transactions.push({ ...data, id: doc.id, type: 'pago', date: data.fecha.toDate() });
-        });
+        salesSnapshot.forEach(doc => { const data = doc.data(); transactions.push({ ...data, id: doc.id, type: 'venta', date: data.fecha_venta.toDate() }); });
+        paymentsSnapshot.forEach(doc => { const data = doc.data(); transactions.push({ ...data, id: doc.id, type: 'pago', date: data.fecha.toDate() }); });
+        transactions.sort((a, b) => b.date - a.date);
 
-        transactions.sort((a, b) => b.date - a.date); // Ordenar por fecha, más reciente primero
-
-        if (transactions.length === 0) {
-            contentDiv.innerHTML = '<p class="dashboard-loader">Este cliente no tiene movimientos registrados.</p>';
-            return;
-        }
+        if (transactions.length === 0) { contentDiv.innerHTML = '<p class="dashboard-loader">Este cliente no tiene movimientos registrados.</p>'; return; }
 
         const tableHTML = `
             <table>
-                <thead>
-                    <tr>
-                        <th>Fecha</th>
-                        <th>Tipo</th>
-                        <th>Detalle</th>
-                        <th style="color: var(--error-bg);">Debe</th>
-                        <th style="color: var(--success-bg);">Haber</th>
-                        <th style="text-align:right;">Acciones</th>
-                    </tr>
-                </thead>
+                <thead> <tr> <th>Fecha</th> <th>Tipo</th> <th>Detalle</th> <th style="color: var(--error-bg);">Debe</th> <th style="color: var(--success-bg);">Haber</th> <th style="text-align:right;">Acciones</th> </tr> </thead>
                 <tbody>
                     ${transactions.map(item => {
                         if (item.type === 'venta') {
                             const saleJSON = JSON.stringify(item).replace(/'/g, "\\'");
                             return `
                             <tr data-sale-id="${item.id}" data-sale-item='${saleJSON}'>
-                                <td>${item.date.toLocaleString('es-AR')}</td>
-                                <td>Venta</td>
-                                <td>ID: ${item.venta_id_manual} (${item.cantidad_equipos} equipos)</td>
-                                <td>${formatearUSD(item.total_venta_usd)}</td>
-                                <td>${formatearUSD(item.pago_recibido.total_pagado_usd || 0)}</td>
-                                <td class="actions-cell">
-                                    <button class="control-btn btn-view-sale-detail" style="background-color: var(--info-bg);">Ver Detalle</button>
-                                    <button class="control-btn btn-revert-sale">Revertir</button>
-                                </td>
+                                <td>${item.date.toLocaleString('es-AR')}</td> <td>Venta</td> <td>ID: ${item.venta_id_manual} (${item.cantidad_equipos} equipos)</td>
+                                <td>${formatearUSD(item.total_venta_usd)}</td> <td>${formatearUSD(item.pago_recibido.total_pagado_usd || 0)}</td>
+                                <td class="actions-cell"> <button class="control-btn btn-view-sale-detail" style="background-color: var(--info-bg);">Ver Detalle</button> <button class="control-btn btn-revert-sale">Revertir</button> </td>
                             </tr>`;
                         } else { // type === 'pago'
+                            // --- INICIO DE LA MODIFICACIÓN ---
+                            let detallePago = item.notas || 'Pago a cuenta';
+                            if (item.venta_manual_id_asociada) {
+                                detallePago = `Saldo Venta #${item.venta_manual_id_asociada}`;
+                            }
+                            // --- FIN DE LA MODIFICACIÓN ---
                             return `
                             <tr class="payment-row">
-                                <td>${item.date.toLocaleString('es-AR')}</td>
-                                <td>Pago</td>
-                                <td>${item.notas || 'Pago a cuenta'}</td>
-                                <td></td>
-                                <td style="color: var(--success-bg); font-weight: bold;">${formatearUSD(item.monto_total_usd)}</td>
+                                <td>${item.date.toLocaleString('es-AR')}</td> <td>Pago</td>
+                                <td>${detallePago}</td>
+                                <td></td> <td style="color: var(--success-bg); font-weight: bold;">${formatearUSD(item.monto_total_usd)}</td>
                                 <td class="actions-cell">
                                     <button class="delete-btn btn-delete-ws-payment" title="Eliminar Pago" disabled>
                                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
@@ -5069,23 +5083,8 @@ async function showWholesaleHistory(clientId, clientName) {
             </table>`;
         contentDiv.innerHTML = tableHTML;
         
-        // ... (el resto de los listeners para Ver Detalle y Revertir quedan igual)
-        contentDiv.querySelectorAll('.btn-view-sale-detail').forEach(button => {
-            button.addEventListener('click', (e) => {
-                const row = e.currentTarget.closest('tr');
-                const saleItem = JSON.parse(row.dataset.saleItem.replace(/\\'/g, "'"));
-                showWholesaleSaleDetail(row.dataset.saleId, saleItem);
-            });
-        });
-        
-        contentDiv.querySelectorAll('.btn-revert-sale').forEach(button => {
-            button.addEventListener('click', (e) => {
-                const row = e.currentTarget.closest('tr');
-                const saleItem = JSON.parse(row.dataset.saleItem.replace(/\\'/g, "'"));
-                revertWholesaleSale(row.dataset.saleId, saleItem, () => showWholesaleHistory(clientId, clientName));
-            });
-        });
-
+        contentDiv.querySelectorAll('.btn-view-sale-detail').forEach(button => button.addEventListener('click', (e) => { const row = e.currentTarget.closest('tr'); const saleItem = JSON.parse(row.dataset.saleItem.replace(/\\'/g, "'")); showWholesaleSaleDetail(row.dataset.saleId, saleItem); }));
+        contentDiv.querySelectorAll('.btn-revert-sale').forEach(button => button.addEventListener('click', (e) => { const row = e.currentTarget.closest('tr'); const saleItem = JSON.parse(row.dataset.saleItem.replace(/\\'/g, "'")); revertWholesaleSale(row.dataset.saleId, saleItem, () => showWholesaleHistory(clientId, clientName)); }));
     } catch (error) {
         handleDBError(error, contentDiv, 'historial de compras');
     }
@@ -5647,11 +5646,42 @@ async function loadPaginatedData(config) {
     }
 }
 
-// AÑADE ESTAS DOS NUEVAS FUNCIONES COMPLETAS A TU SCRIPT.JS
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
-function promptToRegisterWholesalePayment(clientId, clientName, currentDebt) {
-    // Guardamos el contexto del cliente para usarlo al guardar
+async function promptToRegisterWholesalePayment(clientId, clientName, currentDebt) {
     paymentContext = { id: clientId, name: clientName };
+
+    let salesWithDebtOptions = '<option value="">Pago General a Cuenta</option>';
+    try {
+        // Buscamos todas las ventas de este cliente que aún tengan deuda
+        const salesSnapshot = await db.collection('ventas_mayoristas')
+            .where('clienteId', '==', clientId)
+            .where('deuda_generada_usd', '>', 0)
+            .orderBy('deuda_generada_usd', 'desc')
+            .get();
+            
+        salesSnapshot.forEach(doc => {
+            const sale = doc.data();
+            const fecha = sale.fecha_venta.toDate().toLocaleDateString('es-AR');
+            salesWithDebtOptions += `<option value="${doc.id}|${sale.venta_id_manual}">${sale.venta_id_manual} (${fecha}) - Pendiente: ${formatearUSD(sale.deuda_generada_usd)}</option>`;
+        });
+    } catch (error) {
+        console.error("Error buscando ventas con deuda:", error);
+        showGlobalFeedback("No se pudieron cargar las ventas pendientes.", "error");
+    }
+
+    // El resto del código para cuentas y cotización que ya teníamos...
+    if (!financialAccounts || financialAccounts.length === 0) {
+        try {
+            const accountsSnapshot = await db.collection('cuentas_financieras').orderBy('nombre').get();
+            financialAccounts = accountsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        } catch (error) { showGlobalFeedback("Error al cargar las cuentas financieras.", "error"); return; }
+    }
+    const accountsOptionsHtml = financialAccounts.length > 0
+        ? financialAccounts.map(acc => `<option value="${acc.id}|${acc.nombre}">${acc.nombre} (${formatearARS(acc.saldo_actual_ars)})</option>`).join('')
+        : '<option value="" disabled>No hay cuentas creadas</option>';
+    const accountSelectHtml = `<div id="pago-cuenta-group" class="form-group hidden" style="margin-top: 1.5rem;"><select name="cuenta_destino" required><option value="" disabled selected></option>${accountsOptionsHtml}</select><label>Acreditar en Cuenta</label></div>`;
+    const cotizacionHtml = `<div id="cotizacion-dolar-group" class="form-group hidden" style="margin-top: 1.5rem;"><input type="number" name="cotizacion_dolar" placeholder="Valor del dólar blue" step="0.01"><label>Cotización del Dólar</label></div>`;
 
     s.promptContainer.innerHTML = `
         <div class="container container-sm">
@@ -5659,6 +5689,12 @@ function promptToRegisterWholesalePayment(clientId, clientName, currentDebt) {
                 <h3>Registrar Pago de ${clientName}</h3>
                 <p>Deuda actual: <strong>${formatearUSD(currentDebt)}</strong></p>
                 <form id="wholesale-payment-form">
+                    <!-- === NUEVO CAMPO PARA ASOCIAR VENTA === -->
+                    <div class="form-group">
+                        <label for="venta-asociada">Aplicar pago a Venta Específica (Opcional)</label>
+                        <select id="venta-asociada" name="venta_asociada">${salesWithDebtOptions}</select>
+                    </div>
+                    <!-- ======================================= -->
                     <div class="form-group">
                         <label for="payment-total">Monto del Pago (USD)</label>
                         <input type="number" id="payment-total" name="total" step="0.01" max="${currentDebt}" required>
@@ -5667,47 +5703,51 @@ function promptToRegisterWholesalePayment(clientId, clientName, currentDebt) {
                         <label>Ingresa a Caja como</label>
                         <div class="checkbox-group" style="margin-bottom: 0.5rem;"><input type="checkbox" id="pay-usd" name="pay-usd" class="payment-method-cb"><label for="pay-usd">Dólares</label></div>
                         <div id="pay-usd-fields" class="hidden" style="padding-left: 25px;"><input type="number" name="dolares" placeholder="Monto USD"></div>
-                        
                         <div class="checkbox-group" style="margin-bottom: 0.5rem;"><input type="checkbox" id="pay-ars-efectivo" name="pay-ars-efectivo" class="payment-method-cb"><label for="pay-ars-efectivo">Pesos (Efectivo)</label></div>
                         <div id="pay-ars-efectivo-fields" class="hidden" style="padding-left: 25px;"><input type="number" name="efectivo" placeholder="Monto ARS"></div>
-                        
                         <div class="checkbox-group" style="margin-bottom: 0.5rem;"><input type="checkbox" id="pay-ars-transfer" name="pay-ars-transfer" class="payment-method-cb"><label for="pay-ars-transfer">Pesos (Transferencia)</label></div>
-                        <div id="pay-ars-transfer-fields" class="hidden" style="padding-left: 25px;"><input type="number" name="transferencia" placeholder="Monto ARS"></div>
+                        <div id="pay-ars-transfer-fields" class="hidden" style="padding-left: 25px;"><input type="number" name="transferencia" placeholder="Monto ARS">${accountSelectHtml}</div>
+                        ${cotizacionHtml}
                     </div>
-                    <div class="form-group">
-                        <label for="payment-notes">Notas (Opcional)</label>
-                        <textarea id="payment-notes" name="notas" rows="2" placeholder="Ej: Saldo de la VTA-050"></textarea>
-                    </div>
-                    <div class="prompt-buttons">
-                        <button type="submit" class="prompt-button confirm spinner-btn"><span class="btn-text">Registrar Pago</span><div class="spinner"></div></button>
-                        <button type="button" class="prompt-button cancel">Cancelar</button>
-                    </div>
+                    <div class="form-group"><label for="payment-notes">Notas (Opcional)</label><textarea id="payment-notes" name="notas" rows="2" placeholder="Ej: Saldo de la VTA-050"></textarea></div>
+                    <div class="prompt-buttons"><button type="submit" class="prompt-button confirm spinner-btn"><span class="btn-text">Registrar Pago</span><div class="spinner"></div></button><button type="button" class="prompt-button cancel">Cancelar</button></div>
                 </form>
             </div>
         </div>`;
     
+    // El resto de los listeners que ya teníamos
     const form = document.getElementById('wholesale-payment-form');
     const totalInput = document.getElementById('payment-total');
     const paymentCheckboxes = form.querySelectorAll('.payment-method-cb');
-
+    const cotizacionGroup = document.getElementById('cotizacion-dolar-group');
     paymentCheckboxes.forEach(cb => {
         cb.addEventListener('change', () => {
             const fieldsDiv = document.getElementById(`${cb.id}-fields`);
-            if (fieldsDiv) fieldsDiv.classList.toggle('hidden', !cb.checked);
-            
-            if (cb.id === 'pay-usd' && cb.checked && totalInput.value) {
-                form.querySelector('[name="dolares"]').value = totalInput.value;
+            if (fieldsDiv) {
+                const isChecked = cb.checked;
+                fieldsDiv.classList.toggle('hidden', !isChecked);
+                if (cb.id === 'pay-ars-transfer') {
+                    fieldsDiv.querySelector('input[name="transferencia"]').required = isChecked;
+                    const cuentaGroup = fieldsDiv.querySelector('#pago-cuenta-group');
+                    cuentaGroup.classList.toggle('hidden', !isChecked);
+                    cuentaGroup.querySelector('select[name="cuenta_destino"]').required = isChecked;
+                }
             }
+            if (cb.id === 'pay-usd' && cb.checked && totalInput.value) { form.querySelector('[name="dolares"]').value = totalInput.value; }
+            const pagoEnPesos = form.querySelector('#pay-ars-efectivo').checked || form.querySelector('#pay-ars-transfer').checked;
+            cotizacionGroup.classList.toggle('hidden', !pagoEnPesos);
+            cotizacionGroup.querySelector('input').required = pagoEnPesos;
         });
     });
-
     totalInput.addEventListener('input', () => {
         const usdCheckbox = document.getElementById('pay-usd');
-        if (usdCheckbox && usdCheckbox.checked) {
-            form.querySelector('[name="dolares"]').value = totalInput.value;
-        }
+        if (usdCheckbox && usdCheckbox.checked) { form.querySelector('[name="dolares"]').value = totalInput.value; }
     });
 }
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
 async function saveWholesalePayment(form) {
     const btn = form.querySelector('button[type="submit"]');
@@ -5718,59 +5758,73 @@ async function saveWholesalePayment(form) {
     const formData = new FormData(form);
     const totalPaymentUSD = parseFloat(formData.get('total'));
     const notas = (formData.get('notas') || '').trim();
-
-    if (isNaN(totalPaymentUSD) || totalPaymentUSD <= 0) {
-        showGlobalFeedback("El monto del pago debe ser válido y mayor a cero.", "error");
-        toggleSpinner(btn, false);
-        return;
+    const cuentaDestinoValue = formData.get('cuenta_destino');
+    const cotizacion = parseFloat(formData.get('cotizacion_dolar')) || 0;
+    
+    // --- NUEVO: Obtenemos la venta asociada del formulario ---
+    const ventaAsociadaValue = formData.get('venta_asociada');
+    let ventaAsociadaId = null;
+    let ventaManualIdAsociada = null;
+    if (ventaAsociadaValue) {
+        [ventaAsociadaId, ventaManualIdAsociada] = ventaAsociadaValue.split('|');
     }
 
+    // (Validaciones que ya teníamos)
+    if (isNaN(totalPaymentUSD) || totalPaymentUSD <= 0) { showGlobalFeedback("El monto del pago debe ser válido y mayor a cero.", "error"); toggleSpinner(btn, false); return; }
     const usdAmount = parseFloat(formData.get('dolares')) || 0;
     const arsEfectivoAmount = parseFloat(formData.get('efectivo')) || 0;
     const arsTransferAmount = parseFloat(formData.get('transferencia')) || 0;
-
-    if ((usdAmount + arsEfectivoAmount + arsTransferAmount) === 0) {
-        showGlobalFeedback("Debes especificar cómo ingresa el pago a la caja.", "error");
-        toggleSpinner(btn, false);
-        return;
-    }
+    if ((usdAmount + arsEfectivoAmount + arsTransferAmount) === 0) { showGlobalFeedback("Debes especificar cómo ingresa el pago a la caja.", "error"); toggleSpinner(btn, false); return; }
+    if (arsTransferAmount > 0 && !cuentaDestinoValue) { showGlobalFeedback("Debes seleccionar una cuenta de destino para la transferencia.", "error"); toggleSpinner(btn, false); return; }
+    if ((arsEfectivoAmount > 0 || arsTransferAmount > 0) && cotizacion <= 0) { showGlobalFeedback("Debes ingresar una cotización válida para pagos en pesos.", "error"); toggleSpinner(btn, false); return; }
 
     try {
         await db.runTransaction(async t => {
             const fecha = firebase.firestore.FieldValue.serverTimestamp();
             const clientRef = db.collection('clientes_mayoristas').doc(clientId);
             
-            // 1. Actualizar la deuda del cliente
+            // 1. Siempre descontamos la deuda TOTAL del cliente
             t.update(clientRef, { deuda_usd: firebase.firestore.FieldValue.increment(-totalPaymentUSD) });
 
-            // 2. Registrar el pago en un nuevo historial (buena práctica)
+            // 2. Si el pago está asociado a una venta, descontamos la deuda de ESA VENTA
+            if (ventaAsociadaId) {
+                const ventaRef = db.collection('ventas_mayoristas').doc(ventaAsociadaId);
+                t.update(ventaRef, { deuda_generada_usd: firebase.firestore.FieldValue.increment(-totalPaymentUSD) });
+            }
+
+            // 3. Creamos el registro de pago, guardando la referencia a la venta si existe
             const pagoRef = db.collection('pagos_mayoristas').doc();
             t.set(pagoRef, {
                 clienteId: clientId,
                 clienteNombre: clientName,
                 monto_total_usd: totalPaymentUSD,
                 fecha,
-                notas
+                notas,
+                cotizacion_dolar: cotizacion,
+                venta_asociada_id: ventaAsociadaId,
+                venta_manual_id_asociada: ventaManualIdAsociada
             });
 
-            // 3. Registrar el ingreso en la caja
-            const descripcionBase = `Cobranza de C/C a ${clientName}`;
-            if (usdAmount > 0) {
-                t.set(db.collection('ingresos_caja').doc(), { categoria: 'Cobranza Mayorista', descripcion: descripcionBase, monto: usdAmount, metodo: 'Dólares', fecha });
+            // 4. Creamos los registros de ingreso en caja (esto sigue igual)
+            let descripcionBase = `Cobranza de C/C a ${clientName}`;
+            if (ventaManualIdAsociada) {
+                descripcionBase = `Pago de Venta #${ventaManualIdAsociada} de ${clientName}`;
             }
-            if (arsEfectivoAmount > 0) {
-                t.set(db.collection('ingresos_caja').doc(), { categoria: 'Cobranza Mayorista', descripcion: descripcionBase, monto: arsEfectivoAmount, metodo: 'Pesos (Efectivo)', fecha });
-            }
+            if (usdAmount > 0) { t.set(db.collection('ingresos_caja').doc(), { categoria: 'Cobranza Mayorista', descripcion: descripcionBase, monto: usdAmount, metodo: 'Dólares', fecha }); }
+            if (arsEfectivoAmount > 0) { t.set(db.collection('ingresos_caja').doc(), { categoria: 'Cobranza Mayorista', descripcion: descripcionBase, monto: arsEfectivoAmount, metodo: 'Pesos (Efectivo)', fecha, cotizacion_dolar: cotizacion }); }
             if (arsTransferAmount > 0) {
-                t.set(db.collection('ingresos_caja').doc(), { categoria: 'Cobranza Mayorista', descripcion: descripcionBase, monto: arsTransferAmount, metodo: 'Pesos (Transferencia)', fecha });
+                const [cuentaId, cuentaNombre] = cuentaDestinoValue.split('|');
+                t.set(db.collection('ingresos_caja').doc(), { categoria: 'Cobranza Mayorista', descripcion: descripcionBase, monto: arsTransferAmount, metodo: 'Pesos (Transferencia)', fecha, cuenta_destino_id: cuentaId, cuenta_destino_nombre: cuentaNombre, cotizacion_dolar: cotizacion });
+                const cuentaRef = db.collection('cuentas_financieras').doc(cuentaId);
+                t.update(cuentaRef, { saldo_actual_ars: firebase.firestore.FieldValue.increment(arsTransferAmount) });
             }
         });
 
         showGlobalFeedback('Pago de cliente registrado con éxito.', 'success');
         s.promptContainer.innerHTML = '';
-        loadWholesaleClients(); // Recargamos para ver la deuda actualizada
-        updateReports(); // Actualizamos los KPIs de caja
-
+        loadWholesaleClients();
+        loadFinancialData();
+        updateReports();
     } catch (error) {
         console.error("Error al registrar el pago del cliente:", error);
         showGlobalFeedback('Error al registrar el pago.', 'error');
@@ -5779,10 +5833,6 @@ async function saveWholesalePayment(form) {
         paymentContext = null;
     }
 }
-
-// =======================================================================
-// =================== INICIO: FUNCIONES VISTA FINANCIERA ================
-// =======================================================================
 
 async function loadFinancialData() {
     if (!s.accountsListContainer) return;
@@ -5956,117 +6006,126 @@ function deleteFinancialAccount(accountId) {
 }
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-async function toggleAccountHistory(accountCard, accountId) {
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
+async function toggleAccountHistory(accountCard, accountId, dateRange = null) {
     const historyContainer = s.accountsListContainer.querySelector(`[data-container-for="${accountId}"]`);
     
-    if (accountCard.classList.contains('active')) {
+    if (accountCard.classList.contains('active') && !dateRange) {
         accountCard.classList.remove('active');
         historyContainer.style.maxHeight = null;
+        setTimeout(() => { historyContainer.innerHTML = ''; }, 500);
         return;
     }
 
     s.accountsListContainer.querySelectorAll('.account-card.active').forEach(card => {
-        card.classList.remove('active');
-        card.nextElementSibling.style.maxHeight = null;
+        if (card !== accountCard) {
+            card.classList.remove('active');
+            const otherContainer = card.nextElementSibling;
+            otherContainer.style.maxHeight = null;
+            setTimeout(() => { otherContainer.innerHTML = ''; }, 500);
+        }
     });
 
     accountCard.classList.add('active');
     
-    if (!historyContainer.innerHTML) {
-        historyContainer.innerHTML = `<p class="dashboard-loader" style="padding: 1rem 0;">Buscando transacciones...</p>`;
-        
-        try {
-            const salesPromise = db.collection('ventas').where('cuenta_destino_id', '==', accountId).get();
-            const ingresosPromise = db.collection('ingresos_caja').where('cuenta_destino_id', '==', accountId).get();
-            const transferInPromise = db.collection('movimientos_internos').where('cuenta_destino_id', '==', accountId).get();
-            const transferOutPromise = db.collection('movimientos_internos').where('cuenta_origen_id', '==', accountId).get();
-            
-            // ===================== INICIO DE LA MODIFICACIÓN =====================
-            // Ahora buscamos en la colección 'gastos' por dos categorías a la vez:
-            // 'Comisiones' Y 'Pago a Proveedor', usando el operador 'in'.
-            const expensePaymentsPromise = db.collection('gastos')
-                .where('cuenta_origen_id', '==', accountId)
-                .where('categoria', 'in', ['Comisiones', 'Pago a Proveedor'])
-                .get();
-            // ====================== FIN DE LA MODIFICACIÓN =======================
-            
-            const [
-                salesSnapshot, 
-                ingresosSnapshot, 
-                transferInSnapshot, 
-                transferOutSnapshot,
-                expensePaymentsSnapshot // <-- Usamos la nueva variable
-            ] = await Promise.all([
-                salesPromise, 
-                ingresosPromise, 
-                transferInPromise, 
-                transferOutPromise,
-                expensePaymentsPromise // <-- Usamos la nueva promesa
-            ]);
-
-            let transactions = [];
-            salesSnapshot.forEach(doc => { const data = doc.data(); transactions.push({ date: data.fecha_venta.toDate(), type: 'Ingreso', description: `Venta: ${data.producto.modelo}`, amount: data.monto_transferencia }); });
-            ingresosSnapshot.forEach(doc => { const data = doc.data(); transactions.push({ date: data.fecha.toDate(), type: 'Ingreso', description: `Ingreso: ${data.categoria}`, amount: data.monto }); });
-            transferInSnapshot.forEach(doc => { const data = doc.data(); transactions.push({ date: data.fecha.toDate(), type: 'Ingreso', description: `Recibido de: ${data.cuenta_origen_nombre}`, amount: data.monto_ars }); });
-            transferOutSnapshot.forEach(doc => {
-                const data = doc.data(); let description = '';
-                if (data.tipo === 'Transferencia entre Cuentas') { description = `Enviado a: ${data.cuenta_destino_nombre}`;
-                } else if (data.tipo === 'Retiro a Caja') { description = `Retiro a Caja (Efectivo)`;
-                } else if (data.tipo === 'Retiro a Caja (USD)') { description = `Retiro a Caja (Dólares)`; }
-                transactions.push({ date: data.fecha.toDate(), type: 'Egreso', description: description, amount: -data.monto_ars });
-            });
-
-            // ===================== INICIO DE LA MODIFICACIÓN =====================
-            // Procesamos los resultados de la nueva consulta de gastos
-            expensePaymentsSnapshot.forEach(doc => {
-                const data = doc.data();
-                let description = '';
-                // Personalizamos la descripción según la categoría del gasto
-                if (data.categoria === 'Comisiones') {
-                    description = `Comisión: ${data.vendedor || 'N/A'}`;
-                } else if (data.categoria === 'Pago a Proveedor') {
-                    description = data.descripcion || 'Pago a Proveedor';
-                }
-                
-                transactions.push({
-                    date: data.fecha.toDate(),
-                    type: 'Egreso',
-                    description: description,
-                    amount: -data.monto // El 'monto' en ARS del gasto
-                });
-            });
-            // ====================== FIN DE LA MODIFICACIÓN =======================
-
-            transactions.sort((a, b) => b.date - a.date);
-
-            if (transactions.length === 0) {
-                historyContainer.innerHTML = `<div class="history-content-wrapper"><p class="dashboard-loader">No hay movimientos para esta cuenta.</p></div>`;
-            } else {
-                const tableHTML = `
-                    <div class="history-content-wrapper">
-                        <table>
-                            <thead><tr><th>Fecha</th><th>Tipo</th><th>Concepto</th><th style="text-align:right;">Monto</th></tr></thead>
-                            <tbody>
-                                ${transactions.map(item => `
-                                    <tr>
-                                        <td data-label="Fecha">${item.date.toLocaleDateString('es-AR')}</td>
-                                        <td data-label="Tipo"><span style="color: ${item.type === 'Ingreso' ? 'var(--success-bg)' : 'var(--error-bg)'}; font-weight: 500;">${item.type}</span></td>
-                                        <td data-label="Concepto">${item.description}</td>
-                                        <td data-label="Monto" style="font-weight: 600; color: ${item.amount > 0 ? 'inherit' : 'var(--error-bg)'};">
-                                            ${formatearARS(item.amount)}
-                                        </td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    </div>`;
-                historyContainer.innerHTML = tableHTML;
-            }
-        } catch (error) {
-            console.error("Error al cargar historial de cuenta:", error);
-            historyContainer.innerHTML = `<div class="history-content-wrapper"><p class="dashboard-loader" style="color: var(--error-bg);">Error al cargar el historial.</p></div>`;
-        }
+    let startDate, endDate;
+    if (dateRange) {
+        startDate = dateRange.start;
+        endDate = dateRange.end;
+    } else {
+        const now = new Date();
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
     }
+
+    // --- ESTA ES LA ESTRUCTURA HTML QUE NECESITAMOS ---
+    // Ahora coincide con la estructura de los filtros principales
+    const filtersHtml = `
+        <div class="filters-container" id="history-filter-container">
+            <div class="filter-group">
+                <label for="history-start-date-${accountId}">Desde</label>
+                <input type="date" id="history-start-date-${accountId}" class="history-start-date">
+            </div>
+            <div class="filter-group">
+                <label for="history-end-date-${accountId}">Hasta</label>
+                <input type="date" id="history-end-date-${accountId}" class="history-end-date">
+            </div>
+            <div class="filter-group">
+                <button class="btn-filter-history">Filtrar</button>
+            </div>
+        </div>`;
+
+    historyContainer.innerHTML = filtersHtml + `<div id="history-results-wrapper"> <p class="dashboard-loader" style="padding: 1rem 0;">Buscando transacciones...</p> </div>`;
+    
+    const resultsWrapper = historyContainer.querySelector('#history-results-wrapper');
+
+    try {
+        const salesPromise = db.collection('ventas').where('cuenta_destino_id', '==', accountId).where('fecha_venta', '>=', startDate).where('fecha_venta', '<=', endDate).get();
+        const ingresosPromise = db.collection('ingresos_caja').where('cuenta_destino_id', '==', accountId).where('fecha', '>=', startDate).where('fecha', '<=', endDate).get();
+        const transferInPromise = db.collection('movimientos_internos').where('cuenta_destino_id', '==', accountId).where('fecha', '>=', startDate).where('fecha', '<=', endDate).get();
+        const transferOutPromise = db.collection('movimientos_internos').where('cuenta_origen_id', '==', accountId).where('fecha', '>=', startDate).where('fecha', '<=', endDate).get();
+        const comisionesPromise = db.collection('gastos').where('cuenta_origen_id', '==', accountId).where('categoria', '==', 'Comisiones').where('fecha', '>=', startDate).where('fecha', '<=', endDate).get();
+        const pagosProveedorPromise = db.collection('gastos').where('cuenta_origen_id', '==', accountId).where('categoria', '==', 'Pago a Proveedor').where('fecha', '>=', startDate).where('fecha', '<=', endDate).get();
+        
+        const [ salesSnapshot, ingresosSnapshot, transferInSnapshot, transferOutSnapshot, comisionesSnapshot, pagosProveedorSnapshot ] = await Promise.all([ salesPromise, ingresosPromise, transferInPromise, transferOutPromise, comisionesPromise, pagosProveedorPromise ]);
+
+        let transactions = [];
+        salesSnapshot.forEach(doc => { const data = doc.data(); transactions.push({ date: data.fecha_venta.toDate(), type: 'Ingreso', description: `Venta: ${data.producto.modelo}`, amount: data.monto_transferencia }); });
+        ingresosSnapshot.forEach(doc => { const data = doc.data(); let description = `Ingreso: ${data.categoria}`; if (data.categoria === 'Cobranza Mayorista') { description = data.descripcion; } transactions.push({ date: data.fecha.toDate(), type: 'Ingreso', description: description, amount: data.monto }); });
+        transferInSnapshot.forEach(doc => { const data = doc.data(); transactions.push({ date: data.fecha.toDate(), type: 'Ingreso', description: `Recibido de: ${data.cuenta_origen_nombre}`, amount: data.monto_ars }); });
+        transferOutSnapshot.forEach(doc => { const data = doc.data(); let description = ''; if (data.tipo === 'Transferencia entre Cuentas') { description = `Enviado a: ${data.cuenta_destino_nombre}`; } else if (data.tipo === 'Retiro a Caja') { description = `Retiro a Caja (Efectivo)`; } else if (data.tipo === 'Retiro a Caja (USD)') { description = `Retiro a Caja (Dólares)`; } transactions.push({ date: data.fecha.toDate(), type: 'Egreso', description: description, amount: -data.monto_ars }); });
+        comisionesSnapshot.forEach(doc => { const data = doc.data(); transactions.push({ date: data.fecha.toDate(), type: 'Egreso', description: `Comisión: ${data.vendedor || 'N/A'}`, amount: -data.monto }); });
+        pagosProveedorSnapshot.forEach(doc => { const data = doc.data(); transactions.push({ date: data.fecha.toDate(), type: 'Egreso', description: data.descripcion || 'Pago a Proveedor', amount: -data.monto }); });
+        transactions.sort((a, b) => b.date - a.date);
+        
+        resultsWrapper.innerHTML = ''; // Limpiamos el loader
+
+        if (transactions.length === 0) {
+            resultsWrapper.innerHTML = `<div class="history-content-wrapper"><p class="dashboard-loader">No hay movimientos para este período.</p></div>`;
+        } else {
+            const tableHTML = `
+                <div class="history-content-wrapper">
+                    <table>
+                        <thead><tr><th>Fecha</th><th>Tipo</th><th>Concepto</th><th style="text-align:right;">Monto</th></tr></thead>
+                        <tbody>
+                            ${transactions.map(item => `
+                                <tr>
+                                    <td data-label="Fecha">${item.date.toLocaleString('es-AR')}</td>
+                                    <td data-label="Tipo"><span style="color: ${item.type === 'Ingreso' ? 'var(--success-bg)' : 'var(--error-bg)'}; font-weight: 500;">${item.type}</span></td>
+                                    <td data-label="Concepto">${item.description}</td>
+                                    <td data-label="Monto" style="font-weight: 600; color: ${item.amount > 0 ? 'inherit' : 'var(--error-bg)'};">${formatearARS(item.amount)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>`;
+            resultsWrapper.innerHTML = tableHTML;
+        }
+    } catch (error) {
+        console.error("Error al cargar historial de cuenta:", error);
+        let errorMessage = `<p class="dashboard-loader" style="color: var(--error-bg);">Error al cargar el historial.`;
+        if (error.message && error.message.includes("index")) {
+            const linkRegex = /(https?:\/\/[^\s]+)/;
+            const linkMatch = error.message.match(linkRegex);
+            if (linkMatch) { errorMessage += `<br><br><strong style="color: #fff;">ACCIÓN REQUERIDA:</strong><br>Firebase necesita un nuevo índice. Por favor, haz clic en el siguiente enlace para crearlo:<br><a href="${linkMatch[0]}" target="_blank" style="color: var(--brand-yellow); word-break: break-all;">Crear Índice en Firebase</a>`; }
+        }
+        errorMessage += `</p>`;
+        resultsWrapper.innerHTML = `<div class="history-content-wrapper">${errorMessage}</div>`;
+    }
+    
+    const startDateInput = historyContainer.querySelector('.history-start-date');
+    const endDateInput = historyContainer.querySelector('.history-end-date');
+    startDateInput.valueAsDate = startDate;
+    endDateInput.valueAsDate = endDate;
+
+    const filterBtn = historyContainer.querySelector('.btn-filter-history');
+    filterBtn.addEventListener('click', () => {
+        const newStartDate = new Date(startDateInput.value + 'T00:00:00');
+        const newEndDate = new Date(endDateInput.value + 'T23:59:59');
+        toggleAccountHistory(accountCard, accountId, { start: newStartDate, end: newEndDate });
+    });
     
     historyContainer.style.maxHeight = historyContainer.scrollHeight + "px";
 }
@@ -6310,4 +6369,151 @@ function deleteVendedor(vendorName) {
             showGlobalFeedback('No se pudo eliminar al vendedor.', 'error');
         }
     });
+}
+
+// AÑADE ESTA NUEVA FUNCIÓN COMPLETA AL FINAL DE TU SCRIPT.JS
+
+async function exportDailySummaryToExcel() {
+    const btn = document.getElementById('btn-export-daily-summary');
+    toggleSpinner(btn, true);
+
+    try {
+        const now = new Date();
+        const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+        const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+
+        // 1. OBTENER TODOS LOS DATOS DEL DÍA
+        const fetchData = async (collection, dateField) => db.collection(collection).where(dateField, '>=', startOfDay).where(dateField, '<=', endOfDay).get();
+        
+        const [
+            salesSnap, 
+            expensesSnap, 
+            miscIncomesSnap, 
+            wholesaleSalesSnap
+        ] = await Promise.all([
+            fetchData('ventas', 'fecha_venta'),
+            fetchData('gastos', 'fecha'),
+            fetchData('ingresos_caja', 'fecha'),
+            fetchData('ventas_mayoristas', 'fecha_venta')
+        ]);
+
+        // 2. PROCESAR LOS DATOS PARA CADA HOJA DEL EXCEL
+        
+        // Hoja 1: Detalle de Ventas
+        let salesDetails = [];
+        if (!salesSnap.empty) {
+            const costPromises = salesSnap.docs.map(doc => db.collection("stock_individual").doc(doc.data().imei_vendido).get());
+            const costDocs = await Promise.all(costPromises);
+            const costMap = new Map(costDocs.map(doc => [doc.id, doc.data()?.precio_costo_usd || 0]));
+
+            salesSnap.forEach(doc => {
+                const venta = doc.data();
+                const costo = costMap.get(venta.imei_vendido) || 0;
+                const ganancia = (venta.precio_venta_usd || 0) - costo - (venta.comision_vendedor_usd || 0);
+                salesDetails.push({
+                    "Fecha y Hora": venta.fecha_venta.toDate().toLocaleString('es-AR'),
+                    "Producto": `${venta.producto.modelo} ${venta.producto.almacenamiento}`,
+                    "IMEI": venta.imei_vendido,
+                    "Vendedor": venta.vendedor,
+                    "Cliente": venta.nombre_cliente || '-',
+                    "Precio Venta (USD)": venta.precio_venta_usd || 0,
+                    "Costo (USD)": costo,
+                    "Comisión (USD)": venta.comision_vendedor_usd || 0,
+                    "Ganancia Neta (USD)": ganancia,
+                    "Método Pago": venta.metodo_pago,
+                    "Monto Dólares": venta.monto_dolares || 0,
+                    "Monto Efectivo ARS": venta.monto_efectivo || 0,
+                    "Monto Transf. ARS": venta.monto_transferencia || 0
+                });
+            });
+        }
+
+        // Hoja 2: Detalle de Gastos
+        const expensesDetails = expensesSnap.docs.map(doc => {
+            const gasto = doc.data();
+            return {
+                "Fecha y Hora": gasto.fecha.toDate().toLocaleString('es-AR'),
+                "Categoría": gasto.categoria,
+                "Descripción": gasto.descripcion || gasto.detalle_otro || '-',
+                "Monto": gasto.monto,
+                "Método de Pago": gasto.metodo_pago
+            };
+        });
+
+        // Hoja 3: Detalle de Ingresos Varios
+        const incomeDetails = miscIncomesSnap.docs.map(doc => {
+            const ingreso = doc.data();
+            return {
+                "Fecha y Hora": ingreso.fecha.toDate().toLocaleString('es-AR'),
+                "Categoría": ingreso.categoria,
+                "Descripción": ingreso.descripcion || '-',
+                "Monto": ingreso.monto,
+                "Método de Ingreso": ingreso.metodo
+            };
+        });
+
+        // Hoja 4: Resumen General
+        let summary = {
+            ingreso_dolares: 0, ingreso_efectivo_ars: 0, ingreso_transferencia_ars: 0,
+            gastos_dolares: 0, gastos_efectivo_ars: 0, gastos_transferencia_ars: 0,
+            ganancia_neta_usd: 0
+        };
+        salesDetails.forEach(v => {
+            summary.ingreso_dolares += v["Monto Dólares"];
+            summary.ingreso_efectivo_ars += v["Monto Efectivo ARS"];
+            summary.ingreso_transferencia_ars += v["Monto Transf. ARS"];
+            summary.ganancia_neta_usd += v["Ganancia Neta (USD)"];
+        });
+        wholesaleSalesSnap.forEach(doc => {
+            const pago = doc.data().pago_recibido || {};
+            summary.ingreso_dolares += pago.usd || 0;
+            summary.ingreso_efectivo_ars += pago.ars_efectivo || 0;
+            summary.ingreso_transferencia_ars += pago.ars_transferencia || 0;
+        });
+        incomeDetails.forEach(i => {
+            if (i["Método de Ingreso"] === 'Dólares') summary.ingreso_dolares += i.Monto;
+            if (i["Método de Ingreso"] === 'Pesos (Efectivo)') summary.ingreso_efectivo_ars += i.Monto;
+            if (i["Método de Ingreso"] === 'Pesos (Transferencia)') summary.ingreso_transferencia_ars += i.Monto;
+        });
+        expensesDetails.forEach(g => {
+            if (g["Método de Pago"] === 'Dólares') summary.gastos_dolares += g.Monto;
+            if (g["Método de Pago"] === 'Pesos (Efectivo)') summary.gastos_efectivo_ars += g.Monto;
+            if (g["Método de Pago"] === 'Pesos (Transferencia)') summary.gastos_transferencia_ars += g.Monto;
+        });
+        
+        const summaryData = [
+            { "Concepto": "Ingreso Total Dólares", "Monto": formatearUSD(summary.ingreso_dolares) },
+            { "Concepto": "Ingreso Total Efectivo (ARS)", "Monto": formatearARS(summary.ingreso_efectivo_ars) },
+            { "Concepto": "Ingreso Total Transferencia (ARS)", "Monto": formatearARS(summary.ingreso_transferencia_ars) },
+            {}, // Fila vacía para separar
+            { "Concepto": "Gastos Totales Dólares", "Monto": formatearUSD(summary.gastos_dolares) },
+            { "Concepto": "Gastos Totales Efectivo (ARS)", "Monto": formatearARS(summary.gastos_efectivo_ars) },
+            { "Concepto": "Gastos Totales Transferencia (ARS)", "Monto": formatearARS(summary.gastos_transferencia_ars) },
+            {}, // Fila vacía para separar
+            { "Concepto": "GANANCIA NETA TOTAL (PROFIT)", "Monto": formatearUSD(summary.ganancia_neta_usd) },
+        ];
+
+        // 3. CREAR Y DESCARGAR EL ARCHIVO EXCEL
+        const wb = XLSX.utils.book_new();
+        const wsSummary = XLSX.utils.json_to_sheet(summaryData);
+        const wsSales = XLSX.utils.json_to_sheet(salesDetails);
+        const wsExpenses = XLSX.utils.json_to_sheet(expensesDetails);
+        const wsIncomes = XLSX.utils.json_to_sheet(incomeDetails);
+
+        XLSX.utils.book_append_sheet(wb, wsSummary, "Resumen General");
+        XLSX.utils.book_append_sheet(wb, wsSales, "Detalle de Ventas");
+        XLSX.utils.book_append_sheet(wb, wsExpenses, "Detalle de Gastos");
+        XLSX.utils.book_append_sheet(wb, wsIncomes, "Detalle de Ingresos Varios");
+
+        const fileName = `Reporte_Diario_iPhoneTwins_${now.toISOString().slice(0, 10)}.xlsx`;
+        XLSX.writeFile(wb, fileName);
+        
+        showGlobalFeedback('Reporte diario generado con éxito.', 'success');
+
+    } catch (error) {
+        console.error("Error al generar el reporte diario:", error);
+        showGlobalFeedback('Error al generar el reporte diario. Revisa la consola.', 'error');
+    } finally {
+        toggleSpinner(btn, false);
+    }
 }

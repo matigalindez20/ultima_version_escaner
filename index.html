@@ -130,14 +130,11 @@
                     </button>
                 </div>
             </div>
-            
-            <!-- ===================== INICIO DEL CÓDIGO ACTUALIZADO ===================== -->
             <div id="commissions-section" class="hidden">
                 <div class="providers-header">
                     <h2>Reporte de Comisiones</h2>
                     <button onclick="promptToAddVendedor()" class="control-btn" style="background-color: var(--success-bg);">+ Nuevo Vendedor</button>
                 </div>
-            
                 <div class="filters-container">
                     <div class="filter-group">
                         <label for="filter-commissions-vendedor">Vendedor</label>
@@ -151,12 +148,9 @@
                         <label for="filter-commissions-end-date">Fecha Hasta</label>
                         <input type="date" id="filter-commissions-end-date">
                     </div>
-                    <!-- El botón de Calcular se ha eliminado -->
                 </div>
                 <div id="commissions-results-container"></div>
             </div>
-            <!-- ====================== FIN DEL CÓDIGO ACTUALIZADO ======================= -->
-
             <div id="gastos-section" class="hidden">
                 <div class="gastos-header">
                     <h2>Resumen de Gastos</h2>
@@ -191,7 +185,6 @@
                     <h2>Resumen de Ingresos Varios</h2>
                     <button id="btn-add-ingreso" class="control-btn" style="background-color: var(--success-bg);">+ Registrar Ingreso</button>
                 </div>
-
                 <div class="ingresos-summary-card">
                     <div class="summary-title">Total Ingresado en el Período</div>
                     <div class="summary-values">
@@ -209,7 +202,6 @@
                         </div>
                     </div>
                 </div>
-
                 <div class="filters-container">
                     <div class="filter-group">
                         <label for="filter-ingresos-start-date">Fecha Desde</label>
@@ -223,7 +215,6 @@
                         <button id="btn-apply-ingresos-filter">Filtrar Ingresos</button>
                     </div>
                 </div>
-
                 <div id="ingresos-list-container">
                     <div id="ingresos-list"></div>
                 </div>
@@ -278,9 +269,15 @@
                     </div>
                 </div>
             </div>
-
+            
             <div class="kpi-group">
-                <h3><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"></path><path d="M12 20h.01"></path><path d="M4.2 4.2l1.4 1.4"></path><path d="M18.4 18.4l1.4 1.4"></path><path d="M2 12h4"></path><path d="M18 12h4"></path><path d="M4.2 19.8l1.4-1.4"></path><path d="M18.4 5.6l1.4-1.4"></path></svg> Resumen del Día</h3>
+                <div class="kpi-group-header">
+                    <h3><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"></path><path d="M12 20h.01"></path><path d="M4.2 4.2l1.4 1.4"></path><path d="M18.4 18.4l1.4 1.4"></path><path d="M2 12h4"></path><path d="M18 12h4"></path><path d="M4.2 19.8l1.4-1.4"></path><path d="M18.4 5.6l1.4-1.4"></path></svg> Resumen del Día</h3>
+                    <button id="btn-export-daily-summary" class="icon-btn spinner-btn" title="Exportar Resumen del Día a Excel" style="background-color: var(--brand-yellow);">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        <div class="spinner"></div>
+                    </button>
+                </div>
                  <div class="kpi-container three-cols">
                     <div class="kpi-card">
                         <div class="kpi-title">Ingreso Dólares</div>

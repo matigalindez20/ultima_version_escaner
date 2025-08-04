@@ -3037,10 +3037,13 @@ td.actions-cell {
     border-bottom-color: var(--brand-yellow);
 }
 
+/* === REEMPLAZA CON ESTE CÓDIGO CORREGIDO === */
 #prompt-container .financiera-modal-box input:focus + label,
 #prompt-container .financiera-modal-box input:not(:placeholder-shown) + label,
 #prompt-container .financiera-modal-box textarea:focus + label,
-#prompt-container .financiera-modal-box textarea:not(:placeholder-shown) + label {
+#prompt-container .financiera-modal-box textarea:not(:placeholder-shown) + label,
+#prompt-container .financiera-modal-box select:focus + label,
+#prompt-container .financiera-modal-box select:valid + label {
     top: -20px;
     left: 0;
     font-size: 0.8rem;
@@ -3506,4 +3509,212 @@ td.actions-cell {
     padding: 0.8rem 1rem;
     font-size: 1rem;
     color: var(--text-light) !important;
+}
+
+/* AÑADE ESTO AL FINAL DE TU ARCHIVO STYLE.CSS */
+
+/* Contenedor para el título del grupo y el botón de exportación */
+.kpi-group-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border-dark);
+}
+
+.kpi-group-header h3 {
+    margin-bottom: 0; /* Quitamos el margen original para que se alinee bien */
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+/* Ajuste para el botón de exportación diaria */
+#btn-export-daily-summary {
+    width: auto; /* Hacemos que el botón no ocupe todo el ancho */
+    padding: 0.5rem;
+    line-height: 1; /* Para que el ícono quede bien centrado */
+}
+
+#btn-export-daily-summary .spinner {
+    display: none;
+    width: 16px;
+    height: 16px;
+    border-width: 2px;
+}
+
+#btn-export-daily-summary.loading svg {
+    display: none;
+}
+#btn-export-daily-summary.loading .spinner {
+    display: flex;
+}
+
+/* ======================================================================= */
+/* =========== ESTILOS MODERNOS PARA FILTROS DE HISTORIAL ============== */
+/* ======================================================================= */
+
+/* --- Contenedor Principal de los Filtros --- */
+.history-filters {
+    display: flex;
+    flex-wrap: wrap; /* Para que se adapte en móviles */
+    gap: 1.5rem;
+    padding: 1rem 1.5rem 1.5rem;
+    align-items: flex-end; /* Alinea los elementos en la parte inferior */
+    border-bottom: 1px solid var(--border-dark);
+    background-color: #1a1a1a; /* Un fondo sutil para agruparlos */
+    border-radius: 8px 8px 0 0; /* Bordes redondeados solo arriba */
+}
+
+/* --- Wrapper para cada Input de Fecha --- */
+.history-date-input-wrapper {
+    position: relative;
+    flex: 1 1 200px; /* Permite que crezcan y se adapten */
+    display: flex;
+    flex-direction: column;
+}
+
+/* --- Etiqueta (Desde / Hasta) --- */
+.history-date-input-wrapper label {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+}
+
+/* --- Input de Fecha --- */
+.history-date-input-wrapper input[type="date"] {
+    background-color: transparent;
+    border: none;
+    border-bottom: 2px solid var(--border-dark);
+    color: var(--text-light);
+    padding: 0.6rem 2.5rem 0.6rem 0.5rem; /* Espacio para el icono */
+    font-size: 1rem;
+    font-family: inherit;
+    transition: border-color 0.2s ease-in-out;
+}
+
+.history-date-input-wrapper input[type="date"]:focus {
+    outline: none;
+    border-bottom-color: var(--brand-yellow);
+}
+
+/* --- Ocultamos el icono de calendario por defecto del navegador --- */
+.history-date-input-wrapper input[type="date"]::-webkit-calendar-picker-indicator {
+    display: none;
+    -webkit-appearance: none;
+}
+
+/* --- Nuestro Ícono SVG Personalizado --- */
+.history-date-input-wrapper svg {
+    position: absolute;
+    right: 10px;
+    bottom: 12px;
+    stroke: var(--text-muted);
+    pointer-events: none; /* Para que el clic llegue al input */
+    transition: stroke 0.2s ease-in-out;
+}
+
+/* El icono cambia de color cuando el input está enfocado */
+.history-date-input-wrapper input[type="date"]:focus + svg {
+    stroke: var(--brand-yellow);
+}
+
+/* --- Botón de Filtrar (Estilo Outline) --- */
+.btn-filter-history {
+    background: transparent;
+    border: 2px solid var(--brand-yellow);
+    color: var(--brand-yellow);
+    font-weight: 600;
+    font-size: 0.9rem;
+    padding: 0.8rem 2rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+}
+
+.btn-filter-history:hover {
+    background: var(--brand-yellow);
+    color: #000;
+    transform: translateY(-2px);
+}
+
+/* ======================================================================= */
+/* ====== ESTILO MINIMALISTA DEFINITIVO PARA TODOS LOS FILTROS ====== */
+/* ======================================================================= */
+
+/* --- Contenedor Principal de Filtros (para todos) --- */
+.filters-container {
+    background-color: transparent;
+    padding: 0 0 1.5rem 0;
+    border-radius: 0;
+    box-shadow: none;
+    border: none;
+    border-bottom: 1px solid var(--border-dark);
+    /* Flexbox para alinear elementos */
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    align-items: flex-end; /* Alinea los elementos en la parte inferior */
+}
+
+/* --- Campos y Etiquetas (para todos) --- */
+.filters-container .filter-group label {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-muted);
+}
+
+.filters-container input[type="date"],
+.filters-container select {
+    background-color: transparent !important;
+    border: none;
+    border-bottom: 2px solid #444; /* Línea inferior sutil */
+    border-radius: 0;
+    padding: 10px 5px;
+    font-size: 1rem;
+    color: var(--text-light) !important;
+    transition: border-color 0.2s ease-in-out;
+}
+
+/* Efecto de resaltado al hacer foco */
+.filters-container input[type="date"]:focus,
+.filters-container select:focus {
+    outline: none;
+    border-bottom-color: var(--brand-yellow);
+}
+
+/* --- Botón (para todos) --- */
+.filters-container button {
+    background: transparent;
+    border: 2px solid var(--brand-yellow);
+    color: var(--brand-yellow);
+    font-weight: 600;
+    transition: all 0.2s ease-in-out;
+    padding: 0.8rem 1.5rem;
+    font-size: 0.9rem;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+/* Efecto de relleno en hover */
+.filters-container button:hover {
+    background: var(--brand-yellow);
+    color: #000;
+    transform: translateY(-2px);
+}
+
+/* ======================================================================= */
+/* ====== AJUSTE FINAL PARA CENTRAR FILTROS DEL HISTORIAL FINANCIERO ===== */
+/* ======================================================================= */
+
+/*
+  Usamos el ID que le dimos en el JavaScript (#history-filter-container)
+  para apuntar específicamente a este contenedor de filtros y no a otros.
+*/
+#history-filter-container {
+    justify-content: center; /* Centra los elementos horizontalmente */
+    padding-top: 1.5rem;     /* Añade más espacio arriba */
+    padding-bottom: 2rem;    /* Añade más espacio abajo */
+    padding-left: 1rem;
 }
