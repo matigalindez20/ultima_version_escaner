@@ -18,9 +18,9 @@ const auth = firebase.auth();
 const socios = ["Agustín", "Tomás", "Julián"];
 const emailToNameMap = {
     'matiasgalindez20@gmail.com': 'Matías',
-    'email.de.julian@ejemplo.com': 'Julián',
-    'email.de.tomas@ejemplo.com': 'Tomás',
-    'email.de.agustin@ejemplo.com': 'Agustín'
+    'julian_sbrocca@gmail.com': 'Julián',
+    'tomi_sbrocca@gmail.com': 'Tomás',
+    'agus_sbrocca@gmail.com': 'Agustín'
     // Puedes añadir más usuarios aquí si lo necesitas
 };
 let vendedores = ["Equipo Twins", "Pollo", "Victo", "Mili", "Hasha","Juan"];
