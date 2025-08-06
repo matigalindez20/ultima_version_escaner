@@ -3788,8 +3788,6 @@ async function saveGasto(btn) {
     }
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
 async function loadGastos() {
     s.gastosList.innerHTML = `<p class="dashboard-loader">Cargando gastos...</p>`;
     if (gastosChart) gastosChart.destroy();
@@ -3814,16 +3812,19 @@ async function loadGastos() {
         const snapshot = await query.get();
         
         // ===== INICIO DE LA MODIFICACIÓN =====
-        // 1. Obtenemos TODOS los gastos del período desde la base de datos.
+        // Obtenemos TODOS los gastos del período desde la base de datos.
         const gastosBrutos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-        // 2. Filtramos en el código para excluir las categorías que no queremos mostrar AQUÍ.
+        // Filtramos en el código para excluir las categorías que no queremos mostrar AQUÍ.
+        // AÑADIMOS 'Retiro de Socio' a la lista de exclusión.
         const gastosFiltrados = gastosBrutos.filter(gasto => 
-            gasto.categoria !== 'Pago a Proveedor' && gasto.categoria !== 'Comisiones'
+            gasto.categoria !== 'Pago a Proveedor' && 
+            gasto.categoria !== 'Comisiones' &&
+            gasto.categoria !== 'Retiro de Socio'
         );
         // ===== FIN DE LA MODIFICACIÓN =====
 
-        // 3. A partir de ahora, usamos la lista ya filtrada (gastosFiltrados)
+        // A partir de ahora, usamos la lista ya filtrada (gastosFiltrados)
         const gastosPorCategoria = gastosFiltrados.reduce((acc, gasto) => {
             let montoArs = 0;
             if (gasto.metodo_pago.startsWith('Pesos')) {
