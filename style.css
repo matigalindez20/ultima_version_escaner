@@ -52,7 +52,7 @@ body {
 }
 @keyframes pulsar { 
     0%, 100% { transform: scale(1); } 
-    50% { transform: scale(1.05); } 
+    50% { transform: scale(1.1); } 
 }
 .container { 
     width: 100%; 
@@ -3773,4 +3773,46 @@ td.actions-cell {
     .detail-description {
         margin-bottom: 0.25rem; /* Pequeño espacio entre la descripción y la fecha */
     }
+}
+
+/* ======================================================================= */
+/* ====== ESTILO SUTIL Y ELEGANTE PARA EL SALUDO DE USUARIO (FINAL) ====== */
+/* ======================================================================= */
+
+/* --- 1. Restauramos el estilo original de los botones --- */
+/* (Aseguramos que no queden estilos del intento anterior) */
+.top-right-controls {
+    background-color: transparent;
+    border: none;
+    padding: 0;
+}
+
+#btn-export { 
+    background-color: var(--brand-yellow) !important;
+}
+
+#logout-button { 
+    background-color: var(--error-bg) !important; 
+    color: white !important; 
+}
+
+/* --- 2. Damos el nuevo estilo sutil al saludo --- */
+.user-greeting-display {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    /* Quitamos cualquier fondo o borde que pudiera tener */
+    background: none;
+    border: none;
+}
+
+.user-greeting-display svg {
+    stroke: var(--brand-yellow);
+}
+
+/* --- 3. Nos aseguramos de que el texto no tenga formato de botón --- */
+.user-greeting-display span {
+    font-size: 0.9rem;
 }

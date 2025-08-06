@@ -30,6 +30,12 @@
         </div>
 
         <div class="top-right-controls">
+            <!-- ===== INICIO DEL CAMBIO ===== -->
+            <div id="user-greeting" class="user-greeting-display hidden">
+                <!-- El saludo generado por JavaScript aparecerá aquí -->
+            </div>
+            <!-- ===== FIN DEL CAMBIO ===== -->
+
             <div class="dropdown">
                 <button id="btn-export" class="icon-btn" title="Exportar a Excel">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -79,6 +85,12 @@
                     <div class="filter-group"><label for="filter-stock-color">Color</label><select id="filter-stock-color"></select></div>
                     <div class="filter-group"><label for="filter-stock-gb">Almacenamiento</label><select id="filter-stock-gb"></select></div>
                     <div class="filter-group"><button id="btn-apply-stock-filters">Filtrar Stock</button></div>
+                    <!-- AÑADE ESTE BLOQUE DENTRO DEL DIV "filters-container" DE LA SECCIÓN DE STOCK -->
+
+                    <div class="filter-group">
+                        <label for="filter-stock-imei">IMEI (últimos 4 dígitos)</label>
+                        <input type="text" id="filter-stock-imei" maxlength="4" placeholder="1234">
+                    </div>
                 </div>
                 <div id="stock-table-container" class="table-container"></div>
                 <div id="stock-pagination-controls" class="pagination-controls hidden">

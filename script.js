@@ -11,6 +11,16 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
 
+
+// AÑADE ESTE OBJETO AL PRINCIPIO DE TU SCRIPT.JS
+
+const emailToNameMap = {
+    'matiasgalindez20@gmail.com': 'Matías',
+    'email.de.julian@ejemplo.com': 'Julián',
+    'email.de.tomas@ejemplo.com': 'Tomás',
+    'email.de.agustin@ejemplo.com': 'Agustín'
+    // Puedes añadir más usuarios aquí si lo necesitas
+};
 let vendedores = ["Equipo Twins", "Pollo", "Victo", "Mili", "Hasha","Juan"];
 const colores = ["Negro espacial", "Plata", "Dorado", "Púrpura oscuro", "Rojo (Product RED)", "Azul", "Verde", "Blanco estelar", "Medianoche", "Titanio Natural", "Titanio Azul", "Otro"];
 const almacenamientos = ["64GB", "128GB", "256GB", "512GB", "1TB"];
@@ -42,7 +52,8 @@ let paginationState = {};
 
 document.addEventListener('DOMContentLoaded', initApp);
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 function initApp() {
     Object.assign(s, {
         loginContainer: document.getElementById('login-container'),
@@ -83,6 +94,9 @@ function initApp() {
         filterStockProveedor: document.getElementById('filter-stock-proveedor'),
         filterStockColor: document.getElementById('filter-stock-color'),
         filterStockGb: document.getElementById('filter-stock-gb'),
+        // ===== CAMBIO AQUÍ: AÑADIMOS LA NUEVA REFERENCIA =====
+        filterStockImei: document.getElementById('filter-stock-imei'),
+        // =======================================================
         btnApplyStockFilters: document.getElementById('btn-apply-stock-filters'),
         filterSalesVendedor: document.getElementById('filter-sales-vendedor'),
         filterSalesStartDate: document.getElementById('filter-sales-start-date'),
@@ -164,17 +178,11 @@ function initApp() {
         salesPrevPage: document.getElementById('sales-prev-page'),
         salesNextPage: document.getElementById('sales-next-page'),
         salesPageInfo: document.getElementById('sales-page-info'),
-        // ===============================================
-        // === INICIO: NUEVAS REFERENCIAS PARA FINANCIERA ===
-        // ===============================================
         tabFinanciera: document.getElementById('tab-financiera'),
         financieraView: document.getElementById('financiera-view'),
         btnAddAccount: document.getElementById('btn-add-account'),
         financieraTotalBalance: document.getElementById('financiera-total-balance'),
         accountsListContainer: document.getElementById('accounts-list-container'),
-        // ===============================================
-        // ==== FIN: NUEVAS REFERENCIAS PARA FINANCIERA ====
-        // ===============================================
     });
     
     addEventListeners();
@@ -233,7 +241,7 @@ function populateAllSelects() {
     populateSelect(s.proveedorFormSelect, proveedoresConCanje, "Selecciona..."); 
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU ARCHIVO SCRIPT.JS
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
 function addEventListeners() {
     s.logoutButton.addEventListener('click', () => auth.signOut());
@@ -293,6 +301,9 @@ function addEventListeners() {
         if (s.promptContainer && s.promptContainer.contains(form)) {
             e.preventDefault();
             if (form.id === 'payment-form') { saveProviderPayment(form);
+            // ===== INICIO DE LA MODIFICACIÓN =====
+            } else if (form.id === 'collect-balance-form') { saveCollectedBalance(form.querySelector('button[type="submit"]'));
+            // ===== FIN DE LA MODIFICACIÓN =====
             } else if (form.id === 'provider-form') { saveProvider(form.querySelector('button[type="submit"]'));
             } else if (form.id === 'gasto-form') { saveGasto(form.querySelector('button[type="submit"]'));
             } else if (form.id === 'ingreso-form') {
@@ -385,11 +396,16 @@ function addEventListeners() {
         if (!card) return;
         const providerId = card.dataset.providerId;
         const providerName = card.querySelector('h3').textContent;
+        const debtValue = parseFloat(card.dataset.debtValue) || 0;
+
+        paymentContext = { id: providerId, name: providerName };
+
         if (button.classList.contains('btn-register-payment')) {
-            const debtString = card.querySelector('.stat-value.debt')?.textContent || 'US$ 0,00';
-            const debtAmount = parseFloat(debtString.replace(/[^0-9,-]+/g,"").replace(',', '.'));
-            paymentContext = { id: providerId, name: providerName };
-            promptToRegisterPayment(providerName, debtAmount);
+            promptToRegisterPayment(providerName, debtValue);
+        // ===== INICIO DE LA MODIFICACIÓN =====
+        } else if (button.classList.contains('btn-collect-balance')) {
+            promptToCollectBalance(providerId, providerName, Math.abs(debtValue));
+        // ===== FIN DE LA MODIFICACIÓN =====
         } else if (button.classList.contains('btn-batch-load')) {
             promptToStartBatchLoad(providerId, providerName);
         } else if (button.classList.contains('btn-view-payments')) {
@@ -408,14 +424,17 @@ function addEventListeners() {
         if (!clientCard) return;
         const clientId = clientCard.dataset.clientId;
         const clientName = clientCard.querySelector('h3').textContent;
+
         if (button.classList.contains('btn-new-wholesale-sale')) {
             wholesaleSaleContext = { clientId: clientId, clientName: clientName, items: [], totalSaleValue: 0 };
             switchView('management', s.tabManagement);
             resetManagementView(false, false, true);
         } else if (button.classList.contains('btn-register-ws-payment')) {
-            const debtString = clientCard.querySelector('.stat-value.debt')?.textContent || 'US$ 0,00';
-            const debtAmount = parseFloat(debtString.replace(/[^0-9,-]+/g,"").replace(',', '.'));
-            promptToRegisterWholesalePayment(clientId, clientName, debtAmount);
+            const debtValueString = clientCard.querySelector('.stat-value').textContent;
+            const isDebt = clientCard.querySelector('.stat-value.debt') !== null;
+            const numericValue = parseFloat(debtValueString.replace(/[^0-9,-]+/g, "").replace(',', '.'));
+            const actualDebt = isDebt ? numericValue : -numericValue;
+            promptToRegisterWholesalePayment(clientId, clientName, actualDebt);
         } else if (button.classList.contains('btn-view-wholesale-history')) {
             showWholesaleHistory(clientId, clientName);
         } else if (button.classList.contains('btn-resync-client')) {
@@ -443,13 +462,11 @@ function addEventListeners() {
         s.reportsView.addEventListener('click', (e) => {
             const kpiCard = e.target.closest('.kpi-card');
             
-            // ===================== INICIO DEL CÓDIGO ACTUALIZADO =====================
             const exportButton = e.target.closest('#btn-export-daily-summary');
             if (exportButton) {
                 exportDailySummaryToExcel();
                 return; 
             }
-            // ====================== FIN DEL CÓDIGO ACTUALIZADO =======================
 
             if (!kpiCard) return;
             const kpiValueDiv = kpiCard.querySelector('.kpi-value');
@@ -501,79 +518,42 @@ function addEventListeners() {
     s.salesItemsPerPage.addEventListener('change', () => loadSales('first'));
     s.salesNextPage.addEventListener('click', () => loadSales('next'));
     s.salesPrevPage.addEventListener('click', () => loadSales('prev'));
-}
-
-async function loadStock(direction = 'first') {
-    const type = 'stock';
-
-    const newFiltersJSON = JSON.stringify([s.filterStockModel.value, s.filterStockProveedor.value, s.filterStockColor.value, s.filterStockGb.value]);
-    if (!paginationState[type] || paginationState[type].lastFilters !== newFiltersJSON) {
-        direction = 'first';
-    }
     
-    if (direction === 'first') {
-        paginationState[type] = {
-            lastFilters: newFiltersJSON,
-            currentPage: 1,
-            lastVisible: null,
-            pageHistory: [null]
-        };
-    }
-    
-    const filters = [['estado', '==', 'en_stock']];
-    if (s.filterStockModel.value) filters.push(['modelo', '==', s.filterStockModel.value]);
-    if (s.filterStockProveedor.value) filters.push(['proveedor', '==', s.filterStockProveedor.value]);
-    if (s.filterStockColor.value) filters.push(['color', '==', s.filterStockColor.value]);
-    if (s.filterStockGb.value) filters.push(['almacenamiento', '==', s.filterStockGb.value]);
+    s.promptContainer.addEventListener('change', (e) => {
+        const form = e.target.closest('form');
+        if (!form) return;
 
-    await loadPaginatedData({
-        type: type,
-        collectionName: 'stock_individual',
-        filters: filters,
-        orderByField: 'fechaDeCarga',
-        orderByDirection: 'desc',
-        direction: direction,
-        renderFunction: (doc) => {
-            const item = doc.data();
-            const fechaObj = item.fechaDeCarga ? new Date(item.fechaDeCarga.seconds * 1000) : null;
-            let fechaFormateada = fechaObj ? `${String(fechaObj.getDate()).padStart(2, '0')}/${String(fechaObj.getMonth() + 1).padStart(2, '0')}/${fechaObj.getFullYear()}<br><small class="time-muted">${String(fechaObj.getHours()).padStart(2, '0')}:${String(fechaObj.getMinutes()).padStart(2, '0')} hs</small>` : 'N/A';
-            const itemJSON = JSON.stringify(item).replace(/'/g, "\\'");
+        if (e.target.matches('#wholesale-payment-form .payment-method-cb')) {
+            const cb = e.target;
+            const fieldsDiv = form.querySelector(`#${cb.id}-fields`);
+            if (fieldsDiv) {
+                const isChecked = cb.checked;
+                fieldsDiv.classList.toggle('hidden', !isChecked);
 
-            let reparadoIconHtml = item.fueReparado ? `<span class="reparado-badge" title="Equipo reparado"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg></span>` : '';
-            
-            return `<tr class="stock-row-clickable" data-item='${itemJSON}' data-imei="${item.imei}">
-                <td class="hide-on-mobile">${fechaFormateada}</td>
-                <td>${item.modelo || ''} ${reparadoIconHtml}</td>
-                <td class="hide-on-mobile">${item.proveedor || 'N/A'}</td>
-                <td>${item.color || ''}</td>
-                <td class="hide-on-mobile">${item.almacenamiento || ''}</td>
-                <td>${item.bateria || ''}%</td>
-                <td class="hide-on-mobile">${formatearUSD(item.precio_costo_usd)}</td>
-                <td class="actions-cell">
-                    <button class="edit-btn btn-edit-stock hide-on-mobile" title="Editar Producto"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
-                    <button class="delete-btn btn-delete-stock hide-on-mobile" title="Eliminar Producto"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button>
-                </td></tr>`;
-        },
-        setupEventListeners: () => {
-             document.querySelectorAll('.stock-row-clickable').forEach(row => {
-                const itemData = JSON.parse(row.dataset.item.replace(/\\'/g, "'"));
-                const imei = row.dataset.imei;
-                
-                const editBtn = row.querySelector('.btn-edit-stock');
-                if (editBtn) editBtn.addEventListener('click', () => promptToEditStock(itemData));
-
-                const deleteBtn = row.querySelector('.btn-delete-stock');
-                if (deleteBtn) deleteBtn.addEventListener('click', () => {
-                    const message = `Producto: ${itemData.modelo} ${itemData.color}\nIMEI: ${imei}\n\nEsta acción eliminará el producto del stock permanentemente.`;
-                    showConfirmationModal('¿Seguro que quieres eliminar este producto?', message, () => deleteStockItem(imei, itemData));
-                });
-
-                row.addEventListener('click', e => {
-                    if (window.innerWidth < 768 && !e.target.closest('button')) {
-                        showStockDetailModal(itemData);
+                if (cb.id === 'pay-ars-transfer') {
+                    const cuentaSelect = fieldsDiv.querySelector('select[name="cuenta_destino"]');
+                    if(cuentaSelect) {
+                       cuentaSelect.required = isChecked;
                     }
-                });
-            });
+                }
+            }
+            
+            const cotizacionGroup = form.querySelector('#cotizacion-dolar-group');
+            if (cotizacionGroup) {
+                const pagoEnPesos = form.querySelector('#pay-ars-efectivo:checked') || form.querySelector('#pay-ars-transfer:checked');
+                cotizacionGroup.classList.toggle('hidden', !pagoEnPesos);
+                cotizacionGroup.querySelector('input').required = !!pagoEnPesos;
+            }
+        }
+    });
+
+    s.promptContainer.addEventListener('input', (e) => {
+         if (e.target.matches('#wholesale-payment-form #payment-total')) {
+            const form = e.target.closest('form');
+            const usdCheckbox = form.querySelector('#pay-usd');
+            if (usdCheckbox && usdCheckbox.checked) {
+                form.querySelector('[name="dolares"]').value = e.target.value;
+            }
         }
     });
 }
@@ -593,6 +573,7 @@ function moveNavSlider(activeTab) {
 }
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 async function updateReports() {
     const kpiElements = [
         s.kpiStockValue, s.kpiStockCount,
@@ -682,28 +663,26 @@ async function updateReports() {
                 }
             });
             
+            // ===== INICIO DE LA MODIFICACIÓN =====
+            // Añadimos una condición para que solo sume los gastos que NO son de proveedor o comisiones.
             expensesSnap.forEach(doc => {
                 const gasto = doc.data();
-                if (gasto.fecha) {
+                if (gasto.fecha && gasto.categoria !== 'Pago a Proveedor' && gasto.categoria !== 'Comisiones') {
                     if (gasto.metodo_pago === 'Dólares') totalExpenses.usd += gasto.monto || 0;
                     if (gasto.metodo_pago === 'Pesos (Efectivo)') totalExpenses.cash += gasto.monto || 0;
                     if (gasto.metodo_pago === 'Pesos (Transferencia)') totalExpenses.transfer += gasto.monto || 0;
                 }
             });
+            // ===== FIN DE LA MODIFICACIÓN =====
             
-            // --- LÓGICA CENTRALIZADA PARA MOVIMIENTOS INTERNOS ---
             internalMovesSnap.forEach(doc => {
                 const move = doc.data();
                 if (move.fecha) {
                     if (move.tipo === 'Retiro a Caja') {
-                        // El dinero sale de la caja de transferencias
                         totalIncomes.transfer -= move.monto_ars;
-                        // Y entra a la caja de efectivo
                         totalIncomes.cash += move.monto_ars; 
                     } else if (move.tipo === 'Retiro a Caja (USD)') {
-                        // El dinero en ARS sale de la caja de transferencias
                         totalIncomes.transfer -= move.monto_ars;
-                        // El ingreso en USD ya se cuenta a través de 'ingresos_caja'
                     }
                 }
             });
@@ -740,17 +719,29 @@ async function updateReports() {
         kpiElements.forEach(el => { if(el) el.textContent = 'Error'; });
     }
 }
-// REEMPLAZA ESTA FUNCIÓN COMPLETA
+
 async function handleAuthStateChange(user) {
+    const userGreetingEl = document.getElementById('user-greeting');
+
     if (user) {
+        // --- INICIO DE LA NUEVA LÓGICA DE SALUDO ---
+        const userEmail = user.email;
+        const userName = emailToNameMap[userEmail]; // Busca el nombre en nuestro mapa
+
+        if (userName && userGreetingEl) {
+            userGreetingEl.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                <span>Hola, ${userName}</span>`;
+            userGreetingEl.classList.remove('hidden');
+        }
+        // --- FIN DE LA NUEVA LÓGICA DE SALUDO ---
+
         s.loginContainer.innerHTML = ''; 
         s.loginContainer.classList.add('hidden');
         s.appContainer.classList.remove('hidden');
         await loadAndPopulateSelects();
         switchView('dashboard', s.tabDashboard);
         updateCanjeCount();
-        
-        // ===== LLAMADA A LA NUEVA FUNCIÓN AÑADIDA AQUÍ =====
         updateReparacionCount();
 
         setTimeout(() => {
@@ -758,6 +749,10 @@ async function handleAuthStateChange(user) {
             moveNavSlider(document.querySelector('.nav-tab.active'));
         }, 100);
     } else {
+        if (userGreetingEl) {
+            userGreetingEl.classList.add('hidden'); // Ocultamos el saludo al cerrar sesión
+        }
+
         s.loginContainer.classList.remove('hidden');
         s.appContainer.classList.add('hidden');
         
@@ -774,21 +769,12 @@ async function handleAuthStateChange(user) {
                         <input type="password" id="password" required placeholder=" " autocomplete="new-password">
                         <label for="password">Contraseña</label>
                         <button type="button" id="password-toggle" class="password-toggle-btn" title="Mostrar/Ocultar contraseña">
-                            <svg id="eye-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                                <circle cx="12" cy="12" r="3"></circle>
-                            </svg>
-                            <svg id="eye-off-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hidden">
-                                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
-                                <line x1="1" y1="1" x2="23" y2="23"></line>
-                            </svg>
+                            <svg id="eye-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                            <svg id="eye-off-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hidden"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
                         </button>
                     </div>
                 </div>
-                <button type="submit" class="spinner-btn">
-                    <span class="btn-text">Entrar</span>
-                    <div class="spinner"></div>
-                </button>
+                <button type="submit" class="spinner-btn"><span class="btn-text">Entrar</span><div class="spinner"></div></button>
             </form>`;
         
         document.getElementById('login-form').addEventListener('submit', handleLogin);
@@ -984,7 +970,11 @@ async function loadWholesaleClients() {
 }
 
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 function promptToAddWholesaleClient() {
+    // ===== INICIO DE LA MODIFICACIÓN =====
+    // Se han añadido nuevos campos para el balance inicial.
     s.promptContainer.innerHTML = `
         <div class="ingreso-modal-box">
             <h3>Nuevo Cliente Mayorista</h3>
@@ -997,7 +987,24 @@ function promptToAddWholesaleClient() {
                     <textarea id="ws-client-notes" name="notas" rows="1" placeholder=" "></textarea>
                     <label for="ws-client-notes">Notas (Teléfono, etc. - opcional)</label>
                 </div>
-                <div class="prompt-buttons">
+
+                <hr style="border-color:var(--border-dark);margin:1rem 0 2rem;">
+
+                <div class="form-group">
+                    <select id="ws-initial-balance-type" name="balance_type">
+                        <option value="">Sin balance inicial</option>
+                        <option value="deuda">Ingresa con Deuda</option>
+                        <option value="favor">Ingresa con Saldo a Favor</option>
+                    </select>
+                    <label for="ws-initial-balance-type">Balance Inicial (Opcional)</label>
+                </div>
+
+                <div id="ws-initial-balance-amount-group" class="form-group hidden">
+                    <input type="number" id="ws-initial-balance-amount" name="balance_amount" step="0.01" placeholder=" ">
+                    <label for="ws-initial-balance-amount">Monto del Balance (USD)</label>
+                </div>
+
+                <div class="prompt-buttons" style="margin-top: 2rem;">
                     <button type="submit" class="prompt-button confirm spinner-btn">
                         <span class="btn-text">Guardar Cliente</span>
                         <div class="spinner"></div>
@@ -1006,6 +1013,7 @@ function promptToAddWholesaleClient() {
                 </div>
             </form>
         </div>`;
+    // ===== FIN DE LA MODIFICACIÓN =====
     
     const textarea = document.getElementById('ws-client-notes');
     if (textarea) {
@@ -1014,17 +1022,49 @@ function promptToAddWholesaleClient() {
             textarea.style.height = (textarea.scrollHeight) + 'px';
         });
     }
+
+    // ===== INICIO DE LA MODIFICACIÓN =====
+    // Lógica para mostrar/ocultar el campo de monto
+    const balanceTypeSelect = document.getElementById('ws-initial-balance-type');
+    const amountGroup = document.getElementById('ws-initial-balance-amount-group');
+    const amountInput = document.getElementById('ws-initial-balance-amount');
+
+    balanceTypeSelect.addEventListener('change', () => {
+        if (balanceTypeSelect.value) {
+            amountGroup.classList.remove('hidden');
+            amountInput.required = true;
+        } else {
+            amountGroup.classList.add('hidden');
+            amountInput.required = false;
+        }
+    });
+    // ===== FIN DE LA MODIFICACIÓN =====
 }
 
-// REEMPLAZA ESTA FUNCIÓN EN TU SCRIPT.JS
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 async function saveWholesaleClient(btn) {
     toggleSpinner(btn, true);
     const form = btn.form;
+    
+    // ===== INICIO DE LA MODIFICACIÓN =====
+    // Leemos los nuevos campos del formulario
+    const balanceType = form.balance_type.value;
+    const balanceAmount = parseFloat(form.balance_amount.value) || 0;
+    
+    let initialDebt = 0;
+    if (balanceType === 'deuda') {
+        initialDebt = balanceAmount; // Se guarda como número positivo
+    } else if (balanceType === 'favor') {
+        initialDebt = -balanceAmount; // Se guarda como número negativo
+    }
+    // ===== FIN DE LA MODIFICACIÓN =====
+
     const clientData = {
         nombre: form.nombre.value.trim(),
         notas: form.notas.value.trim(),
         total_comprado_usd: 0,
-        deuda_usd: 0, // <--- CAMPO AÑADIDO AQUÍ
+        deuda_usd: initialDebt, // Usamos el valor calculado
         fecha_creacion: firebase.firestore.FieldValue.serverTimestamp(),
         fecha_ultima_compra: null
     };
@@ -1259,6 +1299,7 @@ function renderWholesaleLoader() {
 }
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 async function finalizeWholesaleSale(form) {
     const btn = form.querySelector('button[type="submit"]');
     toggleSpinner(btn, true);
@@ -1269,8 +1310,6 @@ async function finalizeWholesaleSale(form) {
     const montoUsd = parseFloat(formData.get('monto_dolares')) || 0;
     const montoArsEfectivo = parseFloat(formData.get('monto_efectivo')) || 0;
     const montoArsTransferencia = parseFloat(formData.get('monto_transferencia')) || 0;
-    
-    // CORRECCIÓN: Usamos un valor por defecto de 1 para la cotización si no se ingresa
     const cotizacion = parseFloat(formData.get('cotizacion_dolar')) || 1;
 
     if (!saleId) {
@@ -1281,15 +1320,29 @@ async function finalizeWholesaleSale(form) {
 
     try {
         const { clientId, clientName, items, totalSaleValue } = wholesaleSaleContext;
-
-        const totalPagadoPesos = montoArsEfectivo + montoArsTransferencia;
-        const totalPagadoUSD = montoUsd + (totalPagadoPesos > 0 ? (totalPagadoPesos / cotizacion) : 0);
-        const deudaGenerada = totalSaleValue - totalPagadoUSD;
+        
+        const usarSaldo = formData.get('usar_saldo_cliente') === 'on';
         
         await db.runTransaction(async (t) => {
             const saleDate = firebase.firestore.FieldValue.serverTimestamp();
             const wholesaleSaleRef = db.collection('ventas_mayoristas').doc();
             
+            const clientRef = db.collection('clientes_mayoristas').doc(clientId);
+            
+            let creditoAplicado = 0;
+            if (usarSaldo) {
+                const clientDoc = await t.get(clientRef);
+                const saldoActual = clientDoc.data().deuda_usd || 0;
+                if (saldoActual < 0) {
+                    creditoAplicado = Math.min(totalSaleValue, Math.abs(saldoActual));
+                }
+            }
+
+            const totalPagadoPesos = montoArsEfectivo + montoArsTransferencia;
+            const totalPagadoUSD = montoUsd + (totalPagadoPesos > 0 ? (totalPagadoPesos / cotizacion) : 0);
+            
+            const deudaGenerada = totalSaleValue - totalPagadoUSD - creditoAplicado;
+
             const masterSaleData = {
                 clienteId: clientId,
                 clienteNombre: clientName,
@@ -1301,8 +1354,9 @@ async function finalizeWholesaleSale(form) {
                     ars_efectivo: montoArsEfectivo,
                     ars_transferencia: montoArsTransferencia,
                     cotizacion_dolar: cotizacion,
-                    total_pagado_usd: totalPagadoUSD // Guardamos el total pagado calculado
+                    total_pagado_usd: totalPagadoUSD
                 },
+                saldo_favor_aplicado: creditoAplicado,
                 deuda_generada_usd: deudaGenerada > 0.01 ? deudaGenerada : 0,
                 cantidad_equipos: items.length,
             };
@@ -1323,12 +1377,17 @@ async function finalizeWholesaleSale(form) {
                 t.update(stockRef, { estado: 'vendido' });
             }
 
-            const clientRef = db.collection('clientes_mayoristas').doc(clientId);
+            // ===== INICIO DE LA CORRECCIÓN CLAVE =====
+            // Esta es la lógica corregida. El cambio neto en la deuda del cliente es
+            // el costo de la venta MENOS el dinero que paga en el momento.
+            const cambioNetoEnDeuda = totalSaleValue - totalPagadoUSD;
+            
             t.update(clientRef, {
                 total_comprado_usd: firebase.firestore.FieldValue.increment(totalSaleValue),
-                deuda_usd: firebase.firestore.FieldValue.increment(deudaGenerada),
+                deuda_usd: firebase.firestore.FieldValue.increment(cambioNetoEnDeuda), // Se actualiza con el cambio neto
                 fecha_ultima_compra: saleDate
             });
+            // ===== FIN DE LA CORRECCIÓN CLAVE =====
         });
 
         showGlobalFeedback(`¡Venta mayorista ${saleId} registrada con éxito!`, 'success', 5000);
@@ -1344,7 +1403,6 @@ async function finalizeWholesaleSale(form) {
         toggleSpinner(btn, false);
     }
 }
-
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 async function loadIngresos() {
@@ -1795,26 +1853,49 @@ async function loadProviders() {
 function renderProviders(providers) {
     s.providersListContainer.innerHTML = providers.map(provider => {
         const debt = provider.deuda_usd || 0;
-        const deleteTitle = debt > 0 ? 'No se puede eliminar un proveedor con deuda pendiente' : 'Eliminar Proveedor';
+        const deleteTitle = debt !== 0 ? 'No se puede eliminar un proveedor con saldo o deuda pendiente' : 'Eliminar Proveedor';
+
+        let statLabel = 'Deuda Pendiente';
+        let statClass = 'debt';
+        let statValueDisplay = formatearUSD(debt);
+        let paymentButtonHtml = '';
+
+        if (debt < 0) {
+            statLabel = 'Saldo a Favor';
+            statClass = 'zero'; 
+            statValueDisplay = formatearUSD(Math.abs(debt));
+            paymentButtonHtml = `
+            <button class="pcm-action-btn btn-collect-balance" title="Cobrar el saldo a favor de este proveedor">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h6"/><path d="m12 12 4 10 5-5-10-4z"/></svg>
+                <span>Cobrar Saldo</span>
+            </button>`;
+        } else {
+            statLabel = (debt > 0) ? 'Deuda Pendiente' : 'Deuda Pendiente';
+            statClass = (debt > 0) ? 'debt' : 'zero';
+            paymentButtonHtml = `
+            <button class="pcm-action-btn btn-register-payment" title="Registrar un pago o abono">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+                <span>Registrar Pago</span>
+            </button>`;
+        }
         
-        // --- INICIO DE LA NUEVA ESTRUCTURA HTML ---
         return `
-        <div class="provider-card-modern" data-provider-id="${provider.id}">
+        <div class="provider-card-modern" data-provider-id="${provider.id}" data-debt-value="${debt}">
             
             <div class="pcm-header">
                 <div class="pcm-info">
                     <h3>${provider.nombre}</h3>
                     <p>${provider.contacto || 'Sin contacto especificado'}</p>
                 </div>
-                <button class="pcm-delete-btn btn-delete-provider" title="${deleteTitle}" ${debt > 0 ? 'disabled' : ''}>
+                <button class="pcm-delete-btn btn-delete-provider" title="${deleteTitle}" ${debt !== 0 ? 'disabled' : ''}>
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                 </button>
             </div>
 
             <div class="pcm-stats">
                 <div class="stat-item">
-                    <span class="stat-label">Deuda Pendiente</span>
-                    <span class="stat-value ${debt === 0 ? 'zero' : 'debt'}">${formatearUSD(debt)}</span>
+                    <span class="stat-label">${statLabel}</span>
+                    <span class="stat-value ${statClass}">${statValueDisplay}</span>
                 </div>
                 <div class="stat-item">
                     <span class="stat-label">Acción Principal</span>
@@ -1826,10 +1907,7 @@ function renderProviders(providers) {
             </div>
 
             <div class="pcm-actions">
-                <button class="pcm-action-btn btn-register-payment" title="Registrar un pago para saldar la deuda" ${debt === 0 ? 'disabled' : ''}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
-                    <span>Registrar Pago</span>
-                </button>
+                ${paymentButtonHtml}
                 <button class="pcm-action-btn btn-view-batches" title="Ver el historial de lotes cargados">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
                     <span>Ver Lotes</span>
@@ -1840,10 +1918,8 @@ function renderProviders(providers) {
                 </button>
             </div>
         </div>`;
-        // --- FIN DE LA NUEVA ESTRUCTURA HTML ---
     }).join('');
 }
-
 
 function promptToAddProvider() {
     s.promptContainer.innerHTML = `
@@ -1950,20 +2026,25 @@ function promptToStartBatchLoad(providerId, providerName) {
     });
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU ARCHIVO SCRIPT.JS
+
 function showModelSelectionStep() {
     const modelosHtml = modelos.map(modelo => {
+        // Mantenemos el contador para saber cuántos equipos se han cargado
         const equiposCargados = batchLoadContext.modelosCargados[modelo]?.length || 0;
-        const checkDisabled = equiposCargados > 0 ? 'disabled' : '';
-        const checkChecked = equiposCargados > 0 ? 'checked' : '';
         const countBadge = equiposCargados > 0 ? `<span class="notification-badge" style="position: static; transform: translateX(5px); background-color: var(--success-bg);">${equiposCargados}</span>` : '';
 
+        // === INICIO DE LA CORRECCIÓN ===
+        // Se eliminó la lógica que añadía 'disabled' y 'checked'.
+        // El input ahora es siempre un checkbox simple y sin marcar.
         return `
             <div class="checkbox-group">
-                <input type="checkbox" id="modelo-${modelo.replace(/\s+/g, '-')}" value="${modelo}" ${checkDisabled} ${checkChecked}>
+                <input type="checkbox" id="modelo-${modelo.replace(/\s+/g, '-')}" value="${modelo}">
                 <label for="modelo-${modelo.replace(/\s+/g, '-')}">${modelo}</label>
                 ${countBadge}
             </div>
         `;
+        // === FIN DE LA CORRECCIÓN ===
     }).join('');
 
     s.promptContainer.innerHTML = `
@@ -1981,18 +2062,22 @@ function showModelSelectionStep() {
             </div>
         </div>`;
 
+    // === INICIO DE LA CORRECCIÓN ===
+    // Se modifica el listener para que cada clic sea una acción, sin importar el estado 'checked'
     document.querySelectorAll('#modelos-list-container input[type="checkbox"]').forEach(checkbox => {
         checkbox.addEventListener('click', (e) => {
-            if (e.target.checked) {
-                const modeloSeleccionado = e.target.value;
-                batchLoadContext.currentModel = modeloSeleccionado;
-                switchView('management', s.tabManagement);
-                s.promptContainer.innerHTML = ''; 
-            }
+            // Prevenimos el comportamiento por defecto del checkbox (marcar/desmarcar)
+            e.preventDefault(); 
+            
+            // Siempre ejecutamos la acción de ir a cargar el modelo seleccionado
+            const modeloSeleccionado = e.target.value;
+            batchLoadContext.currentModel = modeloSeleccionado;
+            switchView('management', s.tabManagement);
+            s.promptContainer.innerHTML = ''; 
         });
     });
+    // === FIN DE LA CORRECCIÓN ===
 
-    // Llamada a la función de finalización actualizada
     document.getElementById('btn-finalize-lote').addEventListener('click', promptToAssignLoteCost);
     
     document.getElementById('btn-cancel-lote').addEventListener('click', () => {
@@ -2004,13 +2089,45 @@ function showModelSelectionStep() {
     });
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 async function promptToAssignLoteCost() {
     let totalEquiposCargados = batchLoadContext.itemsCargados.length;
 
     if (totalEquiposCargados === 0) {
         showGlobalFeedback("No has cargado ningún equipo en este lote.", "error");
-        showModelSelectionStep(); // Volvemos a la selección si no hay nada que finalizar
+        showModelSelectionStep();
         return;
+    }
+
+    let saldoAFavor = 0;
+    let deudaFinalEstimada = batchLoadContext.totalCostoAcumulado;
+    let saldoHtml = '';
+
+    try {
+        const providerDoc = await db.collection('proveedores').doc(batchLoadContext.providerId).get();
+        if (providerDoc.exists) {
+            const saldoActual = providerDoc.data().deuda_usd || 0;
+            if (saldoActual < 0) {
+                saldoAFavor = Math.abs(saldoActual);
+                deudaFinalEstimada = batchLoadContext.totalCostoAcumulado - saldoAFavor;
+
+                saldoHtml = `
+                <div class="details-box" style="margin-top: 1rem; border-color: var(--success-bg);">
+                    <div class="detail-item">
+                        <span>Saldo a Favor disponible:</span>
+                        <strong style="color: var(--success-bg);">${formatearUSD(saldoAFavor)}</strong>
+                    </div>
+                    <div class="checkbox-group" style="justify-content: center; padding-top: 10px;">
+                        <input type="checkbox" id="usar-saldo-favor" name="usar_saldo" checked>
+                        <label for="usar-saldo-favor">Usar saldo para este lote</label>
+                    </div>
+                </div>`;
+            }
+        }
+    } catch (error) {
+        console.error("Error al obtener saldo del proveedor:", error);
+        showGlobalFeedback("No se pudo obtener el saldo del proveedor.", "error");
     }
 
     const itemsDetailHtml = batchLoadContext.itemsCargados.map(item => `
@@ -2024,13 +2141,10 @@ async function promptToAssignLoteCost() {
         <div class="container container-sm">
             <div class="prompt-box">
                 <h3>Finalizar y Confirmar Lote</h3>
-                <p style="color: var(--text-muted); text-align: center;">
-                    Lote: <strong>${batchLoadContext.batchIdManual}</strong> para <strong>${batchLoadContext.providerName}</strong>
-                </p>
-
+                <p style="color: var(--text-muted); text-align: center;">Lote: <strong>${batchLoadContext.batchIdManual}</strong> para <strong>${batchLoadContext.providerName}</strong></p>
                 <div class="details-box" style="margin-top: 1.5rem; text-align: center; background-color: #1e1e1e;">
                      <div class="detail-item" style="flex-direction: column;">
-                        <span style="font-size: 1rem; color: var(--text-muted);">Costo Total del Lote (Calculado)</span>
+                        <span style="font-size: 1rem; color: var(--text-muted);">Costo Total del Lote</span>
                         <strong style="font-size: 2.2rem; color: var(--brand-yellow);">${formatearUSD(batchLoadContext.totalCostoAcumulado)}</strong>
                     </div>
                      <div class="detail-item">
@@ -2039,11 +2153,21 @@ async function promptToAssignLoteCost() {
                     </div>
                 </div>
 
+                ${saldoHtml}
+
+                <div class="details-box" style="margin-top: 1rem; border-color: var(--brand-yellow);">
+                     <div class="detail-item" style="flex-direction: column;">
+                        <span style="font-size: 1rem; color: var(--text-muted);">Deuda a Generar (Estimada)</span>
+                        <strong id="deuda-final-display" style="font-size: 2.2rem; color: ${deudaFinalEstimada >= 0 ? 'var(--error-bg)' : 'var(--success-bg)'};">
+                            ${formatearUSD(deudaFinalEstimada)}
+                        </strong>
+                    </div>
+                </div>
+
                 <h4 style="margin-top: 2rem; text-align: center; color: var(--text-muted);">Resumen de Equipos Cargados</h4>
                 <div class="details-box" style="max-height: 200px; overflow-y: auto; padding: 1rem;">
                     ${itemsDetailHtml || '<p>No hay equipos en este lote.</p>'}
                 </div>
-
                 <div class="prompt-buttons" style="margin-top: 2rem;">
                     <button id="btn-save-batch-final" class="prompt-button confirm spinner-btn">
                         <span class="btn-text">Confirmar y Guardar Lote</span>
@@ -2052,8 +2176,22 @@ async function promptToAssignLoteCost() {
                     <button id="btn-back-to-models" class="prompt-button cancel" style="background-color: #555;">Volver y Cargar Más</button>
                 </div>
             </div>
-        </div>
-    `;
+        </div>`;
+    
+    const usarSaldoCheckbox = document.getElementById('usar-saldo-favor');
+    if (usarSaldoCheckbox) {
+        usarSaldoCheckbox.addEventListener('change', () => {
+            const deudaDisplay = document.getElementById('deuda-final-display');
+            if (usarSaldoCheckbox.checked) {
+                const nuevaDeuda = batchLoadContext.totalCostoAcumulado - saldoAFavor;
+                deudaDisplay.textContent = formatearUSD(nuevaDeuda);
+                deudaDisplay.style.color = nuevaDeuda >= 0 ? 'var(--error-bg)' : 'var(--success-bg)';
+            } else {
+                deudaDisplay.textContent = formatearUSD(batchLoadContext.totalCostoAcumulado);
+                deudaDisplay.style.color = 'var(--error-bg)';
+            }
+        });
+    }
 
     document.getElementById('btn-back-to-models').addEventListener('click', () => {
         showModelSelectionStep();
@@ -2064,12 +2202,24 @@ async function promptToAssignLoteCost() {
         toggleSpinner(btn, true);
 
         const costoTotalUSD = batchLoadContext.totalCostoAcumulado;
+        const usarSaldo = usarSaldoCheckbox ? usarSaldoCheckbox.checked : false;
+        
+        let creditoAplicadoReal = 0;
 
         try {
             const loteRef = db.collection('lotes').doc();
             
             await db.runTransaction(async t => {
                 const providerRef = db.collection('proveedores').doc(batchLoadContext.providerId);
+                
+                if (usarSaldo && saldoAFavor > 0) {
+                    const providerDoc = await t.get(providerRef);
+                    const saldoActual = providerDoc.data().deuda_usd || 0;
+                    if (saldoActual < 0) {
+                        creditoAplicadoReal = Math.min(costoTotalUSD, Math.abs(saldoActual));
+                    }
+                }
+                
                 t.update(providerRef, { deuda_usd: firebase.firestore.FieldValue.increment(costoTotalUSD) });
 
                 const imeisTotales = batchLoadContext.itemsCargados.map(item => item.imei);
@@ -2080,7 +2230,8 @@ async function promptToAssignLoteCost() {
                     costo_total_usd: costoTotalUSD,
                     fecha_carga: firebase.firestore.FieldValue.serverTimestamp(),
                     imeis: imeisTotales,
-                    detalle_modelos: batchLoadContext.modelosCargados
+                    detalle_modelos: batchLoadContext.modelosCargados,
+                    saldo_favor_aplicado: creditoAplicadoReal
                 });
             });
 
@@ -2140,7 +2291,8 @@ async function initiateBatchLoad(providerId, providerName, model, batchCost, bat
     }
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA (VERSIÓN FINAL Y ROBUSTA)
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 async function promptToRegisterPayment(providerName, currentDebt) {
     paymentContext = { id: paymentContext.id, name: providerName };
 
@@ -2179,12 +2331,14 @@ async function promptToRegisterPayment(providerName, currentDebt) {
         </div>
     `;
 
+    // ===== INICIO DE LA MODIFICACIÓN =====
+    // Se eliminó el atributo max="${currentDebt}" del input de Monto Total.
     s.promptContainer.innerHTML = `
         <div class="container container-sm"> <div class="prompt-box">
                 <h3>Registrar Pago a ${providerName}</h3>
                 <p>Deuda actual: <strong>${formatearUSD(currentDebt)}</strong></p>
                 <form id="payment-form">
-                    <div class="form-group"><label for="payment-total">Monto Total del Pago (USD)</label><input type="number" id="payment-total" name="total" step="0.01" max="${currentDebt}" required></div>
+                    <div class="form-group"><label for="payment-total">Monto Total del Pago (USD)</label><input type="number" id="payment-total" name="total" step="0.01" required></div>
                     <div class="form-group"><label for="lote-asociado">Asociar a Lote (Opcional)</label><select id="lote-asociado" name="loteAsociado"><option value="">Ninguno / Pago general</option>${lotesOptions}</select></div>
                     <div class="form-group payment-details-group">
                         <label>Método de Pago</label>
@@ -2201,13 +2355,11 @@ async function promptToRegisterPayment(providerName, currentDebt) {
                     <div class="prompt-buttons"><button type="submit" class="prompt-button confirm spinner-btn"><span class="btn-text">Registrar Pago</span><div class="spinner"></div></button><button type="button" class="prompt-button cancel">Cancelar</button></div>
                 </form>
             </div> </div>`;
+    // ===== FIN DE LA MODIFICACIÓN =====
     
     const form = document.getElementById('payment-form');
     
-    // ===================== INICIO DE LA CORRECCIÓN =====================
-    // Centralizamos los listeners en el formulario para evitar errores de timing
     form.addEventListener('input', (e) => {
-        // Si se cambia el monto total, y el checkbox de USD está marcado, se autocompleta.
         if (e.target.id === 'payment-total') {
             const usdCheckbox = form.querySelector('#pay-usd');
             if (usdCheckbox && usdCheckbox.checked) {
@@ -2217,7 +2369,6 @@ async function promptToRegisterPayment(providerName, currentDebt) {
     });
 
     form.addEventListener('change', (e) => {
-        // Si cambia un checkbox de método de pago
         if (e.target.matches('.payment-method-cb')) {
             const fieldsDiv = document.getElementById(`${e.target.id}-fields`);
             if (fieldsDiv) fieldsDiv.classList.toggle('hidden', !e.target.checked);
@@ -2228,20 +2379,17 @@ async function promptToRegisterPayment(providerName, currentDebt) {
                 cuentaGroup.querySelector('select').required = e.target.checked;
             }
             
-            // Lógica para el campo de cotización
             const cotizacionGroup = document.getElementById('cotizacion-dolar-group');
             const pagoEnPesos = form.querySelector('#pay-ars-efectivo').checked || form.querySelector('#pay-ars-transfer').checked;
             cotizacionGroup.classList.toggle('hidden', !pagoEnPesos);
             cotizacionGroup.querySelector('input').required = pagoEnPesos;
             
-            // Lógica para autocompletar el monto en USD
             const totalInput = document.getElementById('payment-total');
             if (e.target.id === 'pay-usd' && e.target.checked && totalInput.value) {
                 form.querySelector('[name="dolares"]').value = totalInput.value;
             }
         }
     });
-    // ====================== FIN DE LA CORRECCIÓN =======================
 }
 
 async function saveProviderPayment(form) {
@@ -2497,30 +2645,27 @@ async function showBatchHistory(providerId, providerName) {
         
         batchListContainer.innerHTML = lotes.map(lote => {
             const costoTotal = lote.costo_total_usd || 0;
-            const totalPagado = pagosPorLote[lote.numero_lote] || 0;
+
+            // ===== INICIO DE LA CORRECCIÓN CLAVE =====
+            // Ahora, el "total pagado" considera tanto los pagos directos como el saldo a favor que se aplicó.
+            const totalPagado = (pagosPorLote[lote.numero_lote] || 0) + (lote.saldo_favor_aplicado || 0);
+            // ===== FIN DE LA CORRECCIÓN CLAVE =====
+            
             let statusHtml = '';
-            // --- INICIO DE LA MODIFICACIÓN ---
             let restanteHtml = '';
-            // --- FIN DE LA MODIFICACIÓN ---
 
             if (costoTotal > 0) {
                 const restante = costoTotal - totalPagado;
-                if (restante <= 0.01) { // Usamos un margen pequeño por si hay decimales
+                if (restante <= 0.01) {
                     statusHtml = `<div class="lote-status pagado">✓ Pagado</div>`;
-                    // --- INICIO DE LA MODIFICACIÓN ---
                     restanteHtml = `<small class="time-muted" style="color: var(--success-bg); font-weight: 500;">Completo</small>`;
-                    // --- FIN DE LA MODIFICACIÓN ---
                 } else if (totalPagado > 0) {
                     const porcentaje = Math.round((totalPagado / costoTotal) * 100);
                     statusHtml = `<div class="lote-status parcial">${porcentaje}% Pagado</div>`;
-                    // --- INICIO DE LA MODIFICACIÓN ---
                     restanteHtml = `<small class="time-muted" style="color: var(--error-bg); font-weight: 500;">Faltan ${formatearUSD(restante)}</small>`;
-                    // --- FIN DE LA MODIFICACIÓN ---
                 } else {
                     statusHtml = `<div class="lote-status pendiente">Pendiente</div>`;
-                    // --- INICIO DE LA MODIFICACIÓN ---
                     restanteHtml = `<small class="time-muted" style="color: var(--error-bg); font-weight: 500;">Faltan ${formatearUSD(restante)}</small>`;
-                    // --- FIN DE LA MODIFICACIÓN ---
                 }
             }
 
@@ -2531,12 +2676,10 @@ async function showBatchHistory(providerId, providerName) {
                         Lote #${lote.numero_lote} <span>(${new Date(lote.fecha_carga.seconds * 1000).toLocaleDateString('es-AR')})</span>
                         ${statusHtml}
                     </div>
-                    <!-- --- INICIO DE LA MODIFICACIÓN --- -->
                     <div class="batch-cost" style="display: flex; flex-direction: column; align-items: flex-end;">
                         ${formatearUSD(lote.costo_total_usd)}
                         ${restanteHtml}
                     </div>
-                    <!-- --- FIN DE LA MODIFICACIÓN --- -->
                 </div>
                 <button class="delete-icon-btn btn-delete-batch" title="Eliminar Lote">
                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
@@ -3589,7 +3732,7 @@ async function loadGastos() {
         let query = db.collection('gastos').orderBy('fecha', 'desc').where('fecha', '>=', inicioDelRango).where('fecha', '<=', finDelRango);
         const snapshot = await query.get();
         
-        // --- INICIO DE LA MODIFICACIÓN ---
+        // ===== INICIO DE LA MODIFICACIÓN =====
         // 1. Obtenemos TODOS los gastos del período desde la base de datos.
         const gastosBrutos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
@@ -3597,17 +3740,13 @@ async function loadGastos() {
         const gastosFiltrados = gastosBrutos.filter(gasto => 
             gasto.categoria !== 'Pago a Proveedor' && gasto.categoria !== 'Comisiones'
         );
-        // --- FIN DE LA MODIFICACIÓN ---
+        // ===== FIN DE LA MODIFICACIÓN =====
 
         // 3. A partir de ahora, usamos la lista ya filtrada (gastosFiltrados)
         const gastosPorCategoria = gastosFiltrados.reduce((acc, gasto) => {
             let montoArs = 0;
             if (gasto.metodo_pago.startsWith('Pesos')) {
                 montoArs = gasto.monto || 0;
-            }
-            // La lógica para comisiones en dólares ya no es necesaria aquí, pero la dejamos por si acaso
-            else if (gasto.metodo_pago === 'Dólares' && gasto.categoria === 'Comisiones') {
-                montoArs = (gasto.monto_usd_original || 0) * (gasto.cotizacion_dolar || 0);
             }
             if (montoArs > 0) {
                 acc[gasto.categoria] = (acc[gasto.categoria] || 0) + montoArs;
@@ -3745,11 +3884,16 @@ function deleteGasto(id, categoria, monto) {
     });
 }
 
-// VERSIÓN DEFINITIVA SIN EL BOTÓN "VENDER"
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 async function loadStock(direction = 'first') {
     const type = 'stock';
 
-    const newFiltersJSON = JSON.stringify([s.filterStockModel.value, s.filterStockProveedor.value, s.filterStockColor.value, s.filterStockGb.value]);
+    const imeiFilterValue = s.filterStockImei.value.trim();
+    const newFiltersJSON = JSON.stringify([s.filterStockModel.value, s.filterStockProveedor.value, s.filterStockColor.value, s.filterStockGb.value, imeiFilterValue]);
+
     if (!paginationState[type] || paginationState[type].lastFilters !== newFiltersJSON) {
         direction = 'first';
     }
@@ -3763,11 +3907,21 @@ async function loadStock(direction = 'first') {
         };
     }
     
-    const filters = [['estado', '==', 'en_stock']];
-    if (s.filterStockModel.value) filters.push(['modelo', '==', s.filterStockModel.value]);
-    if (s.filterStockProveedor.value) filters.push(['proveedor', '==', s.filterStockProveedor.value]);
-    if (s.filterStockColor.value) filters.push(['color', '==', s.filterStockColor.value]);
-    if (s.filterStockGb.value) filters.push(['almacenamiento', '==', s.filterStockGb.value]);
+    // ===== INICIO DE LA CORRECCIÓN DE LÓGICA =====
+    // Se rediseñó cómo se construyen los filtros para evitar conflictos.
+    let filters = [['estado', '==', 'en_stock']]; // El filtro base siempre se aplica.
+
+    if (imeiFilterValue && imeiFilterValue.length > 0) {
+        // Si hay un valor en el filtro de IMEI, se usa EXCLUSIVAMENTE ese filtro.
+        filters.push(['imei_last_4', '==', imeiFilterValue]);
+    } else {
+        // Si el filtro de IMEI está vacío, se aplican los otros filtros de la lista.
+        if (s.filterStockModel.value) filters.push(['modelo', '==', s.filterStockModel.value]);
+        if (s.filterStockProveedor.value) filters.push(['proveedor', '==', s.filterStockProveedor.value]);
+        if (s.filterStockColor.value) filters.push(['color', '==', s.filterStockColor.value]);
+        if (s.filterStockGb.value) filters.push(['almacenamiento', '==', s.filterStockGb.value]);
+    }
+    // ===== FIN DE LA CORRECCIÓN DE LÓGICA =====
 
     await loadPaginatedData({
         type: type,
@@ -3782,11 +3936,21 @@ async function loadStock(direction = 'first') {
             let fechaFormateada = fechaObj ? `${String(fechaObj.getDate()).padStart(2, '0')}/${String(fechaObj.getMonth() + 1).padStart(2, '0')}/${fechaObj.getFullYear()}<br><small class="time-muted">${String(fechaObj.getHours()).padStart(2, '0')}:${String(fechaObj.getMinutes()).padStart(2, '0')} hs</small>` : 'N/A';
             const itemJSON = JSON.stringify(item).replace(/'/g, "\\'");
 
-            let reparadoIconHtml = item.fueReparado ? `<span class="reparado-badge" title="Equipo reparado"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg></span>` : '';
+            let reparadoIconHtml = '';
+            if (item.fueReparado) {
+                const tooltipText = item.detalles_reparacion || 'Equipo reparado';
+                reparadoIconHtml = `<span class="reparado-badge" title="${tooltipText}"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg></span>`;
+            }
             
+            const modeloConImeiHtml = `
+                ${item.modelo || ''} ${reparadoIconHtml}
+                <br>
+                <small class="time-muted">IMEI: ${item.imei || 'N/A'}</small>
+            `;
+
             return `<tr class="stock-row-clickable" data-item='${itemJSON}' data-imei="${item.imei}">
                 <td class="hide-on-mobile">${fechaFormateada}</td>
-                <td>${item.modelo || ''} ${reparadoIconHtml}</td>
+                <td>${modeloConImeiHtml}</td>
                 <td class="hide-on-mobile">${item.proveedor || 'N/A'}</td>
                 <td>${item.color || ''}</td>
                 <td class="hide-on-mobile">${item.almacenamiento || ''}</td>
@@ -4268,7 +4432,8 @@ async function loadCanjes() {
     } catch (error) { handleDBError(error, s.canjeTableContainer, "pendientes de canje"); }
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 function cargarCanje(docId, canjeData) {
     const valorTomaNumerico = canjeData.valor_toma_usd || 0;
 
@@ -4276,23 +4441,37 @@ function cargarCanje(docId, canjeData) {
         docId, 
         modelo: canjeData.modelo_recibido,
         valorToma: valorTomaNumerico,
-        // Pasamos toda la data para que el siguiente paso la use
         fullData: canjeData 
     };
 
     s.promptContainer.innerHTML = `<div class="container container-sm" style="margin: auto;"><div class="prompt-box"><h3>Cargar IMEI para ${canjeData.modelo_recibido}</h3><p style="color: var(--text-muted); margin-bottom: 1.5rem; text-align: center;">¿Cómo deseas ingresar el IMEI del equipo de canje?</p><div class="prompt-buttons"><button id="btn-canje-scan" class="prompt-button confirm">Escanear IMEI</button><button id="btn-canje-manual" class="prompt-button confirm" style="background-color: #555;">Ingresar Manualmente</button></div><div class="prompt-buttons" style="margin-top: 1rem;"><button class="prompt-button cancel">Cancelar</button></div></div></div>`;
-        
-    document.getElementById('btn-canje-scan').onclick = () => {
+            
+    // ===== INICIO DE LA CORRECCIÓN CLAVE =====
+    // Esta es la nueva lógica para cambiar de vista sin borrar la memoria.
+    const setupAndSwitchView = () => {
         s.promptContainer.innerHTML = '';
-        switchView('management', s.tabManagement);
+        // 1. Ocultamos todas las vistas principales
+        document.querySelectorAll('#app-container > div[id$="-view"]').forEach(view => {
+            view.classList.add('hidden');
+        });
+        // 2. Mostramos solo la vista de gestión
+        s.managementView.classList.remove('hidden');
+    };
+
+    document.getElementById('btn-canje-scan').onclick = () => {
+        setupAndSwitchView();
+        // Llamamos a resetManagementView AHORA, pasándole true para que NO borre canjeContext
+        resetManagementView(false, true); 
         startScanner();
     };
     
     document.getElementById('btn-canje-manual').onclick = () => {
-        s.promptContainer.innerHTML = '';
-        switchView('management', s.tabManagement);
+        setupAndSwitchView();
+        // Llamamos a resetManagementView AHORA, pasándole true para que NO borre canjeContext
+        resetManagementView(false, true);
         promptForManualImeiInput();
     };
+    // ===== FIN DE LA CORRECCIÓN CLAVE =====
 
     s.promptContainer.querySelector('.prompt-button.cancel').addEventListener('click', () => {
         canjeContext = null;
@@ -4367,21 +4546,21 @@ function promptForManualImeiInput(e) {
         } 
     });
 }
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU ARCHIVO SCRIPT.JS
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 async function onScanSuccess(imei) {
     s.feedbackMessage.classList.add('hidden');
     
-    // ===================== INICIO DE LA CORRECCIÓN =====================
-    // La lógica de 'batchLoadContext' ahora llama a showAddProductForm sin
-    // el tercer argumento 'modelo', para que la función use el 'currentModel' del contexto.
     if (canjeContext) {
-        showAddProductForm(null, imei, canjeContext.modelo, canjeContext.docId);
+        // ===== INICIO DE LA CORRECCIÓN CLAVE =====
+        // Ahora pasamos también el canjeContext.valorToma para que el
+        // formulario sepa que viene de un canje y guarde su ID correctamente.
+        showAddProductForm(null, imei, canjeContext.modelo, canjeContext.docId, canjeContext.valorToma);
+        // ===== FIN DE LA CORRECCIÓN CLAVE =====
+
     } else if (batchLoadContext) {
-        showAddProductForm(null, imei); // <-- LÍNEA CORREGIDA
+        showAddProductForm(null, imei);
     } else if (wholesaleSaleContext) {
-    // ====================== FIN DE LA CORRECCIÓN =======================
         await processWholesaleItem(imei);
     } else {
         showFeedback("Buscando IMEI...", "loading");
@@ -4429,9 +4608,19 @@ function promptForManualImeiInput(e) {
 }
 
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU ARCHIVO SCRIPT.JS
+
 function showAddProductForm(e, imei = '', modelo = '', canjeId = null, valorToma = null) {
     if(e) e.preventDefault();
-    resetManagementView(batchLoadContext ? true : false); 
+    
+    // ===== INICIO DE LA CORRECCIÓN CLAVE =====
+    // Verificamos si estamos en un contexto de canje ANTES de resetear la vista.
+    const isCanjeActive = !!canjeId;
+    // Llamamos a la función de reseteo, pero ahora le pasamos el "aviso"
+    // para que no borre el canjeContext si está activo.
+    resetManagementView(batchLoadContext ? true : false, isCanjeActive); 
+    // ===== FIN DE LA CORRECCIÓN CLAVE =====
+    
     s.scanOptions.classList.add('hidden');
     s.scannerContainer.classList.add('hidden');
     s.imeiInput.readOnly = !!imei;
@@ -4458,7 +4647,6 @@ function showAddProductForm(e, imei = '', modelo = '', canjeId = null, valorToma
     const defectoInput = document.getElementById('defecto-form');
     const repuestoInput = document.getElementById('repuesto-form');
 
-    // ===== LÓGICA CORREGIDA PARA PRE-RELLENAR SI EL CANJE ESTÁ DAÑADO =====
     if (canjeContext && canjeContext.fullData && canjeContext.fullData.para_reparar) {
         paraRepararCheck.checked = true;
         reparacionFields.classList.remove('hidden');
@@ -4484,13 +4672,13 @@ function showAddProductForm(e, imei = '', modelo = '', canjeId = null, valorToma
     }
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA (VERSIÓN FINAL Y ROBUSTA)
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 async function promptToSell(imei, details) {
     if (!financialAccounts || financialAccounts.length === 0) {
         try {
             const accountsSnapshot = await db.collection('cuentas_financieras').orderBy('nombre').get();
             financialAccounts = accountsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            console.log("Lista de cuentas recargada al momento de la venta.");
         } catch (error) {
             console.error("Error al recargar cuentas para el modal de venta:", error);
             showGlobalFeedback("Error al cargar las cuentas. Intenta refrescar la página.", "error");
@@ -4516,25 +4704,14 @@ async function promptToSell(imei, details) {
         <div class="form-group">
             <label>Método(s) de Pago</label>
             <div id="payment-methods-container">
-                <div class="payment-option">
-                    <label class="toggle-switch-group"><input type="checkbox" name="metodo_pago_check" value="Dólares"><span class="toggle-switch-label">Dólares</span><span class="toggle-switch-slider"></span></label>
-                    <div class="payment-input-container hidden"><input type="number" id="sell-monto-dolares" name="monto_dolares" placeholder="Monto en USD" step="0.01"></div>
-                </div>
-                <div class="payment-option">
-                    <label class="toggle-switch-group"><input type="checkbox" name="metodo_pago_check" value="Pesos (Efectivo)"><span class="toggle-switch-label">Pesos (Efectivo)</span><span class="toggle-switch-slider"></span></label>
-                    <div class="payment-input-container hidden"><input type="number" id="sell-monto-efectivo" name="monto_efectivo" placeholder="Monto en ARS" step="0.01"></div>
-                </div>
-                <div class="payment-option">
-                    <label class="toggle-switch-group"><input type="checkbox" name="metodo_pago_check" value="Pesos (Transferencia)"><span class="toggle-switch-label">Pesos (Transferencia)</span><span class="toggle-switch-slider"></span></label>
-                    <div class="payment-input-container hidden">
-                        <input type="number" id="sell-monto-transferencia" name="monto_transferencia" placeholder="Monto en ARS" step="0.01">
-                        ${accountSelectHtml}
-                        <textarea id="sell-obs-transferencia" name="observaciones_transferencia" rows="2" placeholder="Obs. de transferencia (opcional)" style="margin-top: 10px;"></textarea>
-                    </div>
-                </div>
+                <div class="payment-option"><label class="toggle-switch-group"><input type="checkbox" name="metodo_pago_check" value="Dólares"><span class="toggle-switch-label">Dólares</span><span class="toggle-switch-slider"></span></label><div class="payment-input-container hidden"><input type="number" id="sell-monto-dolares" name="monto_dolares" placeholder="Monto en USD" step="0.01"></div></div>
+                <div class="payment-option"><label class="toggle-switch-group"><input type="checkbox" name="metodo_pago_check" value="Pesos (Efectivo)"><span class="toggle-switch-label">Pesos (Efectivo)</span><span class="toggle-switch-slider"></span></label><div class="payment-input-container hidden"><input type="number" id="sell-monto-efectivo" name="monto_efectivo" placeholder="Monto en ARS" step="0.01"></div></div>
+                <div class="payment-option"><label class="toggle-switch-group"><input type="checkbox" name="metodo_pago_check" value="Pesos (Transferencia)"><span class="toggle-switch-label">Pesos (Transferencia)</span><span class="toggle-switch-slider"></span></label><div class="payment-input-container hidden"><input type="number" id="sell-monto-transferencia" name="monto_transferencia" placeholder="Monto en ARS" step="0.01">${accountSelectHtml}<textarea id="sell-obs-transferencia" name="observaciones_transferencia" rows="2" placeholder="Obs. de transferencia (opcional)" style="margin-top: 10px;"></textarea></div></div>
             </div>
         </div>`;
 
+    // ===== INICIO DE LA MODIFICACIÓN =====
+    // Se ha eliminado el campo de texto para el IMEI del equipo de canje.
     const canjeHtml = `
         <hr style="border-color:var(--border-dark);margin:1.5rem 0;">
         <label class="toggle-switch-group"><input type="checkbox" id="acepta-canje" name="acepta-canje"><span class="toggle-switch-label">Acepta Plan Canje</span><span class="toggle-switch-slider"></span></label>
@@ -4546,25 +4723,19 @@ async function promptToSell(imei, details) {
             <label class="toggle-switch-group"><input type="checkbox" id="canje-para-reparar-check" name="canje-para-reparar"><span class="toggle-switch-label">Equipo de Canje Dañado (Enviar a Reparación)</span><span class="toggle-switch-slider"></span></label>
             <div id="canje-reparacion-fields" class="hidden" style="animation: fadeIn 0.4s;"><div class="form-group"><label for="canje-defecto-form">Defecto del Equipo Recibido</label><input type="text" id="canje-defecto-form" name="canje-defecto" placeholder="Ej: Pantalla rota, no enciende..."></div><div class="form-group"><label for="canje-repuesto-form">Repuesto Necesario</label><input type="text" id="canje-repuesto-form" name="canje-repuesto" placeholder="Ej: Módulo de pantalla iPhone 12 Pro..."></div></div>
         </div>`;
+    // ===== FIN DE LA MODIFICACIÓN =====
 
     s.promptContainer.innerHTML = `<div class="container container-sm" style="margin:auto;"><div class="prompt-box"><h3>Registrar Venta</h3><form id="sell-form"><div class="details-box"><div class="detail-item"><span>Vendiendo:</span> <strong>${details.modelo || ''}</strong></div><div class="detail-item"><span>IMEI:</span> <strong>${imei}</strong></div></div><div class="form-group"><label for="sell-nombre-cliente">Nombre del Cliente (Opcional)</label><input type="text" id="sell-nombre-cliente" name="nombre_cliente"></div><div class="form-group"><label for="sell-precio-venta">Precio Venta TOTAL (USD)</label><input type="number" id="sell-precio-venta" name="precioVenta" required></div>${metodosDePagoHtml}<div class="form-group"><label for="sell-cotizacion-dolar">Cotización Dólar (si aplica)</label><input type="number" id="sell-cotizacion-dolar" name="cotizacion_dolar" placeholder="Ej: 1200"></div><div class="form-group"><label for="sell-vendedor">Vendedor</label><select id="sell-vendedor" name="vendedor" required><option value="">Seleccione...</option>${vendedoresOptions}</select></div><div id="comision-vendedor-field" class="form-group hidden"><label for="sell-comision-vendedor">Comisión Vendedor (USD)</label><input type="number" id="sell-comision-vendedor" name="comision_vendedor_usd"></div>${canjeHtml}<div class="prompt-buttons"><button type="submit" class="prompt-button confirm spinner-btn"><span class="btn-text">Registrar Venta</span><div class="spinner"></div></button><button type="button" class="prompt-button cancel">Cancelar</button></div></form></div></div>`;
     
     const form = document.getElementById('sell-form');
-    
-    // ===================== INICIO DE LA CORRECCIÓN =====================
-    // Listener centralizado para TODOS los eventos 'change' dentro del formulario
     form.addEventListener('change', (e) => {
-        const target = e.target; // El elemento que originó el cambio
-
-        // Caso 1: Checkbox de método de pago
+        const target = e.target;
         if (target.matches('input[name="metodo_pago_check"]')) {
             const container = target.closest('.payment-option').querySelector('.payment-input-container');
             const isChecked = target.checked;
             container.classList.toggle('hidden', !isChecked);
-            
             const montoTransferenciaInput = container.querySelector('#sell-monto-transferencia');
             const cuentaSelect = container.querySelector('#sell-cuenta-destino');
-
             if (montoTransferenciaInput && cuentaSelect) {
                 montoTransferenciaInput.required = isChecked;
                 cuentaSelect.required = isChecked;
@@ -4573,29 +4744,14 @@ async function promptToSell(imei, details) {
                 if (montoInput) montoInput.required = isChecked;
             }
         }
-
-        // Caso 2: Selector de vendedor
-        if (target.id === 'sell-vendedor') {
-            form.querySelector('#comision-vendedor-field').classList.toggle('hidden', !target.value);
-        }
-
-        // Caso 3: Checkbox de Plan Canje
-        if (target.id === 'acepta-canje') {
-            document.getElementById('plan-canje-fields').classList.toggle('hidden', !target.checked);
-        }
-
-        // Caso 4: Checkbox de "Canje para Reparar"
-        if (target.id === 'canje-para-reparar-check') {
-            document.getElementById('canje-reparacion-fields').classList.toggle('hidden', !target.checked);
-        }
+        if (target.id === 'sell-vendedor') { form.querySelector('#comision-vendedor-field').classList.toggle('hidden', !target.value); }
+        if (target.id === 'acepta-canje') { document.getElementById('plan-canje-fields').classList.toggle('hidden', !target.checked); }
+        if (target.id === 'canje-para-reparar-check') { document.getElementById('canje-reparacion-fields').classList.toggle('hidden', !target.checked); }
     });
-    // ====================== FIN DE LA CORRECCIÓN =======================
-    
-    form.addEventListener('submit', (e) => { 
-        e.preventDefault(); 
-        registerSale(imei, details, e.target.querySelector('button[type="submit"]')); 
-    });
+    form.addEventListener('submit', (e) => { e.preventDefault(); registerSale(imei, details, e.target.querySelector('button[type="submit"]')); });
 }
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
 async function registerSale(imei, productDetails, btn) {
     toggleSpinner(btn, true);
@@ -4605,25 +4761,18 @@ async function registerSale(imei, productDetails, btn) {
     const ventaTotalUSD = parseFloat(formData.get('precioVenta')) || 0;
     const valorCanjeUSD = formData.get('acepta-canje') === 'on' ? (parseFloat(formData.get('canje-valor')) || 0) : 0;
     const cotizacion = parseFloat(formData.get('cotizacion_dolar')) || 1;
-
     const montoDolares = parseFloat(formData.get('monto_dolares')) || 0;
     const montoEfectivo = parseFloat(formData.get('monto_efectivo')) || 0;
     const montoTransferencia = parseFloat(formData.get('monto_transferencia')) || 0;
-    
-    // --- LEEMOS EL VALOR DE LA CUENTA SELECCIONADA ---
     const cuentaDestinoValue = formData.get('cuenta_destino');
 
     if (montoDolares === 0 && montoEfectivo === 0 && montoTransferencia === 0) {
         showGlobalFeedback("Debes ingresar un monto para al menos un método de pago.", "error");
-        toggleSpinner(btn, false);
-        return;
+        toggleSpinner(btn, false); return;
     }
-    
-    // --- VALIDACIÓN: Si hay monto por transferencia, debe haber una cuenta seleccionada ---
     if (montoTransferencia > 0 && !cuentaDestinoValue) {
         showGlobalFeedback("Debes seleccionar una cuenta de destino para la transferencia.", "error");
-        toggleSpinner(btn, false);
-        return;
+        toggleSpinner(btn, false); return;
     }
 
     const pagosRecibidos = [];
@@ -4632,25 +4781,18 @@ async function registerSale(imei, productDetails, btn) {
     if (montoTransferencia > 0) pagosRecibidos.push('Pesos (Transferencia)');
 
     const saleData = {
-        imei_vendido: imei, 
-        producto: productDetails, 
-        precio_venta_usd: ventaTotalUSD,
+        imei_vendido: imei, producto: productDetails, precio_venta_usd: ventaTotalUSD,
         nombre_cliente: formData.get('nombre_cliente').trim() || null,
-        metodo_pago: pagosRecibidos.join(' + '),
-        vendedor: formData.get('vendedor'), 
+        metodo_pago: pagosRecibidos.join(' + '), vendedor: formData.get('vendedor'), 
         comision_vendedor_usd: parseFloat(formData.get('comision_vendedor_usd')) || 0,
-        fecha_venta: firebase.firestore.FieldValue.serverTimestamp(), 
-        hubo_canje: valorCanjeUSD > 0,
-        valor_toma_canje_usd: valorCanjeUSD,
-        cotizacion_dolar: cotizacion,
-        monto_dolares: montoDolares,
-        monto_efectivo: montoEfectivo,
+        fecha_venta: firebase.firestore.FieldValue.serverTimestamp(), hubo_canje: valorCanjeUSD > 0,
+        valor_toma_canje_usd: valorCanjeUSD, cotizacion_dolar: cotizacion,
+        monto_dolares: montoDolares, monto_efectivo: montoEfectivo,
         monto_transferencia: montoTransferencia,
         observaciones_transferencia: formData.get('observaciones_transferencia'),
         comision_pagada: false
     };
     
-    // --- AÑADIMOS LOS DATOS DE LA CUENTA AL OBJETO DE VENTA ---
     if (montoTransferencia > 0 && cuentaDestinoValue) {
         const [id, nombre] = cuentaDestinoValue.split('|');
         saleData.cuenta_destino_id = id;
@@ -4661,28 +4803,24 @@ async function registerSale(imei, productDetails, btn) {
         await db.runTransaction(async (t) => {
             const saleRef = db.collection("ventas").doc();
             t.update(db.collection("stock_individual").doc(imei), { estado: 'vendido' });
-
-            // --- LÓGICA DE TRANSACCIÓN PARA ACTUALIZAR SALDO DE CUENTA ---
             if (saleData.monto_transferencia > 0 && saleData.cuenta_destino_id) {
                 const cuentaRef = db.collection("cuentas_financieras").doc(saleData.cuenta_destino_id);
-                t.update(cuentaRef, { 
-                    saldo_actual_ars: firebase.firestore.FieldValue.increment(saleData.monto_transferencia) 
-                });
+                t.update(cuentaRef, { saldo_actual_ars: firebase.firestore.FieldValue.increment(saleData.monto_transferencia) });
             }
 
             if (saleData.hubo_canje) {
+                // ===== INICIO DE LA MODIFICACIÓN =====
+                // Se ha eliminado la lectura del IMEI del formulario.
+                // Los objetos que se guardan ya no contienen el campo 'imei' o 'imei_recibido'.
                 const canjeParaReparar = formData.get('canje-para-reparar') === 'on';
+
                 if (canjeParaReparar) {
                     const reparacionRef = db.collection("reparaciones").doc();
                     t.set(reparacionRef, {
-                        estado_reparacion: 'pendiente_asignar_imei',
-                        modelo: formData.get('canje-modelo'),
-                        precio_costo_usd: saleData.valor_toma_canje_usd,
-                        defecto: formData.get('canje-defecto'),
-                        repuesto_necesario: formData.get('canje-repuesto'),
-                        observaciones_canje: formData.get('canje-observaciones'),
-                        venta_asociada_id: saleRef.id,
-                        fechaDeCarga: saleData.fecha_venta,
+                        estado_reparacion: 'pendiente_asignar_imei', modelo: formData.get('canje-modelo'),
+                        precio_costo_usd: saleData.valor_toma_canje_usd, defecto: formData.get('canje-defecto'),
+                        repuesto_necesario: formData.get('canje-repuesto'), observaciones_canje: formData.get('canje-observaciones'),
+                        venta_asociada_id: saleRef.id, fechaDeCarga: saleData.fecha_venta,
                         proveedor: "Usado (Plan Canje)"
                     });
                     saleData.id_reparacion_pendiente = reparacionRef.id;
@@ -4690,23 +4828,20 @@ async function registerSale(imei, productDetails, btn) {
                 } else {
                     const canjeRef = db.collection("plan_canje_pendientes").doc();
                     t.set(canjeRef, { 
-                        modelo_recibido: formData.get('canje-modelo'), 
-                        valor_toma_usd: saleData.valor_toma_canje_usd, 
-                        observaciones_canje: formData.get('canje-observaciones'), 
-                        producto_vendido: `${productDetails.modelo} ${productDetails.color}`, 
-                        venta_asociada_id: saleRef.id, 
-                        fecha_canje: saleData.fecha_venta, 
+                        modelo_recibido: formData.get('canje-modelo'), valor_toma_usd: saleData.valor_toma_canje_usd, 
+                        observaciones_canje: formData.get('canje-observaciones'), producto_vendido: `${productDetails.modelo} ${productDetails.color}`, 
+                        venta_asociada_id: saleRef.id, fecha_canje: saleData.fecha_venta, 
                         estado: 'pendiente_de_carga' 
                     });
                     saleData.id_canje_pendiente = canjeRef.id;
                 }
+                // ===== FIN DE LA MODIFICACIÓN =====
             }
             t.set(saleRef, saleData);
         });
 
         updateCanjeCount();
         updateReparacionCount();
-        
         s.promptContainer.innerHTML = '';
         s.managementView.classList.add('hidden');
         switchView('dashboard', s.tabDashboard);
@@ -4737,6 +4872,8 @@ s.productForm.addEventListener('click', (e) => {
     }
 });
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU ARCHIVO SCRIPT.JS
+
 async function handleProductFormSubmit(e) {
     e.preventDefault();
     const btn = e.target.querySelector('button');
@@ -4761,7 +4898,8 @@ async function handleProductFormSubmit(e) {
                 bateria: parseInt(formData.get('bateria')),
                 almacenamiento: formData.get('almacenamiento'),
                 detalles_esteticos: formData.get('detalles'),
-                proveedor: formData.get('proveedor')
+                proveedor: formData.get('proveedor'),
+                imei_last_4: imei.slice(-4) 
             };
             await db.collection("stock_individual").doc(imei).update(unitData);
             showGlobalFeedback("¡Producto actualizado con éxito!", "success");
@@ -4777,6 +4915,7 @@ async function handleProductFormSubmit(e) {
             const costoIndividual = parseFloat(formData.get('precio_costo_usd')) || 0;
             const commonData = {
                 imei,
+                imei_last_4: imei.slice(-4),
                 precio_costo_usd: costoIndividual,
                 modelo: formData.get('modelo'),
                 color: formData.get('color'),
@@ -4803,10 +4942,15 @@ async function handleProductFormSubmit(e) {
                     const unitData = { ...commonData, estado: 'en_stock' };
                     t.set(stockRef, unitData);
                 }
+                
                 const canjeId = form.dataset.canjeId;
                 if (canjeId) {
                     const canjeRef = db.collection("plan_canje_pendientes").doc(canjeId);
-                    t.update(canjeRef, { estado: 'cargado_en_stock', imei_asignado: imei });
+                    
+                    // ===== INICIO DE LA CORRECCIÓN =====
+                    // En lugar de actualizar, ahora eliminamos el documento de pendientes.
+                    t.delete(canjeRef);
+                    // ===== FIN DE LA CORRECCIÓN =====
                 }
             });
             
@@ -4817,7 +4961,6 @@ async function handleProductFormSubmit(e) {
                 }
                 batchLoadContext.modelosCargados[modeloActual].push(imei);
                 
-                // Actualizamos el contexto del lote con los datos y el costo
                 batchLoadContext.totalCostoAcumulado += costoIndividual;
                 batchLoadContext.itemsCargados.push(commonData);
 
@@ -4838,18 +4981,25 @@ async function handleProductFormSubmit(e) {
                     updateReparacionCount();
                 } else {
                     message = `¡Éxito! ${commonData.modelo} añadido al stock.`;
-                    if (form.dataset.canjeId) updateCanjeCount();
+                    // Ya no llamamos a updateCanjeCount() aquí, porque el item se borra, no se actualiza.
+                    // La lista se actualizará visualmente de todas formas.
                 }
                 showFeedback(message, "success");
 
                 setTimeout(() => {
+                    const vinoDeCanje = !!form.dataset.canjeId; 
                     resetManagementView();
                     switchView('dashboard', s.tabDashboard);
-                    if (paraReparar) {
+
+                    if (vinoDeCanje) {
+                        switchDashboardView('canje', s.btnShowCanje);
+                        updateCanjeCount(); // Actualizamos el contador por si quedaran otros
+                    } else if (paraReparar) {
                         switchDashboardView('reparacion', s.btnShowReparacion);
                     } else {
-                        loadStock();
+                        switchDashboardView('stock', s.btnShowStock);
                     }
+                    
                     updateReports();
                 }, 1500);
             }
@@ -4861,8 +5011,6 @@ async function handleProductFormSubmit(e) {
         toggleSpinner(btn, false);
     }
 }
-
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 function resetManagementView(isBatchLoad = false, isCanje = false, isWholesaleSale = false) {
     s.promptContainer.innerHTML = '';
     s.feedbackMessage.classList.add('hidden');
@@ -4943,14 +5091,47 @@ function resetManagementView(isBatchLoad = false, isCanje = false, isWholesaleSa
 }
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-function promptToFinalizeWholesaleSale() {
+
+async function promptToFinalizeWholesaleSale() {
     if (!wholesaleSaleContext || wholesaleSaleContext.items.length === 0) {
         showGlobalFeedback("No has agregado ningún equipo a la venta.", "error");
         return;
     }
 
-    const { clientName, totalSaleValue } = wholesaleSaleContext;
+    const { clientId, clientName, totalSaleValue } = wholesaleSaleContext;
 
+    let saldoAFavor = 0;
+    let deudaFinalEstimada = totalSaleValue;
+    let saldoHtml = '';
+
+    try {
+        const clientDoc = await db.collection('clientes_mayoristas').doc(clientId).get();
+        if (clientDoc.exists) {
+            const saldoActual = clientDoc.data().deuda_usd || 0;
+            if (saldoActual < 0) {
+                saldoAFavor = Math.abs(saldoActual);
+                deudaFinalEstimada = totalSaleValue - saldoAFavor;
+
+                saldoHtml = `
+                <div class="details-box" style="margin-top: 1rem; border-color: var(--success-bg);">
+                    <div class="detail-item">
+                        <span>Saldo a Favor disponible:</span>
+                        <strong style="color: var(--success-bg);">${formatearUSD(saldoAFavor)}</strong>
+                    </div>
+                    <div class="checkbox-group" style="justify-content: center; padding-top: 10px;">
+                        <input type="checkbox" id="usar-saldo-cliente" name="usar_saldo_cliente" checked>
+                        <label for="usar-saldo-cliente">Usar saldo para esta venta</label>
+                    </div>
+                </div>`;
+            }
+        }
+    } catch (error) {
+        console.error("Error al obtener saldo del cliente:", error);
+        showGlobalFeedback("No se pudo obtener el saldo del cliente.", "error");
+    }
+
+    // ===== INICIO DE LA CORRECCIÓN CLAVE =====
+    // Se han reemplazado los checkboxes por los "toggle-switch" modernos para consistencia visual.
     const metodosDePagoHtml = `
         <div class="form-group">
             <label>Monto(s) que paga AHORA</label>
@@ -4959,18 +5140,28 @@ function promptToFinalizeWholesaleSale() {
                 <div class="payment-option"><label class="toggle-switch-group"><input type="checkbox" name="metodo_pago_check" value="Pesos (Efectivo)"><span class="toggle-switch-label">Paga con Pesos (Efectivo)</span><span class="toggle-switch-slider"></span></label><div class="payment-input-container hidden"><input type="number" name="monto_efectivo" placeholder="Monto en ARS" step="0.01"></div></div>
                 <div class="payment-option"><label class="toggle-switch-group"><input type="checkbox" name="metodo_pago_check" value="Pesos (Transferencia)"><span class="toggle-switch-label">Paga con Pesos (Transf.)</span><span class="toggle-switch-slider"></span></label><div class="payment-input-container hidden"><input type="number" name="monto_transferencia" placeholder="Monto en ARS" step="0.01"></div></div>
             </div>
-        </div>
-    `;
+        </div>`;
+    // ===== FIN DE LA CORRECCIÓN CLAVE =====
 
     s.promptContainer.innerHTML = `
     <div class="container container-sm wholesale-sale-modal-box">
         <h3>Finalizar Venta a ${clientName}</h3>
         <form id="wholesale-sale-finalize-form" novalidate>
-
             <div class="details-box" style="text-align:center; padding: 1rem; margin-bottom: 2rem;">
                 <div class="detail-item" style="flex-direction: column;">
                     <span style="font-size: 1rem; color: var(--text-muted);">Monto Total de la Venta</span>
                     <strong style="font-size: 2.2rem; color: var(--brand-yellow);">${formatearUSD(totalSaleValue)}</strong>
+                </div>
+            </div>
+
+            ${saldoHtml}
+            
+            <div id="deuda-final-container" class="details-box" style="margin-top: 1rem; border-color: var(--brand-yellow); display: ${deudaFinalEstimada > 0 ? 'block' : 'none'};">
+                 <div class="detail-item" style="flex-direction: column;">
+                    <span style="font-size: 1rem; color: var(--text-muted);">Deuda Restante a Pagar</span>
+                    <strong id="deuda-final-display" style="font-size: 2.2rem; color: var(--error-bg);">
+                        ${formatearUSD(deudaFinalEstimada)}
+                    </strong>
                 </div>
             </div>
 
@@ -4993,24 +5184,31 @@ function promptToFinalizeWholesaleSale() {
             </div>
         </form>
     </div>`;
-
+    
     const form = document.getElementById('wholesale-sale-finalize-form');
+    const usarSaldoCheckbox = document.getElementById('usar-saldo-cliente');
+    if (usarSaldoCheckbox) {
+        usarSaldoCheckbox.addEventListener('change', () => {
+            const deudaDisplay = document.getElementById('deuda-final-display');
+            const deudaContainer = document.getElementById('deuda-final-container');
+            let nuevaDeuda;
+            if (usarSaldoCheckbox.checked) {
+                nuevaDeuda = totalSaleValue - saldoAFavor;
+            } else {
+                nuevaDeuda = totalSaleValue;
+            }
+            deudaDisplay.textContent = formatearUSD(nuevaDeuda);
+            deudaContainer.style.display = nuevaDeuda > 0 ? 'block' : 'none';
+        });
+    }
+
     form.querySelectorAll('input[name="metodo_pago_check"]').forEach(checkbox => {
         checkbox.addEventListener('change', (e) => {
             const container = e.target.closest('.payment-option').querySelector('.payment-input-container');
             container.classList.toggle('hidden', !e.target.checked);
         });
     });
-
-    // ===== LÍNEAS ELIMINADAS =====
-    // Se ha quitado el siguiente bloque de código que causaba la duplicación:
-    // form.addEventListener('submit', (e) => {
-    //     e.preventDefault();
-    //     finalizeWholesaleSale(e.target);
-    // });
-    // =============================
 }
-
 
 function showFeedback(message, type = 'info') {
     s.feedbackMessage.textContent = message;
@@ -5259,18 +5457,28 @@ async function resyncWholesaleClientTotal(clientId, clientName) {
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
 function renderWholesaleClients(clients) {
-    // Si no hay clientes, muestra un mensaje amigable
     if (!clients || clients.length === 0) {
         s.wholesaleClientsListContainer.innerHTML = `<p class="dashboard-loader">No hay clientes mayoristas. ¡Agrega el primero!</p>`;
         return;
     }
 
-    // Usamos la nueva estructura 'provider-card-modern' para cada cliente
     s.wholesaleClientsListContainer.innerHTML = clients.map(client => {
         const totalComprado = client.total_comprado_usd || 0;
         const deuda = client.deuda_usd || 0;
         const ultimaCompra = client.fecha_ultima_compra ? new Date(client.fecha_ultima_compra.seconds * 1000).toLocaleDateString('es-AR') : 'Nunca';
         const deleteTitle = 'Eliminar Cliente (irreversible)';
+
+        let statLabel = 'Saldo Deudor';
+        let statClass = 'debt';
+        let statValueDisplay = formatearUSD(deuda);
+
+        if (deuda < 0) {
+            statLabel = 'Saldo a Favor';
+            statClass = 'zero';
+            statValueDisplay = formatearUSD(Math.abs(deuda));
+        } else if (deuda === 0) {
+            statClass = 'zero';
+        }
 
         return `
         <div class="provider-card-modern" data-client-id="${client.id}">
@@ -5291,8 +5499,8 @@ function renderWholesaleClients(clients) {
                     <span class="stat-value" style="color: var(--brand-yellow);">${formatearUSD(totalComprado)}</span>
                 </div>
                 <div class="stat-item">
-                    <span class="stat-label">Saldo Deudor</span>
-                    <span class="stat-value ${deuda === 0 ? 'zero' : 'debt'}">${formatearUSD(deuda)}</span>
+                    <span class="stat-label">${statLabel}</span>
+                    <span class="stat-value ${statClass}">${statValueDisplay}</span>
                 </div>
             </div>
 
@@ -5302,7 +5510,7 @@ function renderWholesaleClients(clients) {
             </button>
 
             <div class="pcm-actions">
-                <button class="pcm-action-btn btn-register-ws-payment" title="Registrar Pago a Cuenta" ${deuda <= 0 ? 'disabled' : ''}>
+                <button class="pcm-action-btn btn-register-ws-payment" title="Registrar Pago a Cuenta">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
                     <span>Registrar Pago</span>
                 </button>
@@ -5451,9 +5659,8 @@ async function marcarComoReparado(itemId, itemData) {
     }
 }
 
-// AÑADE ESTAS DOS NUEVAS FUNCIONES AL FINAL DE TU SCRIPT.JS
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA
 function promptToFinalizeReparacion(docId, itemData) {
     const formHtml = `
         <div class="container container-sm" style="margin: auto;">
@@ -5480,7 +5687,12 @@ function promptToFinalizeReparacion(docId, itemData) {
                     <label for="detalles-form">Detalles Estéticos</label>
                     <select id="detalles-form" name="detalles" required>${detallesEsteticos.map(d => `<option value="${d}" ${itemData.detalles_esteticos === d ? 'selected' : ''}>${d}</option>`).join('')}</select>
                 </div>
-                <!-- ===== CAMPO PROVEEDOR (SOLO LECTURA) AÑADIDO AQUÍ ===== -->
+                
+                <div class="form-group">
+                    <label for="detalles-reparacion">Detalles de la Reparación (Observación)</label>
+                    <textarea id="detalles-reparacion" name="detalles_reparacion" rows="2" placeholder="Ej: Se cambió el módulo de la pantalla por uno original." required></textarea>
+                </div>
+
                 <div class="form-group">
                     <label for="proveedor-final-form">Origen del Equipo</label>
                     <input type="text" id="proveedor-final-form" name="proveedor" value="${itemData.proveedor || 'N/A'}" readonly style="background-color: #222; cursor: not-allowed;">
@@ -5495,6 +5707,8 @@ function promptToFinalizeReparacion(docId, itemData) {
     s.promptContainer.innerHTML = formHtml;
     document.getElementById('finalize-reparacion-form').dataset.originalData = JSON.stringify(itemData);
 }
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
 async function saveFinalizedReparacion(form) {
     const btn = form.querySelector('button[type="submit"]');
@@ -5512,19 +5726,21 @@ async function saveFinalizedReparacion(form) {
     }
 
     try {
-        // Combinamos los datos originales con los nuevos del formulario
         const stockData = {
             ...originalData,
             imei: imei,
+            // ===== MODIFICACIÓN AQUÍ: AÑADIMOS EL NUEVO CAMPO =====
+            imei_last_4: imei.slice(-4),
             bateria: parseInt(formData.get('bateria')),
             color: formData.get('color'),
             almacenamiento: formData.get('almacenamiento'),
             detalles_esteticos: formData.get('detalles'),
             estado: 'en_stock',
             fueReparado: true,
-            fechaDeCarga: firebase.firestore.FieldValue.serverTimestamp()
+            fechaDeCarga: firebase.firestore.FieldValue.serverTimestamp(),
+            detalles_reparacion: formData.get('detalles_reparacion').trim()
         };
-        // Eliminamos campos que no pertenecen al stock
+        
         delete stockData.defecto;
         delete stockData.repuesto_necesario;
         delete stockData.estado_reparacion;
@@ -5653,13 +5869,7 @@ async function promptToRegisterWholesalePayment(clientId, clientName, currentDeb
 
     let salesWithDebtOptions = '<option value="">Pago General a Cuenta</option>';
     try {
-        // Buscamos todas las ventas de este cliente que aún tengan deuda
-        const salesSnapshot = await db.collection('ventas_mayoristas')
-            .where('clienteId', '==', clientId)
-            .where('deuda_generada_usd', '>', 0)
-            .orderBy('deuda_generada_usd', 'desc')
-            .get();
-            
+        const salesSnapshot = await db.collection('ventas_mayoristas').where('clienteId', '==', clientId).where('deuda_generada_usd', '>', 0).orderBy('deuda_generada_usd', 'desc').get();
         salesSnapshot.forEach(doc => {
             const sale = doc.data();
             const fecha = sale.fecha_venta.toDate().toLocaleDateString('es-AR');
@@ -5670,7 +5880,6 @@ async function promptToRegisterWholesalePayment(clientId, clientName, currentDeb
         showGlobalFeedback("No se pudieron cargar las ventas pendientes.", "error");
     }
 
-    // El resto del código para cuentas y cotización que ya teníamos...
     if (!financialAccounts || financialAccounts.length === 0) {
         try {
             const accountsSnapshot = await db.collection('cuentas_financieras').orderBy('nombre').get();
@@ -5680,25 +5889,18 @@ async function promptToRegisterWholesalePayment(clientId, clientName, currentDeb
     const accountsOptionsHtml = financialAccounts.length > 0
         ? financialAccounts.map(acc => `<option value="${acc.id}|${acc.nombre}">${acc.nombre} (${formatearARS(acc.saldo_actual_ars)})</option>`).join('')
         : '<option value="" disabled>No hay cuentas creadas</option>';
-    const accountSelectHtml = `<div id="pago-cuenta-group" class="form-group hidden" style="margin-top: 1.5rem;"><select name="cuenta_destino" required><option value="" disabled selected></option>${accountsOptionsHtml}</select><label>Acreditar en Cuenta</label></div>`;
+    
+    const accountSelectHtml = `<div class="form-group" style="margin-top: 1.5rem;"><select name="cuenta_destino"><option value="" disabled selected></option>${accountsOptionsHtml}</select><label>Acreditar en Cuenta</label></div>`;
     const cotizacionHtml = `<div id="cotizacion-dolar-group" class="form-group hidden" style="margin-top: 1.5rem;"><input type="number" name="cotizacion_dolar" placeholder="Valor del dólar blue" step="0.01"><label>Cotización del Dólar</label></div>`;
 
     s.promptContainer.innerHTML = `
         <div class="container container-sm">
             <div class="prompt-box">
                 <h3>Registrar Pago de ${clientName}</h3>
-                <p>Deuda actual: <strong>${formatearUSD(currentDebt)}</strong></p>
+                <p>${currentDebt >= 0 ? `Deuda actual: <strong>${formatearUSD(currentDebt)}</strong>` : `Saldo a favor actual: <strong style="color: var(--success-bg);">${formatearUSD(Math.abs(currentDebt))}</strong>`}</p>
                 <form id="wholesale-payment-form">
-                    <!-- === NUEVO CAMPO PARA ASOCIAR VENTA === -->
-                    <div class="form-group">
-                        <label for="venta-asociada">Aplicar pago a Venta Específica (Opcional)</label>
-                        <select id="venta-asociada" name="venta_asociada">${salesWithDebtOptions}</select>
-                    </div>
-                    <!-- ======================================= -->
-                    <div class="form-group">
-                        <label for="payment-total">Monto del Pago (USD)</label>
-                        <input type="number" id="payment-total" name="total" step="0.01" max="${currentDebt}" required>
-                    </div>
+                    <div class="form-group"><label for="venta-asociada">Aplicar pago a Venta Específica (Opcional)</label><select id="venta-asociada" name="venta_asociada">${salesWithDebtOptions}</select></div>
+                    <div class="form-group"><label for="payment-total">Monto del Pago (USD)</label><input type="number" id="payment-total" name="total" step="0.01" required></div>
                     <div class="form-group payment-details-group">
                         <label>Ingresa a Caja como</label>
                         <div class="checkbox-group" style="margin-bottom: 0.5rem;"><input type="checkbox" id="pay-usd" name="pay-usd" class="payment-method-cb"><label for="pay-usd">Dólares</label></div>
@@ -5714,40 +5916,7 @@ async function promptToRegisterWholesalePayment(clientId, clientName, currentDeb
                 </form>
             </div>
         </div>`;
-    
-    // El resto de los listeners que ya teníamos
-    const form = document.getElementById('wholesale-payment-form');
-    const totalInput = document.getElementById('payment-total');
-    const paymentCheckboxes = form.querySelectorAll('.payment-method-cb');
-    const cotizacionGroup = document.getElementById('cotizacion-dolar-group');
-    paymentCheckboxes.forEach(cb => {
-        cb.addEventListener('change', () => {
-            const fieldsDiv = document.getElementById(`${cb.id}-fields`);
-            if (fieldsDiv) {
-                const isChecked = cb.checked;
-                fieldsDiv.classList.toggle('hidden', !isChecked);
-                if (cb.id === 'pay-ars-transfer') {
-                    fieldsDiv.querySelector('input[name="transferencia"]').required = isChecked;
-                    const cuentaGroup = fieldsDiv.querySelector('#pago-cuenta-group');
-                    cuentaGroup.classList.toggle('hidden', !isChecked);
-                    cuentaGroup.querySelector('select[name="cuenta_destino"]').required = isChecked;
-                }
-            }
-            if (cb.id === 'pay-usd' && cb.checked && totalInput.value) { form.querySelector('[name="dolares"]').value = totalInput.value; }
-            const pagoEnPesos = form.querySelector('#pay-ars-efectivo').checked || form.querySelector('#pay-ars-transfer').checked;
-            cotizacionGroup.classList.toggle('hidden', !pagoEnPesos);
-            cotizacionGroup.querySelector('input').required = pagoEnPesos;
-        });
-    });
-    totalInput.addEventListener('input', () => {
-        const usdCheckbox = document.getElementById('pay-usd');
-        if (usdCheckbox && usdCheckbox.checked) { form.querySelector('[name="dolares"]').value = totalInput.value; }
-    });
 }
-
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
 async function saveWholesalePayment(form) {
     const btn = form.querySelector('button[type="submit"]');
@@ -6513,6 +6682,178 @@ async function exportDailySummaryToExcel() {
     } catch (error) {
         console.error("Error al generar el reporte diario:", error);
         showGlobalFeedback('Error al generar el reporte diario. Revisa la consola.', 'error');
+    } finally {
+        toggleSpinner(btn, false);
+    }
+}
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
+function promptToCollectBalance(providerId, providerName, balanceAmount) {
+    const metodoOptions = metodosDePago.map(m => `<option value="${m}">${m}</option>`).join('');
+    const accountsOptionsHtml = financialAccounts.length > 0
+        ? financialAccounts.map(acc => `<option value="${acc.id}|${acc.nombre}">${acc.nombre}</option>`).join('')
+        : '<option value="" disabled>No hay cuentas creadas</option>';
+    
+    const accountSelectHtml = `
+        <div id="cobro-cuenta-group" class="form-group hidden" style="margin-top: 1rem;">
+            <select name="cuenta_destino" required>
+                <option value="" disabled selected></option>
+                ${accountsOptionsHtml}
+            </select>
+            <label>Acreditar en Cuenta</label>
+        </div>`;
+    
+    // ===== INICIO DE LA MODIFICACIÓN =====
+    // Nuevo HTML para los campos de cotización y monto en ARS
+    const arsFieldsHtml = `
+        <div id="cobro-ars-fields" class="payment-details-group hidden">
+            <div class="form-group">
+                <input type="number" id="cobro-cotizacion" name="cotizacion_dolar" placeholder=" ">
+                <label for="cobro-cotizacion">Cotización del Dólar</label>
+            </div>
+            <div class="form-group">
+                <input type="number" id="cobro-monto-ars" name="monto_ars" placeholder=" " readonly>
+                <label for="cobro-monto-ars">Monto a Ingresar (ARS)</label>
+            </div>
+        </div>`;
+    // ===== FIN DE LA MODIFICACIÓN =====
+
+    s.promptContainer.innerHTML = `
+    <div class="ingreso-modal-box">
+        <h3>Cobrar Saldo a ${providerName}</h3>
+        <p style="text-align:center; color: var(--text-muted); margin-top:-1.5rem; margin-bottom: 2rem;">Saldo a favor disponible: <strong>${formatearUSD(balanceAmount)}</strong></p>
+        <form id="collect-balance-form" novalidate>
+            <div class="form-group">
+                <input type="number" id="cobro-monto" name="monto" required placeholder=" " step="0.01" max="${balanceAmount}" value="${balanceAmount.toFixed(2)}">
+                <label for="cobro-monto">Monto a Cobrar (USD)</label>
+            </div>
+            <div class="form-group">
+                <select id="cobro-metodo" name="metodo" required>
+                    <option value="" disabled selected></option>
+                    ${metodoOptions}
+                </select>
+                <label for="cobro-metodo">Método de Ingreso a Caja</label>
+            </div>
+            ${arsFieldsHtml} {/* Se insertan los nuevos campos */}
+            ${accountSelectHtml}
+            <div class="prompt-buttons">
+                <button type="submit" class="prompt-button confirm spinner-btn">
+                    <span class="btn-text">Registrar Cobro</span>
+                    <div class="spinner"></div>
+                </button>
+                <button type="button" class="prompt-button cancel">Cancelar</button>
+            </div>
+        </form>
+    </div>`;
+
+    const form = document.getElementById('collect-balance-form');
+    const metodoSelect = form.querySelector('#cobro-metodo');
+    const cuentaGroup = form.querySelector('#cobro-cuenta-group');
+    const arsFields = form.querySelector('#cobro-ars-fields');
+    const montoUsdInput = form.querySelector('#cobro-monto');
+    const cotizacionInput = form.querySelector('#cobro-cotizacion');
+    const montoArsInput = form.querySelector('#cobro-monto-ars');
+
+    const calculateArs = () => {
+        const montoUsd = parseFloat(montoUsdInput.value) || 0;
+        const cotizacion = parseFloat(cotizacionInput.value) || 0;
+        montoArsInput.value = (montoUsd > 0 && cotizacion > 0) ? (montoUsd * cotizacion).toFixed(2) : '';
+    };
+
+    metodoSelect.addEventListener('change', () => {
+        const isPesos = metodoSelect.value.startsWith('Pesos');
+        const isTransferencia = metodoSelect.value === 'Pesos (Transferencia)';
+        
+        arsFields.classList.toggle('hidden', !isPesos);
+        cotizacionInput.required = isPesos;
+
+        cuentaGroup.classList.toggle('hidden', !isTransferencia);
+        cuentaGroup.querySelector('select').required = isTransferencia;
+        
+        calculateArs();
+    });
+    
+    montoUsdInput.addEventListener('input', calculateArs);
+    cotizacionInput.addEventListener('input', calculateArs);
+}
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
+async function saveCollectedBalance(btn) {
+    toggleSpinner(btn, true);
+    const form = btn.form;
+    const formData = new FormData(form);
+    
+    const providerId = paymentContext.id;
+    const providerName = paymentContext.name;
+    const montoUSD = parseFloat(formData.get('monto'));
+    const metodo = formData.get('metodo');
+    const cuentaDestinoValue = formData.get('cuenta_destino');
+
+    if (!montoUSD || montoUSD <= 0 || !metodo) {
+        showGlobalFeedback("Completa todos los campos requeridos.", "error");
+        toggleSpinner(btn, false);
+        return;
+    }
+    if (metodo === 'Pesos (Transferencia)' && !cuentaDestinoValue) {
+        showGlobalFeedback("Debes seleccionar una cuenta para la transferencia.", "error");
+        toggleSpinner(btn, false);
+        return;
+    }
+
+    try {
+        await db.runTransaction(async t => {
+            const providerRef = db.collection('proveedores').doc(providerId);
+            const ingresoRef = db.collection('ingresos_caja').doc();
+            
+            t.update(providerRef, { deuda_usd: firebase.firestore.FieldValue.increment(montoUSD) });
+
+            const ingresoData = {
+                categoria: 'Devolución de Proveedor',
+                descripcion: `Cobro de saldo a favor de ${providerName}`,
+                monto: montoUSD,
+                metodo: metodo,
+                fecha: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            // ===== INICIO DE LA MODIFICACIÓN =====
+            // Ahora leemos la cotización y guardamos los datos correctos si el cobro es en pesos
+            if (metodo.startsWith('Pesos')) {
+                const cotizacion = parseFloat(formData.get('cotizacion_dolar'));
+                if (!cotizacion || isNaN(cotizacion) || cotizacion <= 0) {
+                    throw new Error("La cotización del dólar es obligatoria y debe ser válida.");
+                }
+                
+                const montoArs = parseFloat(formData.get('monto_ars'));
+                ingresoData.monto = montoArs; // El monto del ingreso es en ARS
+                ingresoData.cotizacion_dolar = cotizacion;
+                ingresoData.monto_usd_original = montoUSD; // Guardamos el valor original en USD como referencia
+                
+                if (metodo === 'Pesos (Transferencia)') {
+                    const [id, nombre] = cuentaDestinoValue.split('|');
+                    ingresoData.cuenta_destino_id = id;
+                    ingresoData.cuenta_destino_nombre = nombre;
+                    
+                    const cuentaRef = db.collection('cuentas_financieras').doc(id);
+                    t.update(cuentaRef, { saldo_actual_ars: firebase.firestore.FieldValue.increment(montoArs) });
+                }
+            }
+            // ===== FIN DE LA MODIFICACIÓN =====
+            
+            t.set(ingresoRef, ingresoData);
+        });
+
+        showGlobalFeedback('Cobro de saldo registrado con éxito.', 'success');
+        s.promptContainer.innerHTML = '';
+        paymentContext = null;
+        loadProviders();
+        loadFinancialData();
+        updateReports();
+
+    } catch (error) {
+        console.error("Error al guardar el cobro:", error);
+        showGlobalFeedback(error.message || 'Error al registrar el cobro.', 'error');
     } finally {
         toggleSpinner(btn, false);
     }
