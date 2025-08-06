@@ -30,11 +30,9 @@
         </div>
 
         <div class="top-right-controls">
-            <!-- ===== INICIO DEL CAMBIO ===== -->
             <div id="user-greeting" class="user-greeting-display hidden">
                 <!-- El saludo generado por JavaScript aparecerá aquí -->
             </div>
-            <!-- ===== FIN DEL CAMBIO ===== -->
 
             <div class="dropdown">
                 <button id="btn-export" class="icon-btn" title="Exportar a Excel">
@@ -56,6 +54,7 @@
             <div id="tab-reports" class="nav-tab">Informes</div>
             <div id="tab-financiera" class="nav-tab">Financiera</div>
             <div id="tab-management" class="nav-tab">Gestión de IMEI</div>
+            <div id="tab-mensualidad" class="nav-tab">Mensualidad</div>
         </div>
 
         <div id="dashboard-view">
@@ -85,8 +84,6 @@
                     <div class="filter-group"><label for="filter-stock-color">Color</label><select id="filter-stock-color"></select></div>
                     <div class="filter-group"><label for="filter-stock-gb">Almacenamiento</label><select id="filter-stock-gb"></select></div>
                     <div class="filter-group"><button id="btn-apply-stock-filters">Filtrar Stock</button></div>
-                    <!-- AÑADE ESTE BLOQUE DENTRO DEL DIV "filters-container" DE LA SECCIÓN DE STOCK -->
-
                     <div class="filter-group">
                         <label for="filter-stock-imei">IMEI (últimos 4 dígitos)</label>
                         <input type="text" id="filter-stock-imei" maxlength="4" placeholder="1234">
@@ -420,6 +417,47 @@
                  <button type="submit" id="product-form-submit-btn" class="spinner-btn"><span class="btn-text">Guardar Producto</span><div class="spinner"></div></button>
             </form>
         </div>
+
+        <div id="mensualidad-view" class="hidden">
+            <div class="financiera-header">
+                <h2 class="financiera-title">Balance de Retiros de Socios</h2>
+            </div>
+            
+            <div id="mensualidad-cards-container" class="mensualidad-cards-container">
+                <!-- Las tarjetas de los socios se generarán aquí con JavaScript -->
+            </div>
+
+            <div class="financiera-header" style="margin-top: 3rem; padding-bottom: 1rem;">
+                <h3 style="font-size: 1.5rem; color: var(--text-muted);">Historial de Retiros</h3>
+            </div>
+            
+            <!-- ===== INICIO DEL CAMBIO ===== -->
+            <div class="filters-container" id="mensualidad-filters-container" style="padding-bottom: 2rem;">
+                <div class="filter-group">
+                    <label for="filter-retiros-socio">Socio</label>
+                    <select id="filter-retiros-socio">
+                        <!-- Las opciones se generarán con JavaScript -->
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="filter-retiros-start-date">Fecha Desde</label>
+                    <input type="date" id="filter-retiros-start-date">
+                </div>
+                <div class="filter-group">
+                    <label for="filter-retiros-end-date">Fecha Hasta</label>
+                    <input type="date" id="filter-retiros-end-date">
+                </div>
+                <div class="filter-group">
+                    <button id="btn-apply-retiros-filter">Filtrar Historial</button>
+                </div>
+            </div>
+            <!-- ===== FIN DEL CAMBIO ===== -->
+
+            <div id="retiros-history-container" class="table-container">
+                <!-- La tabla del historial se generará aquí con JavaScript -->
+            </div>
+        </div>
+        
         <div id="prompt-container"></div>
     </div>
     <script src="https://unpkg.com/html5-qrcode/html5-qrcode.min.js"></script>

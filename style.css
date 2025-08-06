@@ -79,61 +79,91 @@ h2 { font-size: 1.5rem; }
     display: none !important; 
 }
 
-.top-right-controls { 
-    position: absolute; 
-    top: 1rem; 
-    right: 1rem; 
-    display: flex; 
-    gap: 0.5rem; 
-    z-index: 10; 
-}
+/* ======================================================================= */
+/* ====== INICIO: ESTILOS MODERNOS PARA CONTROLES SUPERIORES (CORREGIDO) ====== */
+/* ======================================================================= */
 
-/* --- Añade estas nuevas reglas a tu style.css --- */
-
-.top-left-controls {
+/* --- Contenedores Principales (Izquierda y Derecha) --- */
+.top-left-controls,
+.top-right-controls {
     position: absolute;
     top: 1rem;
-    left: 1rem;
     display: flex;
-    gap: 0.5rem;
+    align-items: center; /* Clave para alinear verticalmente todo */
+    gap: 0.75rem;
     z-index: 10;
 }
+.top-left-controls { left: 1rem; }
+.top-right-controls { right: 1rem; }
 
-#btn-refresh-page {
-    background-color: transparent; /* Fondo transparente */
-    border: 1px solid var(--border-dark); /* Borde sutil para que se vea el botón */
+/* --- Estilo Base para TODOS los botones de ícono --- */
+.icon-btn {
+    background-color: transparent;
+    border: 1px solid var(--border-dark);
+    color: var(--text-muted);
+    padding: 0.6rem; /* Hacemos el padding uniforme para que sean cuadrados */
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease-in-out;
+}
+.icon-btn svg {
+    width: 20px;
+    height: 20px;
+    stroke: var(--text-muted); /* Color de ícono sutil por defecto */
+    transition: stroke 0.2s ease-in-out;
+}
+
+/* --- Efecto Hover General --- */
+.icon-btn:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+    border-color: #444;
+}
+.icon-btn:hover svg {
+    stroke: var(--text-light);
+}
+
+/* --- Botón de Cerrar Sesión (con texto) --- */
+#logout-button {
+    padding: 0.6rem 1rem; /* Más padding horizontal para el texto */
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+#logout-button:hover {
+    background-color: var(--error-bg);
+    border-color: var(--error-bg);
     color: white;
-    transition: background-color 0.2s; /* Transición suave */
 }
 
-#btn-refresh-page:hover {
-    background-color: rgba(255, 255, 255, 0.1); /* Efecto de brillo al pasar el mouse */
+/* --- Efectos Hover Específicos para Exportar y Cerrar Sesión --- */
+#btn-export:hover {
+    background-color: var(--brand-yellow);
+    border-color: var(--brand-yellow);
+}
+#btn-export:hover svg {
+    stroke: #000;
 }
 
-#btn-refresh-page svg {
-    stroke: white; /* Hacemos el ícono blanco */
+/* --- Estilo para el Saludo del Usuario --- */
+.user-greeting-display {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 0.9rem;
+    padding-right: 0.5rem; /* Pequeño espacio extra */
 }
-
-.icon-btn { 
-    padding: 0.5rem 0.75rem; 
-    font-size: 0.8rem; 
-    border-radius: 8px; 
-    cursor: pointer; 
-    border: none; 
+.user-greeting-display svg {
+    stroke: var(--brand-yellow);
+    width: 22px;
+    height: 22px;
 }
-#logout-button { 
-    background-color: var(--error-bg); 
-    color: white; 
-}
-#btn-export { 
-    background-color: #fdd100;
-    color: white; 
-}
-.icon-btn svg { 
-    width: 16px; 
-    height: 16px; 
-    stroke: black; 
-}
+/* ======================================================================= */
+/* ============= FIN: ESTILOS MODERNOS PARA CONTROLES SUPERIORES ============= */
+/* ======================================================================= */
 
 .dropdown { 
     position: relative; 
@@ -3776,43 +3806,145 @@ td.actions-cell {
 }
 
 /* ======================================================================= */
-/* ====== ESTILO SUTIL Y ELEGANTE PARA EL SALUDO DE USUARIO (FINAL) ====== */
+/* =========== ESTILOS PARA LA NUEVA SECCIÓN DE MENSUALIDAD ============ */
 /* ======================================================================= */
 
-/* --- 1. Restauramos el estilo original de los botones --- */
-/* (Aseguramos que no queden estilos del intento anterior) */
-.top-right-controls {
-    background-color: transparent;
+.mensualidad-cards-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 2rem;
+    margin-top: 2rem;
+}
+
+.socio-card {
+    background-color: #1f1f1f;
+    border: 1px solid var(--border-dark);
+    border-radius: var(--border-radius);
+    padding: 1.5rem 2rem;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.2s ease-in-out;
+}
+.socio-card:hover {
+    border-color: #444;
+    transform: translateY(-5px);
+}
+
+.socio-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 1.5rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border-dark);
+}
+
+.socio-card-header h3 {
+    margin: 0;
+    font-size: 2rem;
+    font-weight: 600;
+}
+
+.btn-add-retiro {
+    background-color: var(--brand-yellow);
+    color: #000;
     border: none;
+    border-radius: 50%;
+    width: 48px;
+    height: 48px;
+    min-width: 48px;
     padding: 0;
-}
-
-#btn-export { 
-    background-color: var(--brand-yellow) !important;
-}
-
-#logout-button { 
-    background-color: var(--error-bg) !important; 
-    color: white !important; 
-}
-
-/* --- 2. Damos el nuevo estilo sutil al saludo --- */
-.user-greeting-display {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+.btn-add-retiro:hover {
+    transform: scale(1.1);
+}
+.btn-add-retiro svg {
+    width: 28px;
+    height: 28px;
+    stroke-width: 3;
+}
+
+.socio-balance-container {
+    text-align: center;
+    margin: auto 0;
+}
+
+.socio-balance-label {
+    font-size: 1rem;
+    font-weight: 500;
     color: var(--text-muted);
-    font-weight: 600;
-    /* Quitamos cualquier fondo o borde que pudiera tener */
-    background: none;
-    border: none;
+    margin-bottom: 0.5rem;
 }
 
-.user-greeting-display svg {
-    stroke: var(--brand-yellow);
+.socio-balance-amount {
+    font-family: 'SF Mono', 'Courier New', monospace;
+    font-size: 3.5rem;
+    font-weight: 700;
+    letter-spacing: -2px;
 }
 
-/* --- 3. Nos aseguramos de que el texto no tenga formato de botón --- */
-.user-greeting-display span {
-    font-size: 0.9rem;
+.socio-balance-amount.positive {
+    color: var(--error-bg); /* Rojo: retiró de más */
+}
+.socio-balance-amount.negative {
+    color: var(--success-bg); /* Verde: tiene saldo para retirar */
+}
+
+#retiros-history-container td.retiro-socio-agustin {
+    font-weight: bold;
+    color: #3498db; /* Azul */
+}
+#retiros-history-container td.retiro-socio-tomas {
+    font-weight: bold;
+    color: #e67e22; /* Naranja */
+}
+#retiros-history-container td.retiro-socio-julian {
+    font-weight: bold;
+    color: #9b59b6; /* Púrpura */
+}
+
+/* ======================================================================= */
+/* =========== AJUSTES DE ESTILO Y RESPONSIVOS PARA MENSUALIDAD ======== */
+/* ======================================================================= */
+
+/* 1. Ajuste para la versión de escritorio: reducimos el tamaño del balance */
+.socio-balance-amount {
+    font-size: 3rem; /* Era 3.5rem, lo hacemos un poco más pequeño */
+}
+
+/* 2. Reglas específicas para que se vea perfecto en móviles */
+@media (max-width: 767px) {
+    /* Hacemos el título principal un poco más pequeño en móviles */
+    #mensualidad-view .financiera-title {
+        font-size: 1.6rem;
+        text-align: center;
+    }
+    
+    /* Reducimos el espacio entre las tarjetas cuando se apilan */
+    .mensualidad-cards-container {
+        gap: 1.5rem;
+    }
+
+    /* Ajustamos el padding y el título de cada tarjeta */
+    .socio-card {
+        padding: 1.25rem;
+    }
+    .socio-card-header h3 {
+        font-size: 1.6rem;
+    }
+
+    /* Reducimos significativamente el tamaño del balance en la tarjeta para que no se desborde */
+    .socio-balance-amount {
+        font-size: 2.5rem; 
+    }
+
+    /* Ajustamos el texto de la etiqueta para que no sea tan grande */
+    .socio-balance-label {
+        font-size: 0.9rem;
+    }
 }

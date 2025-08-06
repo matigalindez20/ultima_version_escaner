@@ -13,7 +13,9 @@ const auth = firebase.auth();
 
 
 // AÑADE ESTE OBJETO AL PRINCIPIO DE TU SCRIPT.JS
+// AÑADE ESTA LÍNEA AL INICIO DE TU SCRIPT.JS, JUNTO A LAS OTRAS CONSTANTES
 
+const socios = ["Agustín", "Tomás", "Julián"];
 const emailToNameMap = {
     'matiasgalindez20@gmail.com': 'Matías',
     'email.de.julian@ejemplo.com': 'Julián',
@@ -94,9 +96,7 @@ function initApp() {
         filterStockProveedor: document.getElementById('filter-stock-proveedor'),
         filterStockColor: document.getElementById('filter-stock-color'),
         filterStockGb: document.getElementById('filter-stock-gb'),
-        // ===== CAMBIO AQUÍ: AÑADIMOS LA NUEVA REFERENCIA =====
         filterStockImei: document.getElementById('filter-stock-imei'),
-        // =======================================================
         btnApplyStockFilters: document.getElementById('btn-apply-stock-filters'),
         filterSalesVendedor: document.getElementById('filter-sales-vendedor'),
         filterSalesStartDate: document.getElementById('filter-sales-start-date'),
@@ -183,6 +183,11 @@ function initApp() {
         btnAddAccount: document.getElementById('btn-add-account'),
         financieraTotalBalance: document.getElementById('financiera-total-balance'),
         accountsListContainer: document.getElementById('accounts-list-container'),
+        // ===== AÑADE ESTAS LÍNEAS AL FINAL DEL OBJETO s =====
+        tabMensualidad: document.getElementById('tab-mensualidad'),
+        mensualidadView: document.getElementById('mensualidad-view'),
+        mensualidadCardsContainer: document.getElementById('mensualidad-cards-container'),
+        retirosHistoryContainer: document.getElementById('retiros-history-container')
     });
     
     addEventListeners();
@@ -301,9 +306,7 @@ function addEventListeners() {
         if (s.promptContainer && s.promptContainer.contains(form)) {
             e.preventDefault();
             if (form.id === 'payment-form') { saveProviderPayment(form);
-            // ===== INICIO DE LA MODIFICACIÓN =====
             } else if (form.id === 'collect-balance-form') { saveCollectedBalance(form.querySelector('button[type="submit"]'));
-            // ===== FIN DE LA MODIFICACIÓN =====
             } else if (form.id === 'provider-form') { saveProvider(form.querySelector('button[type="submit"]'));
             } else if (form.id === 'gasto-form') { saveGasto(form.querySelector('button[type="submit"]'));
             } else if (form.id === 'ingreso-form') {
@@ -323,6 +326,8 @@ function addEventListeners() {
             } else if (form.id === 'wholesale-payment-form') { saveWholesalePayment(form);
             } else if (form.id === 'financiera-account-form') { saveFinancialAccount(form.querySelector('button[type="submit"]'));
             } else if (form.id === 'move-money-form') { executeMoneyMovement(form.querySelector('button[type="submit"]'));
+            } else if (form.id === 'retiro-socio-form') {
+                saveRetiroSocio(form.querySelector('button[type="submit"]'));
             } else if (form.id === 'vendedor-form') {
                 saveVendedor(form.querySelector('button[type="submit"]'));
             }
@@ -402,10 +407,8 @@ function addEventListeners() {
 
         if (button.classList.contains('btn-register-payment')) {
             promptToRegisterPayment(providerName, debtValue);
-        // ===== INICIO DE LA MODIFICACIÓN =====
         } else if (button.classList.contains('btn-collect-balance')) {
             promptToCollectBalance(providerId, providerName, Math.abs(debtValue));
-        // ===== FIN DE LA MODIFICACIÓN =====
         } else if (button.classList.contains('btn-batch-load')) {
             promptToStartBatchLoad(providerId, providerName);
         } else if (button.classList.contains('btn-view-payments')) {
@@ -430,11 +433,11 @@ function addEventListeners() {
             switchView('management', s.tabManagement);
             resetManagementView(false, false, true);
         } else if (button.classList.contains('btn-register-ws-payment')) {
-            const debtValueString = clientCard.querySelector('.stat-value').textContent;
-            const isDebt = clientCard.querySelector('.stat-value.debt') !== null;
-            const numericValue = parseFloat(debtValueString.replace(/[^0-9,-]+/g, "").replace(',', '.'));
-            const actualDebt = isDebt ? numericValue : -numericValue;
+            // ===== INICIO DE LA MODIFICACIÓN =====
+            // Leemos la deuda del nuevo atributo 'data-debt-value'.
+            const actualDebt = parseFloat(clientCard.dataset.debtValue) || 0;
             promptToRegisterWholesalePayment(clientId, clientName, actualDebt);
+            // ===== FIN DE LA MODIFICACIÓN =====
         } else if (button.classList.contains('btn-view-wholesale-history')) {
             showWholesaleHistory(clientId, clientName);
         } else if (button.classList.contains('btn-resync-client')) {
@@ -629,6 +632,10 @@ async function updateReports() {
         const processEntries = async (salesSnapshot, miscIncomesSnap, expensesSnap, wholesaleSalesSnapshot, internalMovesSnap) => {
             let totalIncomes = { usd: 0, cash: 0, transfer: 0 };
             let totalExpenses = { usd: 0, cash: 0, transfer: 0 };
+            // ===== INICIO DE LA CORRECCIÓN CLAVE =====
+            // Nueva variable solo para los gastos operativos que se muestran en la tarjeta de "Gastos del Día"
+            let totalOperationalExpenses = { usd: 0, cash: 0, transfer: 0 };
+            // ===== FIN DE LA CORRECCIÓN CLAVE =====
             let totalProfit = 0;
         
             if (!salesSnapshot.empty) {
@@ -663,17 +670,25 @@ async function updateReports() {
                 }
             });
             
-            // ===== INICIO DE LA MODIFICACIÓN =====
-            // Añadimos una condición para que solo sume los gastos que NO son de proveedor o comisiones.
+            // ===== INICIO DE LA CORRECCIÓN CLAVE =====
+            // Bucle que procesa TODOS los gastos
             expensesSnap.forEach(doc => {
                 const gasto = doc.data();
-                if (gasto.fecha && gasto.categoria !== 'Pago a Proveedor' && gasto.categoria !== 'Comisiones') {
+                if (gasto.fecha) {
+                    // 1. Sumamos a los gastos TOTALES (para el cálculo de INGRESO NETO)
                     if (gasto.metodo_pago === 'Dólares') totalExpenses.usd += gasto.monto || 0;
                     if (gasto.metodo_pago === 'Pesos (Efectivo)') totalExpenses.cash += gasto.monto || 0;
                     if (gasto.metodo_pago === 'Pesos (Transferencia)') totalExpenses.transfer += gasto.monto || 0;
+
+                    // 2. Sumamos a los gastos OPERATIVOS solo si NO es una categoría excluida
+                    if (gasto.categoria !== 'Pago a Proveedor' && gasto.categoria !== 'Comisiones' && gasto.categoria !== 'Retiro de Socio') {
+                         if (gasto.metodo_pago === 'Dólares') totalOperationalExpenses.usd += gasto.monto || 0;
+                         if (gasto.metodo_pago === 'Pesos (Efectivo)') totalOperationalExpenses.cash += gasto.monto || 0;
+                         if (gasto.metodo_pago === 'Pesos (Transferencia)') totalOperationalExpenses.transfer += gasto.monto || 0;
+                    }
                 }
             });
-            // ===== FIN DE LA MODIFICACIÓN =====
+            // ===== FIN DE LA CORRECCIÓN CLAVE =====
             
             internalMovesSnap.forEach(doc => {
                 const move = doc.data();
@@ -693,7 +708,7 @@ async function updateReports() {
                 transfer: totalIncomes.transfer - totalExpenses.transfer,
             };
         
-            return { netIncomes, expenses: totalExpenses, profit: totalProfit };
+            return { netIncomes, expenses: totalOperationalExpenses, profit: totalProfit };
         };
 
         const daily = await processEntries(salesDaySnap, miscIncomesDaySnap, expensesDaySnap, wholesaleSalesDaySnap, internalMovesDaySnap);
@@ -890,8 +905,9 @@ async function handleLogin(e) {
 }
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 function switchView(view, tabElement) {
-    const views = ['dashboard', 'providers', 'wholesale', 'reports', 'financiera', 'management'];
+    const views = ['dashboard', 'providers', 'wholesale', 'reports', 'financiera', 'management', 'mensualidad'];
     
     document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
     if(tabElement) {
@@ -915,13 +931,11 @@ function switchView(view, tabElement) {
         loadWholesaleClients();
     } else if (view === 'financiera') {
         loadFinancialData();
-    // ===================== INICIO DE LA CORRECCIÓN =====================
-    // Se elimina la condición 'if' restrictiva. Ahora SIEMPRE se llamará
-    // a resetManagementView al entrar a la pestaña, asegurando que la UI se actualice.
     } else if (view === 'management') {
         resetManagementView();
+    } else if (view === 'mensualidad') {
+        loadMensualidadData();
     }
-    // ====================== FIN DE LA CORRECCIÓN =======================
 }
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA
@@ -1312,11 +1326,23 @@ async function finalizeWholesaleSale(form) {
     const montoArsTransferencia = parseFloat(formData.get('monto_transferencia')) || 0;
     const cotizacion = parseFloat(formData.get('cotizacion_dolar')) || 1;
 
+    // ===== INICIO DE LA MODIFICACIÓN =====
+    const cuentaDestinoValue = formData.get('cuenta_destino');
+    // ===== FIN DE LA MODIFICACIÓN =====
+
     if (!saleId) {
         showGlobalFeedback("El ID de la venta es obligatorio.", "error");
         toggleSpinner(btn, false);
         return;
     }
+    // ===== INICIO DE LA MODIFICACIÓN =====
+    // Validamos que se haya elegido una cuenta si se paga por transferencia
+    if (montoArsTransferencia > 0 && !cuentaDestinoValue) {
+        showGlobalFeedback("Debes seleccionar una cuenta para la transferencia.", "error");
+        toggleSpinner(btn, false);
+        return;
+    }
+    // ===== FIN DE LA MODIFICACIÓN =====
 
     try {
         const { clientId, clientName, items, totalSaleValue } = wholesaleSaleContext;
@@ -1327,9 +1353,9 @@ async function finalizeWholesaleSale(form) {
             const saleDate = firebase.firestore.FieldValue.serverTimestamp();
             const wholesaleSaleRef = db.collection('ventas_mayoristas').doc();
             
+            let creditoAplicado = 0;
             const clientRef = db.collection('clientes_mayoristas').doc(clientId);
             
-            let creditoAplicado = 0;
             if (usarSaldo) {
                 const clientDoc = await t.get(clientRef);
                 const saldoActual = clientDoc.data().deuda_usd || 0;
@@ -1340,9 +1366,8 @@ async function finalizeWholesaleSale(form) {
 
             const totalPagadoPesos = montoArsEfectivo + montoArsTransferencia;
             const totalPagadoUSD = montoUsd + (totalPagadoPesos > 0 ? (totalPagadoPesos / cotizacion) : 0);
-            
             const deudaGenerada = totalSaleValue - totalPagadoUSD - creditoAplicado;
-
+            
             const masterSaleData = {
                 clienteId: clientId,
                 clienteNombre: clientName,
@@ -1360,6 +1385,19 @@ async function finalizeWholesaleSale(form) {
                 deuda_generada_usd: deudaGenerada > 0.01 ? deudaGenerada : 0,
                 cantidad_equipos: items.length,
             };
+
+            // ===== INICIO DE LA MODIFICACIÓN =====
+            // Si se pagó por transferencia, actualizamos la cuenta financiera
+            if (montoArsTransferencia > 0) {
+                const [cuentaId, cuentaNombre] = cuentaDestinoValue.split('|');
+                masterSaleData.pago_recibido.cuenta_destino_id = cuentaId;
+                masterSaleData.pago_recibido.cuenta_destino_nombre = cuentaNombre;
+
+                const cuentaRef = db.collection('cuentas_financieras').doc(cuentaId);
+                t.update(cuentaRef, { saldo_actual_ars: firebase.firestore.FieldValue.increment(montoArsTransferencia) });
+            }
+            // ===== FIN DE LA MODIFICACIÓN =====
+
             t.set(wholesaleSaleRef, masterSaleData);
 
             for (const item of items) {
@@ -1377,17 +1415,13 @@ async function finalizeWholesaleSale(form) {
                 t.update(stockRef, { estado: 'vendido' });
             }
 
-            // ===== INICIO DE LA CORRECCIÓN CLAVE =====
-            // Esta es la lógica corregida. El cambio neto en la deuda del cliente es
-            // el costo de la venta MENOS el dinero que paga en el momento.
             const cambioNetoEnDeuda = totalSaleValue - totalPagadoUSD;
             
             t.update(clientRef, {
                 total_comprado_usd: firebase.firestore.FieldValue.increment(totalSaleValue),
-                deuda_usd: firebase.firestore.FieldValue.increment(cambioNetoEnDeuda), // Se actualiza con el cambio neto
+                deuda_usd: firebase.firestore.FieldValue.increment(cambioNetoEnDeuda),
                 fecha_ultima_compra: saleDate
             });
-            // ===== FIN DE LA CORRECCIÓN CLAVE =====
         });
 
         showGlobalFeedback(`¡Venta mayorista ${saleId} registrada con éxito!`, 'success', 5000);
@@ -1396,6 +1430,7 @@ async function finalizeWholesaleSale(form) {
         resetManagementView();
         switchView('wholesale', s.tabWholesale);
         updateReports();
+        loadFinancialData(); // Recargamos los datos financieros para ver el cambio
 
     } catch (error) {
         console.error("Error al finalizar la venta mayorista:", error);
@@ -1921,41 +1956,94 @@ function renderProviders(providers) {
     }).join('');
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 function promptToAddProvider() {
     s.promptContainer.innerHTML = `
-        <div class="container container-sm">
-            <div class="prompt-box">
-                <h3>Agregar Nuevo Proveedor</h3>
-                <form id="provider-form">
-                    <div class="form-group">
-                        <label for="provider-name">Nombre del Proveedor</label>
-                        <input type="text" id="provider-name" name="nombre" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="provider-contact">Información de Contacto (Tel, etc.)</label>
-                        <input type="text" id="provider-contact" name="contacto">
-                    </div>
-                    <div class="prompt-buttons">
-                        <button type="submit" class="prompt-button confirm spinner-btn">
-                            <span class="btn-text">Guardar Proveedor</span>
-                            <div class="spinner"></div>
-                        </button>
-                        <button type="button" class="prompt-button cancel">Cancelar</button>
-                    </div>
-                </form>
-            </div>
+        <div class="ingreso-modal-box">
+            <h3>Agregar Nuevo Proveedor</h3>
+            <form id="provider-form" novalidate>
+                <div class="form-group">
+                    <input type="text" id="provider-name" name="nombre" required placeholder=" ">
+                    <label for="provider-name">Nombre del Proveedor</label>
+                </div>
+                <div class="form-group">
+                    <textarea id="provider-contact" name="contacto" rows="1" placeholder=" "></textarea>
+                    <label for="provider-contact">Notas / Contacto (Opcional)</label>
+                </div>
+
+                <hr style="border-color:var(--border-dark);margin:1rem 0 2rem;">
+
+                <div class="form-group">
+                    <select id="provider-initial-balance-type" name="balance_type">
+                        <option value="">Sin balance inicial</option>
+                        <option value="deuda">Ingresa con Deuda</option>
+                        <option value="favor">Ingresa con Saldo a Favor</option>
+                    </select>
+                    <label for="provider-initial-balance-type">Balance Inicial (Opcional)</label>
+                </div>
+
+                <div id="provider-initial-balance-amount-group" class="form-group hidden">
+                    <input type="number" id="provider-initial-balance-amount" name="balance_amount" step="0.01" placeholder=" ">
+                    <label for="provider-initial-balance-amount">Monto del Balance (USD)</label>
+                </div>
+
+                <div class="prompt-buttons" style="margin-top: 2rem;">
+                    <button type="submit" class="prompt-button confirm spinner-btn">
+                        <span class="btn-text">Guardar Proveedor</span>
+                        <div class="spinner"></div>
+                    </button>
+                    <button type="button" class="prompt-button cancel">Cancelar</button>
+                </div>
+            </form>
         </div>`;
+
+    const textarea = document.getElementById('provider-contact');
+    if (textarea) {
+        textarea.addEventListener('input', () => {
+            textarea.style.height = 'auto';
+            textarea.style.height = (textarea.scrollHeight) + 'px';
+        });
+    }
+
+    const balanceTypeSelect = document.getElementById('provider-initial-balance-type');
+    const amountGroup = document.getElementById('provider-initial-balance-amount-group');
+    const amountInput = document.getElementById('provider-initial-balance-amount');
+
+    balanceTypeSelect.addEventListener('change', () => {
+        if (balanceTypeSelect.value) {
+            amountGroup.classList.remove('hidden');
+            amountInput.required = true;
+        } else {
+            amountGroup.classList.add('hidden');
+            amountInput.required = false;
+        }
+    });
 }
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
 async function saveProvider(btn) {
     toggleSpinner(btn, true);
     const form = btn.form;
+
+    const balanceType = form.balance_type.value;
+    const balanceAmount = parseFloat(form.balance_amount.value) || 0;
+    
+    let initialDebt = 0;
+    if (balanceType === 'deuda') {
+        initialDebt = balanceAmount; // Se guarda como número positivo
+    } else if (balanceType === 'favor') {
+        initialDebt = -balanceAmount; // Se guarda como número negativo
+    }
+
     const providerData = {
         nombre: form.nombre.value.trim(),
         contacto: form.contacto.value.trim(),
-        deuda_usd: 0,
+        deuda_usd: initialDebt, // Usamos el valor calculado
         fecha_creacion: firebase.firestore.FieldValue.serverTimestamp()
     };
+
     try {
         await db.collection('proveedores').add(providerData);
         showGlobalFeedback('Proveedor agregado con éxito', 'success');
@@ -5130,18 +5218,23 @@ async function promptToFinalizeWholesaleSale() {
         showGlobalFeedback("No se pudo obtener el saldo del cliente.", "error");
     }
 
-    // ===== INICIO DE LA CORRECCIÓN CLAVE =====
-    // Se han reemplazado los checkboxes por los "toggle-switch" modernos para consistencia visual.
+    // ===== INICIO DE LA MODIFICACIÓN =====
+    // Creamos el selector de cuentas para añadirlo al método de transferencia.
+    const accountsOptionsHtml = financialAccounts.length > 0
+        ? financialAccounts.map(acc => `<option value="${acc.id}|${acc.nombre}">${acc.nombre}</option>`).join('')
+        : '<option value="" disabled>No hay cuentas creadas</option>';
+    const accountSelectHtml = `<div class="form-group" style="margin-top:1rem;"><select name="cuenta_destino">${accountsOptionsHtml}</select><label>Acreditar en Cuenta</label></div>`;
+
     const metodosDePagoHtml = `
         <div class="form-group">
             <label>Monto(s) que paga AHORA</label>
             <div id="payment-methods-container">
                 <div class="payment-option"><label class="toggle-switch-group"><input type="checkbox" name="metodo_pago_check" value="Dólares"><span class="toggle-switch-label">Paga con Dólares</span><span class="toggle-switch-slider"></span></label><div class="payment-input-container hidden"><input type="number" name="monto_dolares" placeholder="Monto en USD" step="0.01"></div></div>
                 <div class="payment-option"><label class="toggle-switch-group"><input type="checkbox" name="metodo_pago_check" value="Pesos (Efectivo)"><span class="toggle-switch-label">Paga con Pesos (Efectivo)</span><span class="toggle-switch-slider"></span></label><div class="payment-input-container hidden"><input type="number" name="monto_efectivo" placeholder="Monto en ARS" step="0.01"></div></div>
-                <div class="payment-option"><label class="toggle-switch-group"><input type="checkbox" name="metodo_pago_check" value="Pesos (Transferencia)"><span class="toggle-switch-label">Paga con Pesos (Transf.)</span><span class="toggle-switch-slider"></span></label><div class="payment-input-container hidden"><input type="number" name="monto_transferencia" placeholder="Monto en ARS" step="0.01"></div></div>
+                <div class="payment-option"><label class="toggle-switch-group"><input type="checkbox" name="metodo_pago_check" value="Pesos (Transferencia)"><span class="toggle-switch-label">Paga con Pesos (Transf.)</span><span class="toggle-switch-slider"></span></label><div class="payment-input-container hidden"><input type="number" name="monto_transferencia" placeholder="Monto en ARS" step="0.01">${accountSelectHtml}</div></div>
             </div>
         </div>`;
-    // ===== FIN DE LA CORRECCIÓN CLAVE =====
+    // ===== FIN DE LA MODIFICACIÓN =====
 
     s.promptContainer.innerHTML = `
     <div class="container container-sm wholesale-sale-modal-box">
@@ -5206,6 +5299,10 @@ async function promptToFinalizeWholesaleSale() {
         checkbox.addEventListener('change', (e) => {
             const container = e.target.closest('.payment-option').querySelector('.payment-input-container');
             container.classList.toggle('hidden', !e.target.checked);
+            // Hacemos que el selector de cuenta sea requerido si se marca la transferencia
+            if(e.target.value === 'Pesos (Transferencia)'){
+                container.querySelector('select[name="cuenta_destino"]').required = e.target.checked;
+            }
         });
     });
 }
@@ -5480,8 +5577,10 @@ function renderWholesaleClients(clients) {
             statClass = 'zero';
         }
 
+        // ===== INICIO DE LA MODIFICACIÓN =====
+        // Añadimos 'data-debt-value' para guardar el número de la deuda directamente.
         return `
-        <div class="provider-card-modern" data-client-id="${client.id}">
+        <div class="provider-card-modern" data-client-id="${client.id}" data-debt-value="${deuda}">
             
             <div class="pcm-header">
                 <div class="pcm-info">
@@ -5524,6 +5623,7 @@ function renderWholesaleClients(clients) {
                 </button>
             </div>
         </div>`;
+        // ===== FIN DE LA MODIFICACIÓN =====
     }).join('');
 }
 
@@ -6176,8 +6276,6 @@ function deleteFinancialAccount(accountId) {
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
 async function toggleAccountHistory(accountCard, accountId, dateRange = null) {
     const historyContainer = s.accountsListContainer.querySelector(`[data-container-for="${accountId}"]`);
     
@@ -6209,8 +6307,6 @@ async function toggleAccountHistory(accountCard, accountId, dateRange = null) {
         endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
     }
 
-    // --- ESTA ES LA ESTRUCTURA HTML QUE NECESITAMOS ---
-    // Ahora coincide con la estructura de los filtros principales
     const filtersHtml = `
         <div class="filters-container" id="history-filter-container">
             <div class="filter-group">
@@ -6237,8 +6333,13 @@ async function toggleAccountHistory(accountCard, accountId, dateRange = null) {
         const transferOutPromise = db.collection('movimientos_internos').where('cuenta_origen_id', '==', accountId).where('fecha', '>=', startDate).where('fecha', '<=', endDate).get();
         const comisionesPromise = db.collection('gastos').where('cuenta_origen_id', '==', accountId).where('categoria', '==', 'Comisiones').where('fecha', '>=', startDate).where('fecha', '<=', endDate).get();
         const pagosProveedorPromise = db.collection('gastos').where('cuenta_origen_id', '==', accountId).where('categoria', '==', 'Pago a Proveedor').where('fecha', '>=', startDate).where('fecha', '<=', endDate).get();
+        const wholesalePaymentsPromise = db.collection('ventas_mayoristas').where('pago_recibido.cuenta_destino_id', '==', accountId).where('fecha_venta', '>=', startDate).where('fecha_venta', '<=', endDate).get();
         
-        const [ salesSnapshot, ingresosSnapshot, transferInSnapshot, transferOutSnapshot, comisionesSnapshot, pagosProveedorSnapshot ] = await Promise.all([ salesPromise, ingresosPromise, transferInPromise, transferOutPromise, comisionesPromise, pagosProveedorPromise ]);
+        // ===== INICIO DE LA CORRECCIÓN CLAVE =====
+        // El nombre de la variable aquí debe coincidir con el que usamos después.
+        // Se cambió 'pagosProveedorSnapshot' por su nombre correcto en la desestructuración.
+        const [ salesSnapshot, ingresosSnapshot, transferInSnapshot, transferOutSnapshot, comisionesSnapshot, pagosProveedorSnapshot, wholesalePaymentsSnapshot ] = await Promise.all([ salesPromise, ingresosPromise, transferInPromise, transferOutPromise, comisionesPromise, pagosProveedorPromise, wholesalePaymentsPromise ]);
+        // ===== FIN DE LA CORRECCIÓN CLAVE =====
 
         let transactions = [];
         salesSnapshot.forEach(doc => { const data = doc.data(); transactions.push({ date: data.fecha_venta.toDate(), type: 'Ingreso', description: `Venta: ${data.producto.modelo}`, amount: data.monto_transferencia }); });
@@ -6247,9 +6348,11 @@ async function toggleAccountHistory(accountCard, accountId, dateRange = null) {
         transferOutSnapshot.forEach(doc => { const data = doc.data(); let description = ''; if (data.tipo === 'Transferencia entre Cuentas') { description = `Enviado a: ${data.cuenta_destino_nombre}`; } else if (data.tipo === 'Retiro a Caja') { description = `Retiro a Caja (Efectivo)`; } else if (data.tipo === 'Retiro a Caja (USD)') { description = `Retiro a Caja (Dólares)`; } transactions.push({ date: data.fecha.toDate(), type: 'Egreso', description: description, amount: -data.monto_ars }); });
         comisionesSnapshot.forEach(doc => { const data = doc.data(); transactions.push({ date: data.fecha.toDate(), type: 'Egreso', description: `Comisión: ${data.vendedor || 'N/A'}`, amount: -data.monto }); });
         pagosProveedorSnapshot.forEach(doc => { const data = doc.data(); transactions.push({ date: data.fecha.toDate(), type: 'Egreso', description: data.descripcion || 'Pago a Proveedor', amount: -data.monto }); });
+        wholesalePaymentsSnapshot.forEach(doc => { const data = doc.data(); transactions.push({ date: data.fecha_venta.toDate(), type: 'Ingreso', description: `Cobro Vta. Mayorista: ${data.clienteNombre}`, amount: data.pago_recibido.ars_transferencia }); });
+        
         transactions.sort((a, b) => b.date - a.date);
         
-        resultsWrapper.innerHTML = ''; // Limpiamos el loader
+        resultsWrapper.innerHTML = ''; 
 
         if (transactions.length === 0) {
             resultsWrapper.innerHTML = `<div class="history-content-wrapper"><p class="dashboard-loader">No hay movimientos para este período.</p></div>`;
@@ -6298,7 +6401,6 @@ async function toggleAccountHistory(accountCard, accountId, dateRange = null) {
     
     historyContainer.style.maxHeight = historyContainer.scrollHeight + "px";
 }
-
 function promptToMoveMoney(accountId, accountName) {
     const account = financialAccounts.find(acc => acc.id === accountId);
     if (!account) {
@@ -6857,4 +6959,424 @@ async function saveCollectedBalance(btn) {
     } finally {
         toggleSpinner(btn, false);
     }
+}
+
+// =======================================================
+// =========== INICIO: SECCIÓN DE MENSUALIDAD (VERSIÓN 3.0 - LÓGICA FINAL) ============
+// =======================================================
+
+// REEMPLAZA ESTAS DOS FUNCIONES COMPLETAS EN TU SCRIPT.JS
+
+async function loadMensualidadData() {
+    s.mensualidadCardsContainer.innerHTML = `<p class="dashboard-loader">Calculando balances...</p>`;
+    s.retirosHistoryContainer.innerHTML = `<p class="dashboard-loader">Cargando historial...</p>`;
+    
+    // --- SETUP DE LA INTERFAZ DE FILTROS ---
+    const socioFilterInput = document.getElementById('filter-retiros-socio');
+    const startDateInput = document.getElementById('filter-retiros-start-date');
+    const endDateInput = document.getElementById('filter-retiros-end-date');
+    const filterBtn = document.getElementById('btn-apply-retiros-filter');
+
+    // 1. Llenamos el desplegable de socios
+    populateSelect(socioFilterInput, socios, "Todos");
+
+    // 2. Establecemos las fechas por defecto (hoy)
+    const today = new Date().toISOString().slice(0, 10);
+    startDateInput.value = today;
+    endDateInput.value = today;
+
+    // 3. Nos aseguramos de que el botón de filtrar tenga su listener
+    if (!filterBtn.dataset.listenerAttached) {
+        filterBtn.addEventListener('click', filterRetirosHistory);
+        filterBtn.dataset.listenerAttached = 'true';
+    }
+
+    try {
+        // --- CÁLCULO DE BALANCES GLOBALES ---
+        const allRetirosSnapshot = await db.collection('retiros_socios').get();
+        const allRetiros = allRetirosSnapshot.docs.map(doc => doc.data());
+
+        const totalesRetirados = { "Agustín": 0, "Tomás": 0, "Julián": 0 };
+        allRetiros.forEach(retiro => {
+            if (totalesRetirados.hasOwnProperty(retiro.socio)) {
+                totalesRetirados[retiro.socio] += retiro.monto_equivalente_usd || 0;
+            }
+        });
+
+        const balances = calcularBalances(totalesRetirados);
+        renderMensualidadCards(balances);
+
+        // --- CARGA INICIAL DEL HISTORIAL DEL DÍA ---
+        await filterRetirosHistory();
+
+    } catch (error) {
+        handleDBError(error, s.mensualidadCardsContainer, "los datos de mensualidad");
+        s.retirosHistoryContainer.innerHTML = '';
+    }
+}
+
+async function filterRetirosHistory() {
+    s.retirosHistoryContainer.innerHTML = `<p class="dashboard-loader">Filtrando historial...</p>`;
+    
+    // Simplemente leemos los valores actuales de los filtros
+    const startDate = new Date(document.getElementById('filter-retiros-start-date').value + 'T00:00:00');
+    const endDate = new Date(document.getElementById('filter-retiros-end-date').value + 'T23:59:59');
+    const selectedSocio = document.getElementById('filter-retiros-socio').value;
+
+    try {
+        let query = db.collection('retiros_socios')
+            .where('fecha', '>=', startDate)
+            .where('fecha', '<=', endDate);
+        
+        if (selectedSocio) {
+            query = query.where('socio', '==', selectedSocio);
+        }
+        
+        query = query.orderBy('fecha', 'desc');
+        
+        const filteredSnapshot = await query.get();
+        const historialFiltrado = filteredSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+        renderRetirosHistory(historialFiltrado);
+
+    } catch (error) {
+        handleDBError(error, s.retirosHistoryContainer, "el historial de retiros");
+    }
+}
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
+async function filterRetirosHistory() {
+    s.retirosHistoryContainer.innerHTML = `<p class="dashboard-loader">Filtrando historial...</p>`;
+    let startDateInput = document.getElementById('filter-retiros-start-date');
+    let endDateInput = document.getElementById('filter-retiros-end-date');
+    
+    // ===== INICIO DE LA MODIFICACIÓN =====
+    // Obtenemos la referencia al nuevo filtro de socio
+    let socioFilterInput = document.getElementById('filter-retiros-socio');
+
+    // Si el filtro de socio está vacío, lo poblamos
+    if (socioFilterInput.innerHTML === '') {
+        populateSelect(socioFilterInput, socios, "Todos");
+    }
+    // ===== FIN DE LA MODIFICACIÓN =====
+
+    if (!startDateInput.value && !endDateInput.value) {
+        const today = new Date().toISOString().slice(0, 10);
+        startDateInput.value = today;
+        endDateInput.value = today;
+    }
+
+    const startDate = new Date(startDateInput.value + 'T00:00:00');
+    const endDate = new Date(endDateInput.value + 'T23:59:59');
+    
+    // ===== INICIO DE LA MODIFICACIÓN =====
+    // Leemos el valor del socio seleccionado
+    const selectedSocio = socioFilterInput.value;
+    // ===== FIN DE LA MODIFICACIÓN =====
+
+    try {
+        let query = db.collection('retiros_socios')
+            .where('fecha', '>=', startDate)
+            .where('fecha', '<=', endDate);
+        
+        // ===== INICIO DE LA MODIFICACIÓN =====
+        // Si se seleccionó un socio específico, añadimos esa condición a la consulta
+        if (selectedSocio) {
+            query = query.where('socio', '==', selectedSocio);
+        }
+        // ===== FIN DE LA MODIFICACIÓN =====
+        
+        // Siempre ordenamos por fecha al final
+        query = query.orderBy('fecha', 'desc');
+        
+        const filteredSnapshot = await query.get();
+        const historialFiltrado = filteredSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+        renderRetirosHistory(historialFiltrado);
+
+    } catch (error) {
+        handleDBError(error, s.retirosHistoryContainer, "el historial de retiros");
+    }
+}
+
+function calcularBalances(totales) {
+    const balances = { "Agustín": 0, "Tomás": 0, "Julián": 0 };
+    const maximoRetirado = Math.max(...Object.values(totales));
+
+    if (maximoRetirado === 0) return balances; // Si nadie retiró nada, todos están en 0
+
+    // Caso especial: si todos retiraron exactamente lo mismo
+    const todosIguales = Object.values(totales).every(val => val === maximoRetirado);
+    if (todosIguales) return balances; // Todos están balanceados, se quedan en 0
+
+    // Lógica principal
+    for (const socio in totales) {
+        if (totales[socio] < maximoRetirado) {
+            // Este socio tiene crédito a favor para alcanzar al que más retiró
+            balances[socio] = maximoRetirado - totales[socio];
+        } else {
+            // Este es el socio que más retiró. Su "deuda" con el sistema es lo que retiró.
+            balances[socio] = -totales[socio];
+        }
+    }
+    return balances;
+}
+
+function renderMensualidadCards(balances) {
+    s.mensualidadCardsContainer.innerHTML = socios.map(socio => {
+        const balance = balances[socio] || 0;
+        const tieneCredito = balance > 0.01;
+        const estaAdelantado = balance < -0.01;
+        const displayAmount = formatearUSD(Math.abs(balance));
+        
+        let label = 'Balanceado';
+        if (tieneCredito) label = 'Crédito a favor para retirar';
+        if (estaAdelantado) label = 'Retirado de más';
+        
+        let colorClass = '';
+        if (tieneCredito) colorClass = 'negative'; // Verde
+        if (estaAdelantado) colorClass = 'positive'; // Rojo
+        
+        return `
+        <div class="socio-card">
+            <div class="socio-card-header">
+                <h3>${socio}</h3>
+                <button class="btn-add-retiro" data-socio="${socio}" title="Registrar nuevo retiro para ${socio}">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </button>
+            </div>
+            <div class="socio-balance-container">
+                <div class="socio-balance-label">${label}</div>
+                <div class="socio-balance-amount ${colorClass}">${displayAmount}</div>
+            </div>
+        </div>`;
+    }).join('');
+
+    document.querySelectorAll('.btn-add-retiro').forEach(btn => {
+        btn.addEventListener('click', () => {
+            promptToRegisterRetiro(btn.dataset.socio);
+        });
+    });
+}
+
+function renderRetirosHistory(historial) {
+    if (historial.length === 0) {
+        s.retirosHistoryContainer.innerHTML = `<p class="dashboard-loader">No hay retiros para mostrar en este período.</p>`;
+    } else {
+        s.retirosHistoryContainer.innerHTML = `
+        <table>
+            <thead><tr><th>Fecha</th><th>Socio</th><th>Descripción</th><th>Monto (Equiv. USD)</th><th>Acciones</th></tr></thead>
+            <tbody>
+                ${historial.map(retiro => {
+                    const socioClass = `retiro-socio-${retiro.socio.toLowerCase()}`;
+                    const retiroJSON = JSON.stringify(retiro).replace(/'/g, "\\'");
+                    // Formateamos la fecha para incluir la hora
+                    const fechaConHora = retiro.fecha.toDate().toLocaleString('es-AR', {
+                        day: '2-digit', month: '2-digit', year: 'numeric',
+                        hour: '2-digit', minute: '2-digit', hour12: false
+                    }).replace(',', '');
+
+                    return `
+                    <tr>
+                        <td>${fechaConHora} hs</td>
+                        <td class="${socioClass}">${retiro.socio}</td>
+                        <td>${retiro.descripcion}</td>
+                        <td style="text-align:right;">${formatearUSD(retiro.monto_equivalente_usd)}</td>
+                        <td class="actions-cell">
+                            <button class="delete-btn btn-delete-retiro" title="Revertir este retiro" data-retiro-id="${retiro.id}" data-item='${retiroJSON}'>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                            </button>
+                        </td>
+                    </tr>`;
+                }).join('')}
+            </tbody>
+        </table>`;
+    }
+
+    document.querySelectorAll('.btn-delete-retiro').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const retiroId = btn.dataset.retiroId;
+            const retiroData = JSON.parse(btn.dataset.item.replace(/\\'/g, "'"));
+            deleteRetiroSocio(retiroId, retiroData);
+        });
+    });
+}
+
+function promptToRegisterRetiro(socioName) {
+    const metodoOptions = metodosDePago.map(m => `<option value="${m}">${m}</option>`).join('');
+    const accountsOptionsHtml = financialAccounts.length > 0
+        ? financialAccounts.map(acc => `<option value="${acc.id}|${acc.nombre}">${acc.nombre}</option>`).join('')
+        : '<option value="" disabled>No hay cuentas creadas</option>';
+
+    s.promptContainer.innerHTML = `
+    <div class="ingreso-modal-box">
+        <h3>Nuevo Retiro de ${socioName}</h3>
+        <form id="retiro-socio-form" data-socio="${socioName}" novalidate>
+            <div class="form-group">
+                <select id="retiro-metodo" name="metodo_pago" required>
+                    <option value="" disabled selected></option>
+                    ${metodoOptions}
+                </select>
+                <label for="retiro-metodo">Retirar de Caja</label>
+            </div>
+            <div class="form-group">
+                <input type="number" id="retiro-monto" name="monto" required placeholder=" " step="0.01">
+                <label for="retiro-monto">Monto Retirado</label>
+            </div>
+            <div id="retiro-cotizacion-group" class="form-group hidden">
+                <input type="number" id="retiro-cotizacion" name="cotizacion_dolar" placeholder=" ">
+                <label for="retiro-cotizacion">Cotización del Dólar</label>
+            </div>
+            <div id="retiro-cuenta-group" class="form-group hidden">
+                <select name="cuenta_origen" required>
+                    <option value="" disabled selected></option>
+                    ${accountsOptionsHtml}
+                </select>
+                <label>Desde la Cuenta</label>
+            </div>
+            <div class="form-group">
+                <textarea id="retiro-descripcion" name="descripcion" rows="1" placeholder=" "></textarea>
+                <label for="retiro-descripcion">Descripción (Opcional)</label>
+            </div>
+            <div class="prompt-buttons">
+                <button type="submit" class="prompt-button confirm spinner-btn">
+                    <span class="btn-text">Guardar Retiro</span>
+                    <div class="spinner"></div>
+                </button>
+                <button type="button" class="prompt-button cancel">Cancelar</button>
+            </div>
+        </form>
+    </div>`;
+
+    const form = document.getElementById('retiro-socio-form');
+    const metodoSelect = form.querySelector('#retiro-metodo');
+    const cotizacionGroup = form.querySelector('#retiro-cotizacion-group');
+    const cuentaGroup = form.querySelector('#retiro-cuenta-group');
+
+    metodoSelect.addEventListener('change', () => {
+        const isPesos = metodoSelect.value.startsWith('Pesos');
+        const isTransfer = metodoSelect.value === 'Pesos (Transferencia)';
+        cotizacionGroup.classList.toggle('hidden', !isPesos);
+        cotizacionGroup.querySelector('input').required = isPesos;
+        cuentaGroup.classList.toggle('hidden', !isTransfer);
+        cuentaGroup.querySelector('select').required = isTransfer;
+    });
+}
+
+async function saveRetiroSocio(btn) {
+    toggleSpinner(btn, true);
+    const form = btn.form;
+    const socio = form.dataset.socio;
+    const formData = new FormData(form);
+
+    const monto = parseFloat(formData.get('monto'));
+    const metodo_pago = formData.get('metodo_pago');
+    const cotizacion = parseFloat(formData.get('cotizacion_dolar')) || 1;
+    
+    let monto_equivalente_usd = 0;
+    if (metodo_pago === 'Dólares') {
+        monto_equivalente_usd = monto;
+    } else if (metodo_pago.startsWith('Pesos')) {
+        if (!cotizacion || cotizacion <= 0) {
+            showGlobalFeedback("La cotización del dólar es requerida para retiros en pesos.", "error");
+            toggleSpinner(btn, false);
+            return;
+        }
+        monto_equivalente_usd = monto / cotizacion;
+    }
+
+    try {
+        await db.runTransaction(async t => {
+            const retiroRef = db.collection('retiros_socios').doc();
+            const gastoRef = db.collection('gastos').doc();
+            
+            const fechaServer = firebase.firestore.FieldValue.serverTimestamp();
+
+            const retiroData = {
+                socio,
+                monto,
+                metodo_pago,
+                cotizacion_dolar: metodo_pago.startsWith('Pesos') ? cotizacion : null,
+                monto_equivalente_usd,
+                descripcion: formData.get('descripcion') || `Retiro de ${socio}`,
+                fecha: fechaServer,
+                gastoAsociadoId: gastoRef.id
+            };
+
+            const gastoData = {
+                categoria: 'Retiro de Socio',
+                descripcion: retiroData.descripcion,
+                monto,
+                metodo_pago,
+                fecha: fechaServer
+            };
+
+            if (metodo_pago === 'Pesos (Transferencia)') {
+                const cuentaValue = formData.get('cuenta_origen');
+                if (!cuentaValue) throw new Error("Debe seleccionar una cuenta de origen.");
+                const [cuentaId, cuentaNombre] = cuentaValue.split('|');
+                
+                // Añadimos la info de la cuenta al registro de retiro para la reversión
+                retiroData.cuenta_origen_id = cuentaId;
+                retiroData.cuenta_origen_nombre = cuentaNombre;
+                
+                const cuentaRef = db.collection('cuentas_financieras').doc(cuentaId);
+                t.update(cuentaRef, { saldo_actual_ars: firebase.firestore.FieldValue.increment(-monto) });
+            }
+
+            t.set(retiroRef, retiroData);
+            t.set(gastoRef, gastoData);
+        });
+
+        showGlobalFeedback(`Retiro de ${socio} registrado con éxito.`, 'success');
+        s.promptContainer.innerHTML = '';
+        loadMensualidadData();
+        updateReports();
+        loadFinancialData();
+
+    } catch(error) {
+        console.error("Error al registrar el retiro:", error);
+        showGlobalFeedback(error.message || 'No se pudo registrar el retiro.', 'error');
+    } finally {
+        toggleSpinner(btn, false);
+    }
+}
+
+async function deleteRetiroSocio(retiroId, retiroData) {
+    const { socio, monto_equivalente_usd, gastoAsociadoId } = retiroData;
+    const message = `¿Seguro que quieres revertir este retiro de ${socio} por ${formatearUSD(monto_equivalente_usd)}?
+    <br><br>
+    Esta acción eliminará el retiro, eliminará el gasto de la caja y devolverá el dinero si fue por transferencia.`;
+
+    showConfirmationModal('Confirmar Reversión', message, async () => {
+        try {
+            await db.runTransaction(async t => {
+                const retiroRef = db.collection('retiros_socios').doc(retiroId);
+                
+                if (gastoAsociadoId) {
+                    const gastoRef = db.collection('gastos').doc(gastoAsociadoId);
+                    t.delete(gastoRef);
+                } else {
+                    console.warn("No se encontró ID de gasto asociado para este retiro.");
+                }
+
+                if (retiroData.metodo_pago === 'Pesos (Transferencia)' && retiroData.cuenta_origen_id) {
+                    const cuentaRef = db.collection('cuentas_financieras').doc(retiroData.cuenta_origen_id);
+                    t.update(cuentaRef, { saldo_actual_ars: firebase.firestore.FieldValue.increment(retiroData.monto) });
+                }
+
+                t.delete(retiroRef);
+            });
+
+            showGlobalFeedback('Retiro revertido con éxito.', 'success');
+            loadMensualidadData();
+            updateReports();
+            loadFinancialData();
+
+        } catch (error) {
+            console.error("Error al revertir el retiro:", error);
+            showGlobalFeedback('No se pudo revertir el retiro.', 'error');
+        }
+    });
 }
