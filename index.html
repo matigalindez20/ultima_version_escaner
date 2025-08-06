@@ -114,12 +114,12 @@
                     <div class="filter-group"><label for="filter-sales-start-date">Fecha Desde</label><input type="date" id="filter-sales-start-date"></div>
                     <div class="filter-group"><label for="filter-sales-end-date">Fecha Hasta</label><input type="date" id="filter-sales-end-date"></div>
                     <div class="filter-group"><button id="btn-apply-sales-filters">Filtrar Ventas</button></div>
+                    <!-- ===== INICIO DE LA MODIFICACIÓN ===== -->
                     <div class="filter-group">
-                        <button id="btn-hacer-caja" class="control-btn spinner-btn" style="background-color: var(--success-bg);">
-                            <span class="btn-text">Hacer Caja del Día</span>
-                             <div class="spinner"></div>
-                        </button>
+                        <label for="filter-sales-imei">IMEI (últimos 4 dígitos)</label>
+                        <input type="text" id="filter-sales-imei" maxlength="4" placeholder="1234">
                     </div>
+                    <!-- ===== FIN DE LA MODIFICACIÓN ===== -->
                 </div>
                 <div id="sales-table-container" class="table-container"></div>
                 <div id="sales-pagination-controls" class="pagination-controls hidden">
@@ -431,7 +431,6 @@
                 <h3 style="font-size: 1.5rem; color: var(--text-muted);">Historial de Retiros</h3>
             </div>
             
-            <!-- ===== INICIO DEL CAMBIO ===== -->
             <div class="filters-container" id="mensualidad-filters-container" style="padding-bottom: 2rem;">
                 <div class="filter-group">
                     <label for="filter-retiros-socio">Socio</label>
@@ -451,7 +450,6 @@
                     <button id="btn-apply-retiros-filter">Filtrar Historial</button>
                 </div>
             </div>
-            <!-- ===== FIN DEL CAMBIO ===== -->
 
             <div id="retiros-history-container" class="table-container">
                 <!-- La tabla del historial se generará aquí con JavaScript -->

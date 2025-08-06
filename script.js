@@ -54,8 +54,6 @@ let paginationState = {};
 
 document.addEventListener('DOMContentLoaded', initApp);
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
 function initApp() {
     Object.assign(s, {
         loginContainer: document.getElementById('login-container'),
@@ -102,6 +100,9 @@ function initApp() {
         filterSalesStartDate: document.getElementById('filter-sales-start-date'),
         filterSalesEndDate: document.getElementById('filter-sales-end-date'),
         btnApplySalesFilters: document.getElementById('btn-apply-sales-filters'),
+        // ===== INICIO DE LA MODIFICACIÓN =====
+        filterSalesImei: document.getElementById('filter-sales-imei'),
+        // ===== FIN DE LA MODIFICACIÓN =====
         btnScan: document.getElementById('btn-scan'),
         scannerContainer: document.getElementById('scanner-container'),
         productForm: document.getElementById('product-form'),
@@ -126,7 +127,6 @@ function initApp() {
         btnAddGasto: document.getElementById('btn-add-gasto'),
         gastosChartCanvas: document.getElementById('gastos-chart'),
         gastosList: document.getElementById('gastos-list'),
-        btnHacerCaja: document.getElementById('btn-hacer-caja'),
         commissionsResultsContainer: document.getElementById('commissions-results-container'),
         filterCommissionsVendedor: document.getElementById('filter-commissions-vendedor'),
         filterCommissionsStartDate: document.getElementById('filter-commissions-start-date'),
@@ -183,7 +183,6 @@ function initApp() {
         btnAddAccount: document.getElementById('btn-add-account'),
         financieraTotalBalance: document.getElementById('financiera-total-balance'),
         accountsListContainer: document.getElementById('accounts-list-container'),
-        // ===== AÑADE ESTAS LÍNEAS AL FINAL DEL OBJETO s =====
         tabMensualidad: document.getElementById('tab-mensualidad'),
         mensualidadView: document.getElementById('mensualidad-view'),
         mensualidadCardsContainer: document.getElementById('mensualidad-cards-container'),
@@ -245,8 +244,6 @@ function populateAllSelects() {
     // Usamos la nueva lista para el formulario de carga
     populateSelect(s.proveedorFormSelect, proveedoresConCanje, "Selecciona..."); 
 }
-
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
 function addEventListeners() {
     s.logoutButton.addEventListener('click', () => auth.signOut());
@@ -364,7 +361,6 @@ function addEventListeners() {
     s.exportSalesBtn.addEventListener('click', () => { exportToExcel('sales'); s.exportMenu.classList.remove('show'); });
     s.btnAddGasto.addEventListener('click', () => promptToAddGasto());
     s.btnAddIngreso.addEventListener('click', () => promptToAddIngreso());
-    s.btnHacerCaja.addEventListener('click', generarCajaDiaria);
     s.btnAddProvider.addEventListener('click', promptToAddProvider);
     s.btnAddWholesaleClient.addEventListener('click', promptToAddWholesaleClient);
     
@@ -433,11 +429,8 @@ function addEventListeners() {
             switchView('management', s.tabManagement);
             resetManagementView(false, false, true);
         } else if (button.classList.contains('btn-register-ws-payment')) {
-            // ===== INICIO DE LA MODIFICACIÓN =====
-            // Leemos la deuda del nuevo atributo 'data-debt-value'.
             const actualDebt = parseFloat(clientCard.dataset.debtValue) || 0;
             promptToRegisterWholesalePayment(clientId, clientName, actualDebt);
-            // ===== FIN DE LA MODIFICACIÓN =====
         } else if (button.classList.contains('btn-view-wholesale-history')) {
             showWholesaleHistory(clientId, clientName);
         } else if (button.classList.contains('btn-resync-client')) {
@@ -4414,12 +4407,15 @@ async function handleSaleDeletion(saleId, saleItem) {
     }
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
 async function loadSales(direction = 'first') {
     const type = 'sales';
 
-    const newFiltersJSON = JSON.stringify([s.filterSalesVendedor.value, s.filterSalesStartDate.value, s.filterSalesEndDate.value]);
+    // ===== INICIO DE LA MODIFICACIÓN (1/3) =====
+    // Se añade el nuevo filtro de IMEI al estado de la paginación
+    const imeiFilterValue = s.filterSalesImei.value.trim();
+    const newFiltersJSON = JSON.stringify([s.filterSalesVendedor.value, s.filterSalesStartDate.value, s.filterSalesEndDate.value, imeiFilterValue]);
+    // ===== FIN DE LA MODIFICACIÓN (1/3) =====
+
     if (!paginationState[type] || paginationState[type].lastFilters !== newFiltersJSON) {
         direction = 'first';
     }
@@ -4433,10 +4429,19 @@ async function loadSales(direction = 'first') {
         };
     }
     
+    // ===== INICIO DE LA MODIFICACIÓN (2/3) =====
+    // Se añade la lógica para que el filtro de IMEI tenga prioridad
     const filters = [];
-    if (s.filterSalesStartDate.value) filters.push(['fecha_venta', '>=', new Date(s.filterSalesStartDate.value + 'T00:00:00')]);
-    if (s.filterSalesEndDate.value) filters.push(['fecha_venta', '<=', new Date(s.filterSalesEndDate.value + 'T23:59:59')]);
-    if (s.filterSalesVendedor.value) filters.push(['vendedor', '==', s.filterSalesVendedor.value]);
+    if (imeiFilterValue) {
+        // Si se busca por IMEI, se ignora el resto de los filtros
+        filters.push(['imei_last_4', '==', imeiFilterValue]);
+    } else {
+        // Si no, se aplican los filtros normales
+        if (s.filterSalesStartDate.value) filters.push(['fecha_venta', '>=', new Date(s.filterSalesStartDate.value + 'T00:00:00')]);
+        if (s.filterSalesEndDate.value) filters.push(['fecha_venta', '<=', new Date(s.filterSalesEndDate.value + 'T23:59:59')]);
+        if (s.filterSalesVendedor.value) filters.push(['vendedor', '==', s.filterSalesVendedor.value]);
+    }
+    // ===== FIN DE LA MODIFICACIÓN (2/3) =====
 
     await loadPaginatedData({
         type: type,
@@ -4457,13 +4462,20 @@ async function loadSales(direction = 'first') {
             if (diasRestantes > 0) {
                 garantiaHtml = `<div class="garantia-icon" data-tooltip="Quedan ${diasRestantes} día${diasRestantes > 1 ? 's' : ''} de garantía"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2ecc71" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><polyline points="9 12 12 15 15 9"></polyline></svg></div>`;
             } else {
-                // --- INICIO DE LA CORRECCIÓN DEL SVG ---
-                // Se corrigió el viewBox="0 0 24" 24" a viewBox="0 0 24 24"
                 garantiaHtml = `<div class="garantia-icon" data-tooltip="Garantía vencida"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#e74c3c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg></div>`;
-                // --- FIN DE LA CORRECCIÓN DEL SVG ---
             }
             const ventaJSON = JSON.stringify(venta).replace(/'/g, "\\'");
-            return `<tr data-sale-id="${doc.id}" data-sale-item='${ventaJSON}'><td>${fechaFormateada}</td><td>${venta.producto.modelo || ''} ${venta.producto.color || ''}</td><td>${venta.nombre_cliente || '-'}</td><td>${venta.vendedor}</td><td>${formatearUSD(venta.precio_venta_usd)}</td><td>${venta.metodo_pago}</td><td class="garantia-cell">${garantiaHtml}</td><td class="actions-cell"><button class="edit-btn btn-edit-sale" title="Editar Venta"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button><button class="delete-btn btn-delete-sale" title="Revertir Venta"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button></td></tr>`;
+            
+            // ===== INICIO DE LA MODIFICACIÓN (3/3) =====
+            // Se crea el HTML para mostrar el modelo y el IMEI juntos
+            const productoConImeiHtml = `
+                ${venta.producto.modelo || ''} ${venta.producto.color || ''}
+                <br>
+                <small class="time-muted">IMEI: ${venta.imei_vendido || 'N/A'}</small>
+            `;
+            // Se reemplaza la celda del producto por la nueva variable
+            return `<tr data-sale-id="${doc.id}" data-sale-item='${ventaJSON}'><td>${fechaFormateada}</td><td>${productoConImeiHtml}</td><td>${venta.nombre_cliente || '-'}</td><td>${venta.vendedor}</td><td>${formatearUSD(venta.precio_venta_usd)}</td><td>${venta.metodo_pago}</td><td class="garantia-cell">${garantiaHtml}</td><td class="actions-cell"><button class="edit-btn btn-edit-sale" title="Editar Venta"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button><button class="delete-btn btn-delete-sale" title="Revertir Venta"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button></td></tr>`;
+            // ===== FIN DE LA MODIFICACIÓN (3/3) =====
         },
         setupEventListeners: () => {
              document.querySelectorAll('.garantia-icon').forEach(icon => { let tooltip = null; icon.addEventListener('mouseenter', (e) => { const text = e.currentTarget.dataset.tooltip; tooltip = document.createElement('div'); tooltip.className = 'garantia-tooltip'; tooltip.textContent = text; e.currentTarget.appendChild(tooltip); setTimeout(() => { tooltip.classList.add('visible'); }, 10); }); icon.addEventListener('mouseleave', () => { if (tooltip) { tooltip.classList.remove('visible'); tooltip.addEventListener('transitionend', () => tooltip.remove()); } }); });
@@ -4478,7 +4490,6 @@ async function loadSales(direction = 'first') {
         }
     });
 }
-
 
 async function loadCanjes() {
     s.canjeTableContainer.innerHTML = `<p class="dashboard-loader">Cargando pendientes...</p>`;
@@ -4839,8 +4850,6 @@ async function promptToSell(imei, details) {
     form.addEventListener('submit', (e) => { e.preventDefault(); registerSale(imei, details, e.target.querySelector('button[type="submit"]')); });
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
 async function registerSale(imei, productDetails, btn) {
     toggleSpinner(btn, true);
     const form = btn.form;
@@ -4869,13 +4878,22 @@ async function registerSale(imei, productDetails, btn) {
     if (montoTransferencia > 0) pagosRecibidos.push('Pesos (Transferencia)');
 
     const saleData = {
-        imei_vendido: imei, producto: productDetails, precio_venta_usd: ventaTotalUSD,
+        imei_vendido: imei,
+        // ===== INICIO DE LA MODIFICACIÓN =====
+        imei_last_4: imei.slice(-4),
+        // ===== FIN DE LA MODIFICACIÓN =====
+        producto: productDetails,
+        precio_venta_usd: ventaTotalUSD,
         nombre_cliente: formData.get('nombre_cliente').trim() || null,
-        metodo_pago: pagosRecibidos.join(' + '), vendedor: formData.get('vendedor'), 
+        metodo_pago: pagosRecibidos.join(' + '),
+        vendedor: formData.get('vendedor'),
         comision_vendedor_usd: parseFloat(formData.get('comision_vendedor_usd')) || 0,
-        fecha_venta: firebase.firestore.FieldValue.serverTimestamp(), hubo_canje: valorCanjeUSD > 0,
-        valor_toma_canje_usd: valorCanjeUSD, cotizacion_dolar: cotizacion,
-        monto_dolares: montoDolares, monto_efectivo: montoEfectivo,
+        fecha_venta: firebase.firestore.FieldValue.serverTimestamp(),
+        hubo_canje: valorCanjeUSD > 0,
+        valor_toma_canje_usd: valorCanjeUSD,
+        cotizacion_dolar: cotizacion,
+        monto_dolares: montoDolares,
+        monto_efectivo: montoEfectivo,
         monto_transferencia: montoTransferencia,
         observaciones_transferencia: formData.get('observaciones_transferencia'),
         comision_pagada: false
@@ -4897,9 +4915,6 @@ async function registerSale(imei, productDetails, btn) {
             }
 
             if (saleData.hubo_canje) {
-                // ===== INICIO DE LA MODIFICACIÓN =====
-                // Se ha eliminado la lectura del IMEI del formulario.
-                // Los objetos que se guardan ya no contienen el campo 'imei' o 'imei_recibido'.
                 const canjeParaReparar = formData.get('canje-para-reparar') === 'on';
 
                 if (canjeParaReparar) {
@@ -4923,7 +4938,6 @@ async function registerSale(imei, productDetails, btn) {
                     });
                     saleData.id_canje_pendiente = canjeRef.id;
                 }
-                // ===== FIN DE LA MODIFICACIÓN =====
             }
             t.set(saleRef, saleData);
         });
