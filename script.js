@@ -2615,8 +2615,6 @@ async function promptToRegisterPayment(providerName, currentDebt) {
         return `<option value="${lote.numero_lote}">${lote.numero_lote} (${loteDescripcion})</option>`;
     }).join('');
 
-    // ===== INICIO DE LA MODIFICACIÓN =====
-    // Filtramos las cuentas por moneda para crear los desplegables correctos
     const accountsArsOptionsHtml = financialAccounts.filter(acc => acc.moneda === 'ARS').map(acc => `<option value="${acc.id}|${acc.nombre}">${acc.nombre} (${formatearARS(acc.saldo_actual_ars)})</option>`).join('');
     const accountsUsdOptionsHtml = financialAccounts.filter(acc => acc.moneda === 'USD').map(acc => `<option value="${acc.id}|${acc.nombre}">${acc.nombre} (${formatearUSD(acc.saldo_actual_usd)})</option>`).join('');
 
@@ -2625,17 +2623,18 @@ async function promptToRegisterPayment(providerName, currentDebt) {
             <label>Método(s) de Pago</label>
             <div class="payment-option"><label class="toggle-switch-group"><input type="checkbox" name="pay-usd-efectivo" class="payment-method-cb"><span class="toggle-switch-label">Dólares (Efectivo)</span><span class="toggle-switch-slider"></span></label><div class="payment-input-container hidden"><input type="number" name="dolares" placeholder="Monto USD" step="0.01"></div></div>
             <div class="payment-option"><label class="toggle-switch-group"><input type="checkbox" name="pay-ars-efectivo" class="payment-method-cb"><span class="toggle-switch-label">Pesos (Efectivo)</span><span class="toggle-switch-slider"></span></label><div class="payment-input-container hidden"><input type="number" name="efectivo" placeholder="Monto ARS" step="0.01"></div></div>
-            <div class="payment-option"><label class="toggle-switch-group"><input type="checkbox" name="pay-ars-transfer" class="payment-method-cb"><span class="toggle-switch-label">Transferencia (ARS)</span><span class="toggle-switch-slider"></span></label><div class="payment-input-container hidden"><input type="number" name="transferencia" placeholder="Monto ARS" step="0.01"><select name="cuenta_origen_ars" required>${accountsArsOptionsHtml}</select></div></div>
-            <div class="payment-option"><label class="toggle-switch-group"><input type="checkbox" name="pay-usd-transfer" class="payment-method-cb"><span class="toggle-switch-label">Transferencia (USD)</span><span class="toggle-switch-slider"></span></label><div class="payment-input-container hidden"><input type="number" name="transferencia_usd" placeholder="Monto USD" step="0.01"><select name="cuenta_origen_usd" required>${accountsUsdOptionsHtml}</select></div></div>
+            <div class="payment-option"><label class="toggle-switch-group"><input type="checkbox" name="pay-ars-transfer" class="payment-method-cb"><span class="toggle-switch-label">Transferencia (ARS)</span><span class="toggle-switch-slider"></span></label><div class="payment-input-container hidden"><input type="number" name="transferencia" placeholder="Monto ARS" step="0.01"><select name="cuenta_origen_ars">${accountsArsOptionsHtml}</select></div></div>
+            <div class="payment-option"><label class="toggle-switch-group"><input type="checkbox" name="pay-usd-transfer" class="payment-method-cb"><span class="toggle-switch-label">Transferencia (USD)</span><span class="toggle-switch-slider"></span></label><div class="payment-input-container hidden"><input type="number" name="transferencia_usd" placeholder="Monto USD" step="0.01"><select name="cuenta_origen_usd">${accountsUsdOptionsHtml}</select></div></div>
         </div>
         <div id="cotizacion-dolar-group" class="form-group hidden"><label for="cotizacion_dolar">Cotización del Dólar (Opcional si el pago total es en ARS)</label><input type="number" id="cotizacion_dolar" name="cotizacion_dolar" placeholder="Valor del dólar blue" step="0.01"></div>
     `;
-    // ===== FIN DE LA MODIFICACIÓN =====
 
     s.promptContainer.innerHTML = `
         <div class="container container-sm"> <div class="prompt-box">
                 <h3>Registrar Pago a ${providerName}</h3>
                 <p>Deuda actual: <strong>${formatearUSD(currentDebt)}</strong></p>
+                
+                <!-- ===== CORRECCIÓN AQUÍ: SE AÑADIÓ id="payment-form" ===== -->
                 <form id="payment-form">
                     <div class="form-group"><label for="payment-total">Monto Total del Pago (USD)</label><input type="number" id="payment-total" name="total" step="0.01" required></div>
                     <div class="form-group"><label for="lote-asociado">Asociar a Lote (Opcional)</label><select id="lote-asociado" name="loteAsociado"><option value="">Ninguno / Pago general</option>${lotesOptions}</select></div>
@@ -2643,6 +2642,7 @@ async function promptToRegisterPayment(providerName, currentDebt) {
                     <div class="form-group"><label for="payment-notes">Notas (Opcional)</label><textarea id="payment-notes" name="notas" rows="2" placeholder="Ej: Pago parcial del Lote-123"></textarea></div>
                     <div class="prompt-buttons"><button type="submit" class="prompt-button confirm spinner-btn"><span class="btn-text">Registrar Pago</span><div class="spinner"></div></button><button type="button" class="prompt-button cancel">Cancelar</button></div>
                 </form>
+
             </div> </div>`;
     
     const form = document.getElementById('payment-form');
