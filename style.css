@@ -331,6 +331,14 @@ h2 { font-size: 1.5rem; }
 .kpi-container.three-cols {
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
 }
+
+/* ======================================================================= */
+/* ====== AÑADE ESTA REGLA PARA SOPORTAR CUATRO COLUMNAS EN INFORMES ====== */
+/* ======================================================================= */
+.kpi-container.four-cols {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
 .kpi-container.centered {
     justify-content: center;
 }
@@ -342,6 +350,13 @@ h2 { font-size: 1.5rem; }
     border: 1px solid var(--border-dark);
     text-align: center;
     transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+/* ======================================================================= */
+/* ====== ESTILO PARA VALORES DE KPI EN PROVEEDORES ====== */
+/* ======================================================================= */
+.kpi-card .kpi-value.expense {
+    color: var(--error-bg); /* Color rojo para la deuda */
 }
 
 .kpi-card.interactive {
@@ -2065,10 +2080,16 @@ td.actions-cell {
     height: 0;
 }
 
-.toggle-switch-label {
-    font-weight: 600; 
-    color: var(--text-muted);
-    transition: color 0.3s ease;
+/* ======================================================================= */
+/* ====== ESTILO PARA RESALTAR LA ETIQUETA DEL PAGO SELECCIONADO ====== */
+/* ======================================================================= */
+
+/*
+  Cuando el input (checkbox) dentro del grupo está :checked (activado),
+  buscamos su "hermano" (~) que sea el .toggle-switch-label y le cambiamos el color.
+*/
+.toggle-switch-group input:checked ~ .toggle-switch-label {
+    color: var(--brand-yellow); /* ¡El color amarillo de la marca! */
 }
 
 .toggle-switch-slider {
@@ -4134,3 +4155,43 @@ td.actions-cell {
 .pcm-balance-stacked .stat-value {
     font-size: 2rem;
 }
+
+/* ======================================================================= */
+/* ====== ESTILOS PARA NUEVA TARJETA DE BALANCE DUAL EN FINANCIERA ====== */
+/* ======================================================================= */
+
+/* Contenedor principal que apila los balances */
+.balance-content-stacked {
+    display: flex;
+    flex-direction: column; /* Apila los items verticalmente */
+    gap: 1.5rem; /* Espacio entre el balance ARS y USD */
+}
+
+/* Cada item de balance individual (ARS o USD) */
+.balance-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+/* Etiqueta de la moneda (ARS o USD) en la lista de cuentas */
+.account-currency-badge {
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background-color: var(--border-dark);
+    color: var(--text-muted);
+    margin-left: 0.75rem;
+    vertical-align: middle;
+}
+
+/* ======================================================================= */
+/* ====== ESTILO PARA 4 COLUMNAS EN RESUMEN DE INGRESOS ====== */
+/* ======================================================================= */
+.summary-values.four-items {
+    justify-content: space-around; /* Asegura mejor distribución con 4 items */
+}
+
