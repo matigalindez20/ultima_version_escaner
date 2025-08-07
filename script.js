@@ -1907,6 +1907,9 @@ function renderProviders(providers) {
             </button>`;
         }
         
+        // ===== INICIO DE LA MODIFICACIÓN =====
+        // Hemos eliminado la sección pcm-stats y movido el botón pcm-primary-action
+        // directamente dentro de pcm-actions, al principio.
         return `
         <div class="provider-card-modern" data-provider-id="${provider.id}" data-debt-value="${debt}">
             
@@ -1920,21 +1923,16 @@ function renderProviders(providers) {
                 </button>
             </div>
 
-            <div class="pcm-stats">
-                <div class="stat-item">
-                    <span class="stat-label">${statLabel}</span>
-                    <span class="stat-value ${statClass}">${statValueDisplay}</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-label">Acción Principal</span>
-                    <button class="pcm-primary-action btn-batch-load">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                        <span>Cargar Lote</span>
-                    </button>
-                </div>
+            <div class="pcm-balance-display">
+                <span class="stat-label">${statLabel}</span>
+                <span class="stat-value ${statClass}">${statValueDisplay}</span>
             </div>
 
             <div class="pcm-actions">
+                <button class="pcm-primary-action btn-batch-load">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    <span>Cargar Lote</span>
+                </button>
                 ${paymentButtonHtml}
                 <button class="pcm-action-btn btn-view-batches" title="Ver el historial de lotes cargados">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
@@ -1946,6 +1944,7 @@ function renderProviders(providers) {
                 </button>
             </div>
         </div>`;
+        // ===== FIN DE LA MODIFICACIÓN =====
     }).join('');
 }
 
@@ -5593,7 +5592,8 @@ function renderWholesaleClients(clients) {
         }
 
         // ===== INICIO DE LA MODIFICACIÓN =====
-        // Añadimos 'data-debt-value' para guardar el número de la deuda directamente.
+        // Se cambió la estructura de .pcm-stats por una nueva llamada .pcm-balance-stacked
+        // para apilar los saldos verticalmente y evitar desbordamientos.
         return `
         <div class="provider-card-modern" data-client-id="${client.id}" data-debt-value="${deuda}">
             
@@ -5607,23 +5607,22 @@ function renderWholesaleClients(clients) {
                 </button>
             </div>
 
-            <div class="pcm-stats">
-                <div class="stat-item">
+            <div class="pcm-balance-stacked">
+                <div class="stacked-stat-item">
                     <span class="stat-label">Total Comprado</span>
                     <span class="stat-value" style="color: var(--brand-yellow);">${formatearUSD(totalComprado)}</span>
                 </div>
-                <div class="stat-item">
+                <div class="stacked-stat-item">
                     <span class="stat-label">${statLabel}</span>
                     <span class="stat-value ${statClass}">${statValueDisplay}</span>
                 </div>
             </div>
 
-            <button class="pcm-primary-action btn-new-wholesale-sale" style="margin-bottom: 1rem;">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                <span>Registrar Venta</span>
-            </button>
-
             <div class="pcm-actions">
+                 <button class="pcm-primary-action btn-new-wholesale-sale">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    <span>Registrar Venta</span>
+                </button>
                 <button class="pcm-action-btn btn-register-ws-payment" title="Registrar Pago a Cuenta">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
                     <span>Registrar Pago</span>
@@ -6586,8 +6585,6 @@ async function executeMoneyMovement(btn) {
     }
 }
 
-// AÑADE ESTAS TRES NUEVAS FUNCIONES AL FINAL DE TU SCRIPT
-
 // Función que se dispara desde un nuevo botón en la sección de comisiones
 function promptToAddVendedor() {
     s.promptContainer.innerHTML = `
@@ -6598,6 +6595,12 @@ function promptToAddVendedor() {
                 <input type="text" id="vendedor-name" name="nombre" required placeholder=" ">
                 <label for="vendedor-name">Nombre del Vendedor</label>
             </div>
+            
+            <div class="form-group">
+                <input type="number" id="vendedor-saldo-inicial" name="saldo_inicial" placeholder=" " step="0.01" min="0">
+                <label for="vendedor-saldo-inicial">Saldo Inicial a Favor (USD - Opcional)</label>
+            </div>
+
             <div class="prompt-buttons">
                 <button type="submit" class="prompt-button confirm spinner-btn">
                     <span class="btn-text">Guardar Vendedor</span>
@@ -6613,9 +6616,12 @@ function promptToAddVendedor() {
 async function saveVendedor(btn) {
     toggleSpinner(btn, true);
     const form = btn.form;
+    
+    const saldoInicial = parseFloat(form.saldo_inicial.value) || 0;
+    
     const vendedorData = {
         nombre: form.nombre.value.trim(),
-        comision_pendiente_usd: 0,
+        comision_pendiente_usd: saldoInicial, 
         fecha_creacion: firebase.firestore.FieldValue.serverTimestamp()
     };
 

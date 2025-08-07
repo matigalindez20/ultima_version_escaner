@@ -2500,8 +2500,8 @@ td.actions-cell {
     border: 1px solid var(--border-dark);
     border-radius: var(--border-radius);
     padding: 1.5rem;
-    display: flex;
-    flex-direction: column;
+    display: flex; /* Clave #1: Activa Flexbox */
+    flex-direction: column; /* Clave #2: Apila los elementos verticalmente */
     transition: all 0.2s ease-in-out;
 }
 
@@ -2509,6 +2509,45 @@ td.actions-cell {
     border-color: #3a3a3a;
     transform: translateY(-4px);
     box-shadow: 0 12px 24px rgba(0,0,0,0.3);
+}
+
+/* ======================================================================= */
+/* ====== AJUSTES DE CSS PARA NUEVO LAYOUT DE BOTONES DE PROVEEDOR ====== */
+/* ======================================================================= */
+
+/* Eliminamos la sección de estadísticas que ya no usamos */
+.pcm-stats {
+    display: none;
+}
+
+/* Nuevo contenedor para mostrar el balance, centrado y con espacio */
+.pcm-balance-display {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1.5rem 0;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border-dark);
+}
+
+/* Hacemos que la barra de acciones ahora envuelva los botones si no caben */
+.pcm-actions {
+    flex-wrap: wrap; /* Permite que los botones pasen a la siguiente línea */
+    justify-content: center; /* Centra los botones */
+    gap: 1rem; /* Espacio entre los botones */
+}
+
+/* Le damos al botón principal un ancho completo para que destaque */
+.pcm-primary-action {
+    width: 100%;
+    justify-content: center; /* Centramos su contenido (icono y texto) */
+    margin-bottom: 0.5rem; /* Pequeño espacio extra debajo */
+}
+
+/* Ajustamos los botones secundarios para que compartan el espacio restante */
+.pcm-action-btn {
+    flex-grow: 1; /* Permite que los botones crezcan para ocupar el espacio */
+    width: auto; /* El ancho será flexible */
 }
 
 /* Encabezado */
@@ -2531,6 +2570,8 @@ td.actions-cell {
     margin: 0;
     color: var(--text-muted);
     font-size: 0.9rem;
+    /* Importante: le damos un alto mínimo para que no colapse si está vacío */
+    min-height: 2.5em; 
 }
 
 /* Botón de eliminar (sutil) */
@@ -2564,6 +2605,123 @@ td.actions-cell {
 }
 .pcm-delete-btn:disabled svg {
     stroke: var(--text-muted) !important;
+}
+
+/* Sección de estadísticas (la parte de las "líneas") */
+.pcm-stats {
+    display: flex;
+    padding: 1.5rem 0;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid var(--border-dark);
+}
+
+.stat-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0 1rem;
+}
+
+.stat-item:first-child {
+    border-right: 1px solid var(--border-dark);
+}
+
+.stat-label {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.stat-value {
+    font-size: 2.2rem;
+    font-weight: 700;
+    line-height: 1;
+}
+.stat-value.debt { color: var(--error-bg); }
+.stat-value.zero { color: var(--success-bg); }
+
+
+/* Botón de acción principal (estilo 'outline' por defecto) */
+.pcm-primary-action {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.8rem 1.2rem;
+    border-radius: 8px;
+    background: transparent !important;
+    border: 2px solid var(--brand-yellow);
+    color: var(--brand-yellow);
+    font-weight: bold;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+}
+
+.pcm-primary-action svg {
+    stroke: var(--brand-yellow);
+    transition: all 0.2s ease-in-out;
+}
+
+.pcm-primary-action:hover {
+    background: var(--brand-yellow) !important;
+    color: #000;
+}
+
+.pcm-primary-action:hover svg {
+    stroke: #000;
+}
+
+/* Barra de acciones secundarias (iconos) */
+.pcm-actions {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    margin-top: auto; /* <-- ESTA ES LA REGLA MÁGICA */
+}
+
+.pcm-action-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    width: 100px;
+    border-radius: 8px;
+    transition: all 0.2s ease-in-out;
+}
+.pcm-action-btn svg {
+    width: 28px;
+    height: 28px;
+    stroke-width: 1.5;
+    transition: stroke 0.2s ease-in-out;
+}
+
+.pcm-action-btn:hover {
+    color: var(--brand-yellow);
+    background-color: rgba(253, 209, 0, 0.07);
+}
+.pcm-action-btn:hover svg {
+    stroke: var(--brand-yellow);
+}
+
+.pcm-action-btn:disabled {
+    color: #444;
+    cursor: not-allowed;
+    background-color: transparent !important;
+}
+.pcm-action-btn:disabled svg {
+    stroke: #444 !important;
 }
 
 /* Sección de estadísticas (la parte de las "líneas") */
@@ -3947,4 +4105,32 @@ td.actions-cell {
     .socio-balance-label {
         font-size: 0.9rem;
     }
+}
+
+/* ======================================================================= */
+/* ====== ESTILOS PARA APILAR SALDOS EN TARJETAS DE CLIENTES MAYORISTAS ====== */
+/* ======================================================================= */
+
+/* Nuevo contenedor para los saldos apilados */
+.pcm-balance-stacked {
+    padding: 1rem 0;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border-dark);
+    display: flex;
+    flex-direction: column; /* Apila los elementos verticalmente */
+    gap: 1.25rem; /* Crea un espacio entre el "Total Comprado" y el "Saldo" */
+    align-items: center; /* Centra todo horizontalmente */
+}
+
+/* Estilo para cada uno de los items de saldo apilados */
+.stacked-stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+/* Reducimos un poco el tamaño de la fuente para asegurar que entre bien */
+.pcm-balance-stacked .stat-value {
+    font-size: 2rem;
 }
