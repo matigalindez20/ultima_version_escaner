@@ -640,17 +640,33 @@ function moveNavSlider(activeTab) {
 }
 
 async function updateReports() {
-    const kpiElements = [
-        s.kpiStockValue, s.kpiStockCount,
-        s.kpiDollarsDay, s.kpiCashDay, s.kpiTransferDay,
-        document.getElementById('kpi-transfer-usd-day'),
-        s.kpiProfitDay, s.kpiExpensesDayUsd, s.kpiExpensesDayCash, s.kpiExpensesDayTransfer,
-        s.kpiDollarsMonth, s.kpiCashMonth, s.kpiTransferMonth,
-        document.getElementById('kpi-transfer-usd-month'),
-        s.kpiProfitMonth, s.kpiExpensesMonthUsd, s.kpiExpensesMonthCash, s.kpiExpensesMonthTransfer,
-        document.getElementById('kpi-reparacion-count')
-    ];
-    kpiElements.forEach(el => { if (el) el.textContent = '...'; });
+    // Definimos todos los elementos que vamos a actualizar
+    const kpiElements = {
+        stockValue: document.getElementById('kpi-stock-value'),
+        stockCount: document.getElementById('kpi-stock-count'),
+        reparacionCount: document.getElementById('kpi-reparacion-count'),
+        dollarsDay: document.getElementById('kpi-dollars-day'),
+        cashDay: document.getElementById('kpi-cash-day'),
+        transferDay: document.getElementById('kpi-transfer-day'),
+        transferUsdDay: document.getElementById('kpi-transfer-usd-day'),
+        profitDay: document.getElementById('kpi-profit-day'),
+        expensesDayUsd: document.getElementById('kpi-expenses-day-usd'),
+        expensesDayCash: document.getElementById('kpi-expenses-day-cash'),
+        expensesDayTransfer: document.getElementById('kpi-expenses-day-transfer'),
+        expensesDayTransferUsd: document.getElementById('kpi-expenses-day-transfer-usd'),
+        dollarsMonth: document.getElementById('kpi-dollars-month'),
+        cashMonth: document.getElementById('kpi-cash-month'),
+        transferMonth: document.getElementById('kpi-transfer-month'),
+        transferUsdMonth: document.getElementById('kpi-transfer-usd-month'),
+        profitMonth: document.getElementById('kpi-profit-month'),
+        expensesMonthUsd: document.getElementById('kpi-expenses-month-usd'),
+        expensesMonthCash: document.getElementById('kpi-expenses-month-cash'),
+        expensesMonthTransfer: document.getElementById('kpi-expenses-month-transfer'),
+        expensesMonthTransferUsd: document.getElementById('kpi-expenses-month-transfer-usd')
+    };
+    
+    // Ponemos '...' en todos los elementos que existan
+    Object.values(kpiElements).forEach(el => { if (el) el.textContent = '...'; });
 
     try {
         const now = new Date();
@@ -659,16 +675,13 @@ async function updateReports() {
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
         const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
-        const fetchData = async (collection, dateField, start, end) => {
+        const fetchData = (collection, dateField, start, end) => {
             return db.collection(collection).where(dateField, '>=', start).where(dateField, '<=', end).get();
         };
 
         const [
-            stockSnap, reparacionesSnap,
-            salesDaySnap, salesMonthSnap,
-            expensesDaySnap, expensesMonthSnap,
-            miscIncomesDaySnap, miscIncomesMonthSnap,
-            wholesaleSalesDaySnap, wholesaleSalesMonthSnap,
+            stockSnap, reparacionesSnap, salesDaySnap, salesMonthSnap, expensesDaySnap, expensesMonthSnap,
+            miscIncomesDaySnap, miscIncomesMonthSnap, wholesaleSalesDaySnap, wholesaleSalesMonthSnap,
             internalMovesDaySnap, internalMovesMonthSnap
         ] = await Promise.all([
             db.collection('stock_individual').where('estado', '==', 'en_stock').get(),
@@ -689,14 +702,14 @@ async function updateReports() {
         stockSnap.forEach(doc => { totalStockValue += doc.data().precio_costo_usd || 0; });
         reparacionesSnap.forEach(doc => { totalReparacionValue += doc.data().precio_costo_usd || 0; });
 
-        s.kpiStockValue.textContent = formatearUSD(totalStockValue + totalReparacionValue);
-        s.kpiStockCount.textContent = stockSnap.size;
-        document.getElementById('kpi-reparacion-count').textContent = reparacionesSnap.size;
+        if (kpiElements.stockValue) kpiElements.stockValue.textContent = formatearUSD(totalStockValue + totalReparacionValue);
+        if (kpiElements.stockCount) kpiElements.stockCount.textContent = stockSnap.size;
+        if (kpiElements.reparacionCount) kpiElements.reparacionCount.textContent = reparacionesSnap.size;
 
         const processEntries = async (salesSnapshot, miscIncomesSnap, expensesSnap, wholesaleSalesSnapshot, internalMovesSnap) => {
             let totalIncomes = { usd: 0, cash: 0, transfer: 0, transfer_usd: 0 };
             let totalExpenses = { usd: 0, cash: 0, transfer: 0, transfer_usd: 0 };
-            let totalOperationalExpenses = { usd: 0, cash: 0, transfer: 0 };
+            let totalOperationalExpenses = { usd: 0, cash: 0, transfer: 0, transfer_usd: 0 };
             let totalProfit = 0;
         
             if (!salesSnapshot.empty) {
@@ -705,7 +718,7 @@ async function updateReports() {
                 const costMap = new Map(costDocs.map(doc => [doc.id, doc.data()?.precio_costo_usd || 0]));
                 salesSnapshot.forEach(doc => {
                     const venta = doc.data();
-                    const cost = costMap.get(venta.imei_vendido) || 0;
+                    const cost = venta.imei_vendido ? (costMap.get(venta.imei_vendido) || 0) : 0;
                     const commission = venta.comision_vendedor_usd || 0;
                     totalProfit += (venta.precio_venta_usd || 0) - cost - commission;
                     totalIncomes.usd += venta.monto_dolares || 0;
@@ -715,52 +728,44 @@ async function updateReports() {
                 });
             }
             
-            // ===== INICIO DE LA MODIFICACIÓN =====
             wholesaleSalesSnapshot.forEach(doc => {
-                const sale = doc.data();
-                const payment = sale.pago_recibido || {};
+                const payment = doc.data().pago_recibido || {};
                 totalIncomes.usd += payment.usd || 0;
                 totalIncomes.cash += payment.ars_efectivo || 0;
                 totalIncomes.transfer += payment.ars_transferencia || 0;
-                totalIncomes.transfer_usd += payment.usd_transferencia || 0; // Se añade el nuevo campo
+                totalIncomes.transfer_usd += payment.usd_transferencia || 0;
             });
-            // ===== FIN DE LA MODIFICACIÓN =====
 
             miscIncomesSnap.forEach(doc => {
                 const ingreso = doc.data();
-                if (ingreso.fecha) {
-                    if (ingreso.metodo === 'Dólares') totalIncomes.usd += ingreso.monto || 0;
-                    if (ingreso.metodo === 'Pesos (Efectivo)') totalIncomes.cash += ingreso.monto;
-                    if (ingreso.metodo === 'Pesos (Transferencia)') totalIncomes.transfer += ingreso.monto;
-                    if (ingreso.metodo === 'Dólares (Transferencia)') totalIncomes.transfer_usd += ingreso.monto || 0;
-                }
+                if (ingreso.metodo === 'Dólares') totalIncomes.usd += ingreso.monto || 0;
+                if (ingreso.metodo === 'Pesos (Efectivo)') totalIncomes.cash += ingreso.monto;
+                if (ingreso.metodo === 'Pesos (Transferencia)') totalIncomes.transfer += ingreso.monto;
+                if (ingreso.metodo === 'Dólares (Transferencia)') totalIncomes.transfer_usd += ingreso.monto || 0;
             });
             
             expensesSnap.forEach(doc => {
                 const gasto = doc.data();
-                if (gasto.fecha) {
-                    if (gasto.metodo_pago === 'Dólares') totalExpenses.usd += gasto.monto || 0;
-                    if (gasto.metodo_pago === 'Pesos (Efectivo)') totalExpenses.cash += gasto.monto || 0;
-                    if (gasto.metodo_pago === 'Pesos (Transferencia)') totalExpenses.transfer += gasto.monto || 0;
-                    if (gasto.metodo_pago === 'Dólares (Transferencia)') totalExpenses.transfer_usd += gasto.monto || 0;
+                if (gasto.metodo_pago === 'Dólares') totalExpenses.usd += gasto.monto || 0;
+                if (gasto.metodo_pago === 'Pesos (Efectivo)') totalExpenses.cash += gasto.monto || 0;
+                if (gasto.metodo_pago === 'Pesos (Transferencia)') totalExpenses.transfer += gasto.monto || 0;
+                if (gasto.metodo_pago === 'Dólares (Transferencia)') totalExpenses.transfer_usd += gasto.monto || 0;
 
-                    if (gasto.categoria !== 'Pago a Proveedor' && gasto.categoria !== 'Comisiones' && gasto.categoria !== 'Retiro de Socio') {
-                         if (gasto.metodo_pago === 'Dólares') totalOperationalExpenses.usd += gasto.monto || 0;
-                         if (gasto.metodo_pago === 'Pesos (Efectivo)') totalOperationalExpenses.cash += gasto.monto || 0;
-                         if (gasto.metodo_pago === 'Pesos (Transferencia)') totalOperationalExpenses.transfer += gasto.monto || 0;
-                    }
+                if (gasto.categoria !== 'Pago a Proveedor' && gasto.categoria !== 'Comisiones' && gasto.categoria !== 'Retiro de Socio') {
+                    if (gasto.metodo_pago === 'Dólares') totalOperationalExpenses.usd += gasto.monto || 0;
+                    if (gasto.metodo_pago === 'Pesos (Efectivo)') totalOperationalExpenses.cash += gasto.monto || 0;
+                    if (gasto.metodo_pago === 'Pesos (Transferencia)') totalOperationalExpenses.transfer += gasto.monto || 0;
+                    if (gasto.metodo_pago === 'Dólares (Transferencia)') totalOperationalExpenses.transfer_usd += gasto.monto || 0;
                 }
             });
             
             internalMovesSnap.forEach(doc => {
                 const move = doc.data();
-                if (move.fecha) {
-                    if (move.tipo === 'Retiro a Caja') {
-                        totalIncomes.transfer -= move.monto_ars;
-                        totalIncomes.cash += move.monto_ars; 
-                    } else if (move.tipo === 'Retiro a Caja (USD)') {
-                        totalIncomes.transfer -= move.monto_ars;
-                    }
+                if (move.tipo === 'Retiro a Caja') {
+                    totalIncomes.transfer -= move.monto_ars;
+                    totalIncomes.cash += move.monto_ars; 
+                } else if (move.tipo === 'Retiro a Caja (USD)') {
+                    totalIncomes.transfer -= move.monto_ars;
                 }
             });
             
@@ -775,28 +780,30 @@ async function updateReports() {
         };
 
         const daily = await processEntries(salesDaySnap, miscIncomesDaySnap, expensesDaySnap, wholesaleSalesDaySnap, internalMovesDaySnap);
-        s.kpiDollarsDay.textContent = formatearUSD(daily.netIncomes.usd);
-        s.kpiCashDay.textContent = formatearARS(daily.netIncomes.cash);
-        s.kpiTransferDay.textContent = formatearARS(daily.netIncomes.transfer);
-        document.getElementById('kpi-transfer-usd-day').textContent = formatearUSD(daily.netIncomes.transfer_usd);
-        s.kpiProfitDay.textContent = formatearUSD(daily.profit);
-        s.kpiExpensesDayUsd.textContent = formatearUSD(daily.expenses.usd);
-        s.kpiExpensesDayCash.textContent = formatearARS(daily.expenses.cash);
-        s.kpiExpensesDayTransfer.textContent = formatearARS(daily.expenses.transfer);
+        if (kpiElements.dollarsDay) kpiElements.dollarsDay.textContent = formatearUSD(daily.netIncomes.usd);
+        if (kpiElements.cashDay) kpiElements.cashDay.textContent = formatearARS(daily.netIncomes.cash);
+        if (kpiElements.transferDay) kpiElements.transferDay.textContent = formatearARS(daily.netIncomes.transfer);
+        if (kpiElements.transferUsdDay) kpiElements.transferUsdDay.textContent = formatearUSD(daily.netIncomes.transfer_usd);
+        if (kpiElements.profitDay) kpiElements.profitDay.textContent = formatearUSD(daily.profit);
+        if (kpiElements.expensesDayUsd) kpiElements.expensesDayUsd.textContent = formatearUSD(daily.expenses.usd);
+        if (kpiElements.expensesDayCash) kpiElements.expensesDayCash.textContent = formatearARS(daily.expenses.cash);
+        if (kpiElements.expensesDayTransfer) kpiElements.expensesDayTransfer.textContent = formatearARS(daily.expenses.transfer);
+        if (kpiElements.expensesDayTransferUsd) kpiElements.expensesDayTransferUsd.textContent = formatearUSD(daily.expenses.transfer_usd);
 
         const monthly = await processEntries(salesMonthSnap, miscIncomesMonthSnap, expensesMonthSnap, wholesaleSalesMonthSnap, internalMovesMonthSnap);
-        s.kpiDollarsMonth.textContent = formatearUSD(monthly.netIncomes.usd);
-        s.kpiCashMonth.textContent = formatearARS(monthly.netIncomes.cash);
-        s.kpiTransferMonth.textContent = formatearARS(monthly.netIncomes.transfer);
-        document.getElementById('kpi-transfer-usd-month').textContent = formatearUSD(monthly.netIncomes.transfer_usd);
-        s.kpiProfitMonth.textContent = formatearUSD(monthly.profit);
-        s.kpiExpensesMonthUsd.textContent = formatearUSD(monthly.expenses.usd);
-        s.kpiExpensesMonthCash.textContent = formatearARS(monthly.expenses.cash);
-        s.kpiExpensesMonthTransfer.textContent = formatearARS(monthly.expenses.transfer);
+        if (kpiElements.dollarsMonth) kpiElements.dollarsMonth.textContent = formatearUSD(monthly.netIncomes.usd);
+        if (kpiElements.cashMonth) kpiElements.cashMonth.textContent = formatearARS(monthly.netIncomes.cash);
+        if (kpiElements.transferMonth) kpiElements.transferMonth.textContent = formatearARS(monthly.netIncomes.transfer);
+        if (kpiElements.transferUsdMonth) kpiElements.transferUsdMonth.textContent = formatearUSD(monthly.netIncomes.transfer_usd);
+        if (kpiElements.profitMonth) kpiElements.profitMonth.textContent = formatearUSD(monthly.profit);
+        if (kpiElements.expensesMonthUsd) kpiElements.expensesMonthUsd.textContent = formatearUSD(monthly.expenses.usd);
+        if (kpiElements.expensesMonthCash) kpiElements.expensesMonthCash.textContent = formatearARS(monthly.expenses.cash);
+        if (kpiElements.expensesMonthTransfer) kpiElements.expensesMonthTransfer.textContent = formatearARS(monthly.expenses.transfer);
+        if (kpiElements.expensesMonthTransferUsd) kpiElements.expensesMonthTransferUsd.textContent = formatearUSD(monthly.expenses.transfer_usd);
 
     } catch (error) {
         console.error("Error al actualizar los informes:", error);
-        kpiElements.forEach(el => { if(el) el.textContent = 'Error'; });
+        Object.values(kpiElements).forEach(el => { if (el) el.textContent = 'Error'; });
     }
 }
 
@@ -3829,7 +3836,6 @@ function mostrarReporteCaja(fecha, totalVentas, totalCosto, gananciaNeta, errore
     document.getElementById('btn-cerrar-reporte').onclick = () => { s.promptContainer.innerHTML = ''; };
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 async function promptToAddGasto() {
     // Aseguramos tener la lista de cuentas actualizada
     if (!financialAccounts || financialAccounts.length === 0) {
@@ -3840,24 +3846,21 @@ async function promptToAddGasto() {
     }
 
     const categoriaOptions = gastosCategorias.map(c => `<option value="${c}">${c}</option>`).join('');
-    const metodoOptions = metodosDePago.map(m => `<option value="${m}">${m}</option>`).join('');
+    
+    // ===== INICIO DE LA MODIFICACIÓN (1/3) =====
+    // Añadimos el nuevo método de pago a la lista
+    const metodoOptions = [...metodosDePago, "Dólares (Transferencia)"].map(m => `<option value="${m}">${m}</option>`).join('');
+    // ===== FIN DE LA MODIFICACIÓN =====
+    
     const accesoriosOptions = accesoriosSubcategorias.map(s => `<option value="${s}">${s}</option>`).join('');
 
-    // ===================== INICIO DE LA MODIFICACIÓN =====================
-    // Creamos el HTML para el selector de cuentas de origen
-    const accountsOptionsHtml = financialAccounts.length > 0
-        ? financialAccounts.map(acc => `<option value="${acc.id}|${acc.nombre}">${acc.nombre} (${formatearARS(acc.saldo_actual_ars)})</option>`).join('')
-        : '<option value="" disabled>No hay cuentas creadas</option>';
+    // Filtramos las cuentas por ARS y USD para sus respectivos selectores
+    const accountsArsOptionsHtml = financialAccounts.filter(acc => acc.moneda === 'ARS').map(acc => `<option value="${acc.id}|${acc.nombre}">${acc.nombre} (${formatearARS(acc.saldo_actual_ars)})</option>`).join('');
+    const accountsUsdOptionsHtml = financialAccounts.filter(acc => acc.moneda === 'USD').map(acc => `<option value="${acc.id}|${acc.nombre}">${acc.nombre} (${formatearUSD(acc.saldo_actual_usd)})</option>`).join('');
 
-    const accountSelectHtml = `
-        <div id="gasto-cuenta-group" class="form-group hidden" style="margin-top: 1.5rem;">
-            <select name="cuenta_origen" required>
-                <option value="" disabled selected></option>
-                ${accountsOptionsHtml}
-            </select>
-            <label>Pagar desde la Cuenta</label>
-        </div>`;
-    // ====================== FIN DE LA MODIFICACIÓN =======================
+    // Creamos los selectores de cuenta para ambas monedas
+    const accountArsSelectHtml = `<div id="gasto-cuenta-ars-group" class="form-group hidden" style="margin-top: 1.5rem;"><select name="cuenta_origen_ars" required><option value="" disabled selected></option>${accountsArsOptionsHtml}</select><label>Pagar desde Cuenta ARS</label></div>`;
+    const accountUsdSelectHtml = `<div id="gasto-cuenta-usd-group" class="form-group hidden" style="margin-top: 1.5rem;"><select name="cuenta_origen_usd" required><option value="" disabled selected></option>${accountsUsdOptionsHtml}</select><label>Pagar desde Cuenta USD</label></div>`;
 
     s.promptContainer.innerHTML = `
     <div class="ingreso-modal-box">
@@ -3870,58 +3873,33 @@ async function promptToAddGasto() {
                 </select>
                 <label for="gasto-categoria">Categoría</label>
             </div>
-
-            <div id="accesorios-subcategoria-group" class="form-group hidden">
-                <select id="gasto-accesorio-subcategoria" name="subcategoria">
-                    <option value="" disabled selected></option>
-                    ${accesoriosOptions}
-                </select>
-                <label for="gasto-accesorio-subcategoria">Subcategoría de Accesorio</label>
-            </div>
-            
-            <div id="detalle-otro-group" class="form-group hidden">
-                 <input type="text" id="gasto-detalle-otro" name="detalle_otro" placeholder=" ">
-                 <label for="gasto-detalle-otro">Especificar Detalle</label>
-            </div>
-
-            <div class="form-group">
-                <input type="number" id="gasto-monto" name="monto" required placeholder=" " step="0.01">
-                <label for="gasto-monto">Monto del Gasto</label>
-            </div>
-
+            <div id="accesorios-subcategoria-group" class="form-group hidden"><select id="gasto-accesorio-subcategoria" name="subcategoria"><option value="" disabled selected></option>${accesoriosOptions}</select><label for="gasto-accesorio-subcategoria">Subcategoría de Accesorio</label></div>
+            <div id="detalle-otro-group" class="form-group hidden"><input type="text" id="gasto-detalle-otro" name="detalle_otro" placeholder=" "><label for="gasto-detalle-otro">Especificar Detalle</label></div>
+            <div class="form-group"><input type="number" id="gasto-monto" name="monto" required placeholder=" " step="0.01"><label for="gasto-monto">Monto del Gasto</label></div>
             <div class="form-group">
                 <select id="gasto-metodo" name="metodo_pago" required>
-                     <option value="" disabled selected></option>
+                    <option value="" disabled selected></option>
                     ${metodoOptions}
                 </select>
                 <label for="gasto-metodo">Pagado con</label>
             </div>
             
-            <!-- Insertamos el nuevo selector de cuentas aquí -->
-            ${accountSelectHtml}
+            <!-- ===== INICIO DE LA MODIFICACIÓN (2/3) - Insertamos ambos selectores ===== -->
+            ${accountArsSelectHtml}
+            ${accountUsdSelectHtml}
+            <!-- ===== FIN DE LA MODIFICACIÓN ===== -->
 
-            <div class="form-group">
-                <textarea id="gasto-descripcion" name="descripcion" rows="1" placeholder=" "></textarea>
-                <label for="gasto-descripcion">Descripción (opcional)</label>
-            </div>
-
-            <div class="prompt-buttons">
-                <button type="submit" class="prompt-button confirm spinner-btn">
-                    <span class="btn-text">Guardar Gasto</span>
-                    <div class="spinner"></div>
-                </button>
-                <button type="button" class="prompt-button cancel">Cancelar</button>
-            </div>
+            <div class="form-group"><textarea id="gasto-descripcion" name="descripcion" rows="1" placeholder=" "></textarea><label for="gasto-descripcion">Descripción (opcional)</label></div>
+            <div class="prompt-buttons"><button type="submit" class="prompt-button confirm spinner-btn"><span class="btn-text">Guardar Gasto</span><div class="spinner"></div></button><button type="button" class="prompt-button cancel">Cancelar</button></div>
         </form>
     </div>`;
 
     const categoriaSelect = document.getElementById('gasto-categoria');
     const accesoriosGroup = document.getElementById('accesorios-subcategoria-group');
     const otroGroup = document.getElementById('detalle-otro-group');
-    // ===================== INICIO DE LA MODIFICACIÓN =====================
     const metodoSelect = document.getElementById('gasto-metodo');
-    const cuentaGroup = document.getElementById('gasto-cuenta-group');
-    // ====================== FIN DE LA MODIFICACIÓN =======================
+    const cuentaArsGroup = document.getElementById('gasto-cuenta-ars-group');
+    const cuentaUsdGroup = document.getElementById('gasto-cuenta-usd-group');
 
     categoriaSelect.addEventListener('change', () => {
         const selectedCategory = categoriaSelect.value;
@@ -3929,14 +3907,19 @@ async function promptToAddGasto() {
         otroGroup.classList.toggle('hidden', selectedCategory !== 'Otro' && selectedCategory !== 'Repuestos');
     });
 
-    // ===================== INICIO DE LA MODIFICACIÓN =====================
-    // Lógica para mostrar/ocultar y hacer requerido el selector de cuentas
+    // ===== INICIO DE LA MODIFICACIÓN (3/3) - Lógica para mostrar el selector correcto ===== -->
     metodoSelect.addEventListener('change', () => {
-        const isTransferencia = metodoSelect.value === 'Pesos (Transferencia)';
-        cuentaGroup.classList.toggle('hidden', !isTransferencia);
-        cuentaGroup.querySelector('select').required = isTransferencia;
+        const selectedMethod = metodoSelect.value;
+        const isTransferenciaArs = selectedMethod === 'Pesos (Transferencia)';
+        const isTransferenciaUsd = selectedMethod === 'Dólares (Transferencia)';
+
+        cuentaArsGroup.classList.toggle('hidden', !isTransferenciaArs);
+        cuentaArsGroup.querySelector('select').required = isTransferenciaArs;
+
+        cuentaUsdGroup.classList.toggle('hidden', !isTransferenciaUsd);
+        cuentaUsdGroup.querySelector('select').required = isTransferenciaUsd;
     });
-    // ====================== FIN DE LA MODIFICACIÓN =======================
+    // ===== FIN DE LA MODIFICACIÓN =====
 
     const textarea = document.getElementById('gasto-descripcion');
     if (textarea) {
@@ -3947,7 +3930,6 @@ async function promptToAddGasto() {
     }
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 async function saveGasto(btn) {
     toggleSpinner(btn, true);
     const form = btn.form;
@@ -3961,12 +3943,8 @@ async function saveGasto(btn) {
         fecha: firebase.firestore.FieldValue.serverTimestamp()
     };
     
-    if (gastoData.categoria === 'Accesorios') {
-        gastoData.subcategoria = formData.get('subcategoria');
-    }
-    if (gastoData.categoria === 'Otro' || gastoData.categoria === 'Repuestos') {
-        gastoData.detalle_otro = formData.get('detalle_otro');
-    }
+    if (gastoData.categoria === 'Accesorios') gastoData.subcategoria = formData.get('subcategoria');
+    if (gastoData.categoria === 'Otro' || gastoData.categoria === 'Repuestos') gastoData.detalle_otro = formData.get('detalle_otro');
 
     if (!gastoData.categoria || !gastoData.monto || !gastoData.metodo_pago) {
         showGlobalFeedback("Por favor, completa los campos obligatorios.", "error");
@@ -3974,43 +3952,51 @@ async function saveGasto(btn) {
         return;
     }
     
-    // ===================== INICIO DE LA MODIFICACIÓN =====================
-    const cuentaOrigenValue = formData.get('cuenta_origen');
+    // ===== INICIO DE LA MODIFICACIÓN - Lógica para ambos tipos de transferencia =====
+    const cuentaOrigenArsValue = formData.get('cuenta_origen_ars');
+    const cuentaOrigenUsdValue = formData.get('cuenta_origen_usd');
+
     if (gastoData.metodo_pago === 'Pesos (Transferencia)') {
-        if (!cuentaOrigenValue) {
-            showGlobalFeedback("Debes seleccionar una cuenta para la transferencia.", "error");
+        if (!cuentaOrigenArsValue) {
+            showGlobalFeedback("Debes seleccionar una cuenta para la transferencia en ARS.", "error");
             toggleSpinner(btn, false);
             return;
         }
-        const [id, nombre] = cuentaOrigenValue.split('|');
+        const [id, nombre] = cuentaOrigenArsValue.split('|');
+        gastoData.cuenta_origen_id = id;
+        gastoData.cuenta_origen_nombre = nombre;
+    } else if (gastoData.metodo_pago === 'Dólares (Transferencia)') {
+        if (!cuentaOrigenUsdValue) {
+            showGlobalFeedback("Debes seleccionar una cuenta para la transferencia en USD.", "error");
+            toggleSpinner(btn, false);
+            return;
+        }
+        const [id, nombre] = cuentaOrigenUsdValue.split('|');
         gastoData.cuenta_origen_id = id;
         gastoData.cuenta_origen_nombre = nombre;
     }
-    // ====================== FIN DE LA MODIFICACIÓN =======================
+    // ===== FIN DE LA MODIFICACIÓN =====
 
     try {
-        // ===================== INICIO DE LA MODIFICACIÓN =====================
-        // Usamos una transacción para asegurar la consistencia de los datos
         await db.runTransaction(async t => {
-            // 1. Guardamos el gasto
             const gastoRef = db.collection('gastos').doc();
             t.set(gastoRef, gastoData);
 
-            // 2. Si es transferencia, actualizamos el saldo de la cuenta
+            // ===== INICIO DE LA MODIFICACIÓN - Descontar de la cuenta correcta =====
             if (gastoData.cuenta_origen_id) {
                 const cuentaRef = db.collection('cuentas_financieras').doc(gastoData.cuenta_origen_id);
-                // Usamos FieldValue.increment con un número negativo para restar
-                t.update(cuentaRef, { saldo_actual_ars: firebase.firestore.FieldValue.increment(-gastoData.monto) });
+                if (gastoData.metodo_pago === 'Pesos (Transferencia)') {
+                    t.update(cuentaRef, { saldo_actual_ars: firebase.firestore.FieldValue.increment(-gastoData.monto) });
+                } else if (gastoData.metodo_pago === 'Dólares (Transferencia)') {
+                    t.update(cuentaRef, { saldo_actual_usd: firebase.firestore.FieldValue.increment(-gastoData.monto) });
+                }
             }
+            // ===== FIN DE LA MODIFICACIÓN =====
         });
-        // ====================== FIN DE LA MODIFICACIÓN =======================
 
         showGlobalFeedback('Gasto registrado con éxito', 'success');
         s.promptContainer.innerHTML = '';
-        if(s.gastosSection && !s.gastosSection.classList.contains('hidden')) {
-            loadGastos();
-        }
-        // Actualizamos las otras vistas para que reflejen el cambio
+        if(s.gastosSection && !s.gastosSection.classList.contains('hidden')) loadGastos();
         loadFinancialData();
         updateReports();
     } catch (error) {
@@ -6633,9 +6619,7 @@ async function toggleAccountHistory(accountCard, accountId, dateRange = null) {
     }
 
     const filtersHtml = `<div class="filters-container" id="history-filter-container" style="padding: 1rem; background-color: #111;"><div class="filter-group"><label>Desde</label><input type="date" id="history-start-date-${accountId}" class="history-start-date"></div><div class="filter-group"><label>Hasta</label><input type="date" id="history-end-date-${accountId}" class="history-end-date"></div><div class="filter-group"><button class="btn-filter-history">Filtrar</button></div></div>`;
-
     historyContainer.innerHTML = filtersHtml + `<div id="history-results-wrapper"> <p class="dashboard-loader" style="padding: 1rem 0;">Buscando transacciones...</p> </div>`;
-    
     const resultsWrapper = historyContainer.querySelector('#history-results-wrapper');
 
     try {
@@ -6645,15 +6629,19 @@ async function toggleAccountHistory(accountCard, accountId, dateRange = null) {
         const ingresosUsdPromise = db.collection('ingresos_caja').where('cuenta_destino_usd_id', '==', accountId).where('fecha', '>=', startDate).where('fecha', '<=', endDate).orderBy('fecha', 'desc').get();
         const transferInPromise = db.collection('movimientos_internos').where('cuenta_destino_id', '==', accountId).where('fecha', '>=', startDate).where('fecha', '<=', endDate).orderBy('fecha', 'desc').get();
         const transferOutPromise = db.collection('movimientos_internos').where('cuenta_origen_id', '==', accountId).where('fecha', '>=', startDate).where('fecha', '<=', endDate).orderBy('fecha', 'desc').get();
-        const comisionesPromise = db.collection('gastos').where('cuenta_origen_id', '==', accountId).where('categoria', '==', 'Comisiones').where('fecha', '>=', startDate).where('fecha', '<=', endDate).orderBy('fecha', 'desc').get();
-        const pagosProveedorPromise = db.collection('gastos').where('cuenta_origen_id', '==', accountId).where('categoria', '==', 'Pago a Proveedor').where('fecha', '>=', startDate).where('fecha', '<=', endDate).orderBy('fecha', 'desc').get();
+        const todosLosGastosPromise = db.collection('gastos').where('cuenta_origen_id', '==', accountId).where('fecha', '>=', startDate).where('fecha', '<=', endDate).orderBy('fecha', 'desc').get();
         const wholesalePaymentsPromise = db.collection('ventas_mayoristas').where('pago_recibido.cuenta_destino_id', '==', accountId).where('fecha_venta', '>=', startDate).where('fecha_venta', '<=', endDate).orderBy('fecha_venta', 'desc').get();
         const wholesalePaymentsUsdPromise = db.collection('ventas_mayoristas').where('pago_recibido.cuenta_destino_usd_id', '==', accountId).where('fecha_venta', '>=', startDate).where('fecha_venta', '<=', endDate).orderBy('fecha_venta', 'desc').get();
         
         // ===== INICIO DE LA CORRECCIÓN CLAVE =====
-        // Se corrigió el último elemento del array. Antes decía "wholesalePaymentsUsdSnapshot" (la variable de resultado)
-        // y ahora dice "wholesalePaymentsUsdPromise" (la variable de la promesa), que es lo correcto.
-        const [ salesSnapshot, salesUsdSnapshot, ingresosSnapshot, ingresosUsdSnapshot, transferInSnapshot, transferOutSnapshot, comisionesSnapshot, pagosProveedorSnapshot, wholesalePaymentsSnapshot, wholesalePaymentsUsdSnapshot ] = await Promise.all([ salesPromise, salesUsdPromise, ingresosPromise, ingresosUsdPromise, transferInPromise, transferOutPromise, comisionesPromise, pagosProveedorPromise, wholesalePaymentsPromise, wholesalePaymentsUsdPromise ]);
+        // El último elemento de la lista tenía un nombre de variable incorrecto.
+        const [ 
+            salesSnapshot, salesUsdSnapshot, ingresosSnapshot, ingresosUsdSnapshot, transferInSnapshot, 
+            transferOutSnapshot, todosLosGastosSnapshot, wholesalePaymentsSnapshot, wholesalePaymentsUsdSnapshot 
+        ] = await Promise.all([ 
+            salesPromise, salesUsdPromise, ingresosPromise, ingresosUsdPromise, transferInPromise, transferOutPromise, 
+            todosLosGastosPromise, wholesalePaymentsPromise, wholesalePaymentsUsdPromise // <--- AQUÍ ESTABA EL ERROR CORREGIDO
+        ]);
         // ===== FIN DE LA CORRECCIÓN CLAVE =====
 
         let transactions = [];
@@ -6663,10 +6651,18 @@ async function toggleAccountHistory(accountCard, accountId, dateRange = null) {
         ingresosUsdSnapshot.forEach(doc => { const data = doc.data(); transactions.push({ date: data.fecha.toDate(), type: 'Ingreso', description: `Ingreso: ${data.categoria}`, amount: data.monto, moneda: 'USD' }); });
         transferInSnapshot.forEach(doc => { const data = doc.data(); transactions.push({ date: data.fecha.toDate(), type: 'Ingreso', description: `Recibido de: ${data.cuenta_origen_nombre}`, amount: data.monto_ars, moneda: 'ARS' }); });
         transferOutSnapshot.forEach(doc => { const data = doc.data(); let description = ''; if (data.tipo === 'Transferencia entre Cuentas') { description = `Enviado a: ${data.cuenta_destino_nombre}`; } else if (data.tipo === 'Retiro a Caja') { description = `Retiro a Caja (Efectivo)`; } else if (data.tipo === 'Retiro a Caja (USD)') { description = `Retiro a Caja (Dólares)`; } transactions.push({ date: data.fecha.toDate(), type: 'Egreso', description: description, amount: -data.monto_ars, moneda: 'ARS' }); });
-        comisionesSnapshot.forEach(doc => { const data = doc.data(); transactions.push({ date: data.fecha.toDate(), type: 'Egreso', description: `Comisión: ${data.vendedor || 'N/A'}`, amount: -data.monto, moneda: 'ARS' }); });
-        pagosProveedorSnapshot.forEach(doc => { const data = doc.data(); transactions.push({ date: data.fecha.toDate(), type: 'Egreso', description: data.descripcion || 'Pago a Proveedor', amount: -data.monto, moneda: 'ARS' }); });
         wholesalePaymentsSnapshot.forEach(doc => { const data = doc.data(); transactions.push({ date: data.fecha_venta.toDate(), type: 'Ingreso', description: `Cobro Vta. Mayorista: ${data.clienteNombre}`, amount: data.pago_recibido.ars_transferencia, moneda: 'ARS' }); });
         wholesalePaymentsUsdSnapshot.forEach(doc => { const data = doc.data(); transactions.push({ date: data.fecha_venta.toDate(), type: 'Ingreso', description: `Cobro Vta. Mayorista: ${data.clienteNombre}`, amount: data.pago_recibido.usd_transferencia, moneda: 'USD' }); });
+        
+        todosLosGastosSnapshot.forEach(doc => {
+            const data = doc.data();
+            let description = `Gasto: ${data.categoria}`;
+            if (data.categoria === 'Comisiones') description = `Comisión: ${data.vendedor || 'N/A'}`;
+            if (data.categoria === 'Pago a Proveedor') description = data.descripcion || 'Pago a Proveedor';
+            
+            const moneda = data.metodo_pago === 'Dólares (Transferencia)' ? 'USD' : 'ARS';
+            transactions.push({ date: data.fecha.toDate(), type: 'Egreso', description, amount: -data.monto, moneda });
+        });
         
         transactions.sort((a, b) => b.date - a.date);
         

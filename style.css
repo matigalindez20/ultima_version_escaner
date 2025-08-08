@@ -4195,3 +4195,18 @@ td.actions-cell {
     justify-content: space-around; /* Asegura mejor distribución con 4 items */
 }
 
+/* ======================================================================= */
+/* ====== AJUSTE PARA 4 COLUMNAS EN TARJETA DE GASTOS DE INFORMES ====== */
+/* ======================================================================= */
+
+.kpi-sub-values {
+    /* Esto asegura que el espacio se distribuya equitativamente */
+    justify-content: space-between; 
+}
+
+/* En móvil, le damos un poco más de aire a cada item */
+@media (max-width: 767px) {
+    .kpi-sub-values > div {
+        padding: 0.5rem;
+    }
+}
