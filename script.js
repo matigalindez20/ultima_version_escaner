@@ -4352,16 +4352,31 @@ function showStockDetailModal(item) {
 function promptToEditStock(item) {
     switchView('management', s.tabManagement);
     resetManagementView();
-    s.scanOptions.classList.add('hidden'); s.scannerContainer.classList.add('hidden'); s.feedbackMessage.classList.add('hidden');
-    s.managementTitle.textContent = "Editar Producto"; s.productFormSubmitBtn.querySelector('.btn-text').textContent = "Actualizar Producto";
-    s.productForm.reset(); s.imeiInput.value = item.imei; s.imeiInput.readOnly = true;
-    document.getElementById('precio-costo-form').value = item.precio_costo_usd || ''; s.modeloFormSelect.value = item.modelo;
-    document.getElementById('bateria').value = item.bateria; s.colorFormSelect.value = item.color;
-    s.almacenamientoFormSelect.value = item.almacenamiento; s.detallesFormSelect.value = item.detalles_esteticos;
-    s.proveedorFormSelect.value = item.proveedor || '';
-    s.productForm.dataset.mode = 'update'; s.productForm.classList.remove('hidden');
-}
+    s.scanOptions.classList.add('hidden'); 
+    s.scannerContainer.classList.add('hidden'); 
+    s.feedbackMessage.classList.add('hidden');
+    s.managementTitle.textContent = "Editar Producto"; 
+    s.productFormSubmitBtn.querySelector('.btn-text').textContent = "Actualizar Producto";
+    s.productForm.reset(); 
+    
+    // ===== INICIO DE LA MODIFICACIÓN =====
+    // 1. Hacemos el campo IMEI editable.
+    s.imeiInput.readOnly = false;
+    s.imeiInput.value = item.imei;
+    // 2. Guardamos el IMEI original en el formulario para saber si cambió.
+    s.productForm.dataset.originalImei = item.imei;
+    // ===== FIN DE LA MODIFICACIÓN =====
 
+    document.getElementById('precio-costo-form').value = item.precio_costo_usd || ''; 
+    s.modeloFormSelect.value = item.modelo;
+    document.getElementById('bateria').value = item.bateria; 
+    s.colorFormSelect.value = item.color;
+    s.almacenamientoFormSelect.value = item.almacenamiento; 
+    s.detallesFormSelect.value = item.detalles_esteticos;
+    s.proveedorFormSelect.value = item.proveedor || '';
+    s.productForm.dataset.mode = 'update'; 
+    s.productForm.classList.remove('hidden');
+}
 async function deleteStockItem(imei, item) {
     try {
         await db.runTransaction(async t => {
@@ -5228,8 +5243,6 @@ s.productForm.addEventListener('click', (e) => {
     }
 });
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU ARCHIVO SCRIPT.JS
-
 async function handleProductFormSubmit(e) {
     e.preventDefault();
     const btn = e.target.querySelector('button');
@@ -5247,6 +5260,11 @@ async function handleProductFormSubmit(e) {
 
     try {
         if (mode === 'update') {
+            // ===== INICIO DE LA MODIFICACIÓN COMPLETA DE LA LÓGICA DE ACTUALIZACIÓN =====
+            const originalImei = form.dataset.originalImei;
+            const newImei = imei;
+
+            // Construimos el objeto con todos los datos actualizados del formulario
             const unitData = {
                 precio_costo_usd: parseFloat(formData.get('precio_costo_usd')) || 0,
                 modelo: formData.get('modelo'),
@@ -5255,9 +5273,41 @@ async function handleProductFormSubmit(e) {
                 almacenamiento: formData.get('almacenamiento'),
                 detalles_esteticos: formData.get('detalles'),
                 proveedor: formData.get('proveedor'),
-                imei_last_4: imei.slice(-4) 
             };
-            await db.collection("stock_individual").doc(imei).update(unitData);
+
+            if (newImei === originalImei) {
+                // CASO 1: El IMEI NO cambió, solo actualizamos los datos.
+                await db.collection("stock_individual").doc(originalImei).update(unitData);
+            } else {
+                // CASO 2: El IMEI SÍ cambió. Usamos una transacción para seguridad.
+                await db.runTransaction(async (t) => {
+                    const oldDocRef = db.collection("stock_individual").doc(originalImei);
+                    const newDocRef = db.collection("stock_individual").doc(newImei);
+
+                    // Verificamos si el nuevo IMEI ya existe para evitar duplicados
+                    const newDocSnapshot = await t.get(newDocRef);
+                    if (newDocSnapshot.exists) {
+                        throw new Error(`El nuevo IMEI "${newImei}" ya existe en el stock.`);
+                    }
+                    
+                    // Leemos los datos antiguos para no perder la fecha de carga
+                    const oldDoc = await t.get(oldDocRef);
+                    const oldData = oldDoc.data();
+
+                    // Creamos el nuevo documento con los datos actualizados y la fecha original
+                    const newUnitData = {
+                        ...unitData, // Todos los datos del formulario
+                        imei: newImei,
+                        imei_last_4: newImei.slice(-4),
+                        estado: 'en_stock', // Nos aseguramos que mantenga el estado
+                        fechaDeCarga: oldData.fechaDeCarga // Mantenemos la fecha original
+                    };
+                    
+                    t.set(newDocRef, newUnitData); // Creamos el nuevo
+                    t.delete(oldDocRef); // Borramos el antiguo
+                });
+            }
+            
             showGlobalFeedback("¡Producto actualizado con éxito!", "success");
             setTimeout(() => {
                 resetManagementView();
@@ -5265,8 +5315,9 @@ async function handleProductFormSubmit(e) {
                 loadStock();
                 updateReports();
             }, 1500);
+            // ===== FIN DE LA MODIFICACIÓN =====
 
-        } else { // MODO CREAR
+        } else { // MODO CREAR (Esta parte no se tocó)
             const paraReparar = formData.get('para-reparar') === 'on';
             const costoIndividual = parseFloat(formData.get('precio_costo_usd')) || 0;
             const commonData = {
@@ -5302,11 +5353,7 @@ async function handleProductFormSubmit(e) {
                 const canjeId = form.dataset.canjeId;
                 if (canjeId) {
                     const canjeRef = db.collection("plan_canje_pendientes").doc(canjeId);
-                    
-                    // ===== INICIO DE LA CORRECCIÓN =====
-                    // En lugar de actualizar, ahora eliminamos el documento de pendientes.
                     t.delete(canjeRef);
-                    // ===== FIN DE LA CORRECCIÓN =====
                 }
             });
             
@@ -5337,8 +5384,6 @@ async function handleProductFormSubmit(e) {
                     updateReparacionCount();
                 } else {
                     message = `¡Éxito! ${commonData.modelo} añadido al stock.`;
-                    // Ya no llamamos a updateCanjeCount() aquí, porque el item se borra, no se actualiza.
-                    // La lista se actualizará visualmente de todas formas.
                 }
                 showFeedback(message, "success");
 
@@ -5349,7 +5394,7 @@ async function handleProductFormSubmit(e) {
 
                     if (vinoDeCanje) {
                         switchDashboardView('canje', s.btnShowCanje);
-                        updateCanjeCount(); // Actualizamos el contador por si quedaran otros
+                        updateCanjeCount();
                     } else if (paraReparar) {
                         switchDashboardView('reparacion', s.btnShowReparacion);
                     } else {
@@ -5367,6 +5412,7 @@ async function handleProductFormSubmit(e) {
         toggleSpinner(btn, false);
     }
 }
+
 function resetManagementView(isBatchLoad = false, isCanje = false, isWholesaleSale = false) {
     s.promptContainer.innerHTML = '';
     s.feedbackMessage.classList.add('hidden');
