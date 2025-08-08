@@ -1435,15 +1435,21 @@ async function finalizeWholesaleSale(form) {
     const formData = new FormData(form);
     const saleId = formData.get('sale_id').trim();
 
-    // ===== INICIO DE LA MODIFICACIÓN =====
-    const montoUsdEfectivo = parseFloat(formData.get('monto_dolares')) || 0;
-    const montoArsEfectivo = parseFloat(formData.get('monto_efectivo')) || 0;
-    const montoArsTransferencia = parseFloat(formData.get('monto_transferencia')) || 0;
-    const montoUsdTransferencia = parseFloat(formData.get('monto_transferencia_usd')) || 0;
-    const cotizacion = parseFloat(formData.get('cotizacion_dolar')) || 1;
+    // ===== INICIO DE LA MODIFICACIÓN CLAVE =====
+    // Hacemos la lectura de datos más segura, verificando qué checkboxes están marcados.
+    const metodosSeleccionados = formData.getAll('metodo_pago_check');
+
+    const montoUsdEfectivo = metodosSeleccionados.includes('Dólares') ? parseFloat(formData.get('monto_dolares')) || 0 : 0;
+    const montoArsEfectivo = metodosSeleccionados.includes('Pesos (Efectivo)') ? parseFloat(formData.get('monto_efectivo')) || 0 : 0;
+    const montoArsTransferencia = metodosSeleccionados.includes('Pesos (Transferencia)') ? parseFloat(formData.get('monto_transferencia')) || 0 : 0;
+    const montoUsdTransferencia = metodosSeleccionados.includes('Dólares (Transferencia)') ? parseFloat(formData.get('monto_transferencia_usd')) || 0 : 0;
     
-    const cuentaDestinoArsValue = formData.get('cuenta_destino_ars');
-    const cuentaDestinoUsdValue = formData.get('cuenta_destino_usd');
+    const cuentaDestinoArsValue = metodosSeleccionados.includes('Pesos (Transferencia)') ? formData.get('cuenta_destino_ars') : null;
+    const cuentaDestinoUsdValue = metodosSeleccionados.includes('Dólares (Transferencia)') ? formData.get('cuenta_destino_usd') : null;
+    
+    const pagoEnPesos = montoArsEfectivo > 0 || montoArsTransferencia > 0;
+    const cotizacion = pagoEnPesos ? parseFloat(formData.get('cotizacion_dolar')) || 1 : 1;
+    // ===== FIN DE LA MODIFICACIÓN CLAVE =====
 
     if (!saleId) {
         showGlobalFeedback("El ID de la venta es obligatorio.", "error");
@@ -1460,7 +1466,6 @@ async function finalizeWholesaleSale(form) {
         toggleSpinner(btn, false);
         return;
     }
-    // ===== FIN DE LA MODIFICACIÓN =====
 
     try {
         const { clientId, clientName, items, totalSaleValue } = wholesaleSaleContext;
@@ -1496,7 +1501,7 @@ async function finalizeWholesaleSale(form) {
                     usd: montoUsdEfectivo,
                     ars_efectivo: montoArsEfectivo,
                     ars_transferencia: montoArsTransferencia,
-                    usd_transferencia: montoUsdTransferencia, // Nuevo campo
+                    usd_transferencia: montoUsdTransferencia,
                     cotizacion_dolar: cotizacion,
                     total_pagado_usd: totalPagadoUSD
                 },
@@ -1513,7 +1518,6 @@ async function finalizeWholesaleSale(form) {
                 t.update(cuentaRef, { saldo_actual_ars: firebase.firestore.FieldValue.increment(montoArsTransferencia) });
             }
             
-            // ===== INICIO DE LA MODIFICACIÓN =====
             if (montoUsdTransferencia > 0) {
                 const [cuentaId, cuentaNombre] = cuentaDestinoUsdValue.split('|');
                 masterSaleData.pago_recibido.cuenta_destino_usd_id = cuentaId;
@@ -1521,7 +1525,6 @@ async function finalizeWholesaleSale(form) {
                 const cuentaRef = db.collection('cuentas_financieras').doc(cuentaId);
                 t.update(cuentaRef, { saldo_actual_usd: firebase.firestore.FieldValue.increment(montoUsdTransferencia) });
             }
-            // ===== FIN DE LA MODIFICACIÓN =====
 
             t.set(wholesaleSaleRef, masterSaleData);
 
@@ -1560,6 +1563,7 @@ async function finalizeWholesaleSale(form) {
     } catch (error) {
         console.error("Error al finalizar la venta mayorista:", error);
         showGlobalFeedback("Error crítico al registrar la venta. Revisa la consola.", "error", 8000);
+    } finally {
         toggleSpinner(btn, false);
     }
 }
@@ -5737,8 +5741,6 @@ async function showWholesaleSaleDetail(masterSaleId, masterSaleData) {
     }
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
 function revertWholesaleSale(masterSaleId, masterSaleData, callback) {
     const message = `¿Estás seguro de que quieres revertir la venta <strong>${masterSaleData.venta_id_manual}</strong> por un total de <strong>${formatearUSD(masterSaleData.total_venta_usd)}</strong>?
     <br><br>
@@ -5746,30 +5748,21 @@ function revertWholesaleSale(masterSaleId, masterSaleData, callback) {
     <ul>
         <li>Los <strong>${masterSaleData.cantidad_equipos} equipos</strong> de esta venta volverán al stock.</li>
         <li>Se eliminarán todos los registros de venta asociados.</li>
-        <li>El total comprado del cliente <strong>${masterSaleData.clienteNombre}</strong> se reducirá (si el cliente aún existe).</li>
+        <li>El total comprado y la deuda del cliente <strong>${masterSaleData.clienteNombre}</strong> se reajustarán.</li>
     </ul>`;
 
     showConfirmationModal('Confirmar Reversión de Venta Mayorista', message, async () => {
         try {
             showGlobalFeedback('Revirtiendo venta mayorista...', 'loading', 5000);
 
-            // --- INICIO DE LA CORRECCIÓN CLAVE ---
-            // 1. LEEMOS los registros de venta individuales ANTES de la transacción.
             const individualSalesQuery = db.collection('ventas').where('venta_mayorista_ref', '==', masterSaleId);
             const individualSalesSnapshot = await individualSalesQuery.get();
-            // --- FIN DE LA CORRECCIÓN CLAVE ---
 
             await db.runTransaction(async t => {
                 const masterSaleRef = db.collection('ventas_mayoristas').doc(masterSaleId);
                 const clientRef = db.collection('clientes_mayoristas').doc(masterSaleData.clienteId);
 
-                // Verificamos si la consulta anterior encontró algo.
-                if (individualSalesSnapshot.empty) {
-                    // Si no hay ventas individuales, puede ser una venta antigua o un error.
-                    // Permitimos que la reversión continúe para limpiar el registro maestro.
-                    console.warn(`No se encontraron registros de venta individuales para la venta maestra ${masterSaleId}. Se procederá a eliminar solo el registro maestro.`);
-                } else {
-                    // 2. Si se encontraron, ahora los procesamos DENTRO de la transacción.
+                if (!individualSalesSnapshot.empty) {
                     for (const doc of individualSalesSnapshot.docs) {
                         const ventaIndividual = doc.data();
                         const imei = ventaIndividual.imei_vendido;
@@ -5779,29 +5772,37 @@ function revertWholesaleSale(masterSaleId, masterSaleData, callback) {
                         }
                         t.delete(doc.ref);
                     }
+                } else {
+                    console.warn(`No se encontraron registros de venta individuales para la venta maestra ${masterSaleId}. Se procederá a eliminar solo el registro maestro.`);
                 }
 
-                // 3. Actualizamos el total del cliente si todavía existe.
                 const clientDoc = await t.get(clientRef).catch(() => null);
                 if (clientDoc && clientDoc.exists) {
+                    
+                    // ===== INICIO DE LA MODIFICACIÓN CLAVE =====
+                    // 1. Calculamos la deuda neta que generó esta venta.
+                    const pagoRecibido = masterSaleData.pago_recibido.total_pagado_usd || 0;
+                    const cambioNetoEnDeuda = masterSaleData.total_venta_usd - pagoRecibido;
+                    
+                    // 2. Actualizamos tanto el total comprado como la deuda del cliente.
                     t.update(clientRef, {
-                        total_comprado_usd: firebase.firestore.FieldValue.increment(-masterSaleData.total_venta_usd)
+                        total_comprado_usd: firebase.firestore.FieldValue.increment(-masterSaleData.total_venta_usd),
+                        deuda_usd: firebase.firestore.FieldValue.increment(-cambioNetoEnDeuda)
                     });
+                    // ===== FIN DE LA MODIFICACIÓN CLAVE =====
+
                 } else {
                      console.warn(`El cliente ${masterSaleData.clienteId} no fue encontrado. No se puede actualizar su total de compra.`);
                 }
                 
-                // 4. Eliminamos la venta maestra.
                 t.delete(masterSaleRef);
             });
 
             showGlobalFeedback(`Venta ${masterSaleData.venta_id_manual} revertida con éxito.`, 'success');
             
-            // Si hay una función de callback (como refrescar la vista), la ejecutamos.
             if (callback && typeof callback === 'function') {
                 callback();
             } else {
-                // Comportamiento por defecto
                 loadWholesaleClients();
                 updateReports();
             }
@@ -5810,44 +5811,64 @@ function revertWholesaleSale(masterSaleId, masterSaleData, callback) {
             console.error("Error al revertir la venta mayorista:", error);
             showGlobalFeedback(error.message || "Error crítico al revertir la venta. Revisa la consola.", "error", 6000);
         } finally {
-            // Cerramos el prompt de confirmación si sigue abierto.
             const modal = document.getElementById('confirmation-modal-overlay');
             if(modal) modal.remove();
         }
     });
 }
+
 async function resyncWholesaleClientTotal(clientId, clientName) {
-    const message = `Esto recalculará el "Total Comprado" para <strong>${clientName}</strong> basándose en su historial de ventas guardado.
+    const message = `Esto recalculará TANTO el "Total Comprado" como el "Saldo Deudor" para <strong>${clientName}</strong> basándose en todo su historial de ventas y pagos.
     <br><br>
-    Esta acción es útil si el total parece incorrecto. ¿Deseas continuar?`;
+    Esta acción corregirá cualquier inconsistencia en los saldos. ¿Deseas continuar?`;
     
-    showConfirmationModal('Recalcular Total del Cliente', message, async () => {
+    showConfirmationModal('Recalcular Saldos Completos del Cliente', message, async () => {
         try {
-            showGlobalFeedback('Resincronizando... por favor espera.', 'info', 2000);
+            showGlobalFeedback('Resincronizando saldos, por favor espera...', 'info', 3000);
 
-            const salesSnapshot = await db.collection('ventas_mayoristas')
-                .where('clienteId', '==', clientId)
-                .get();
+            // 1. Obtenemos TODAS las ventas y TODOS los pagos del cliente.
+            const salesPromise = db.collection('ventas_mayoristas').where('clienteId', '==', clientId).get();
+            const paymentsPromise = db.collection('pagos_mayoristas').where('clienteId', '==', clientId).get();
 
-            let newTotal = 0;
+            const [salesSnapshot, paymentsSnapshot] = await Promise.all([salesPromise, paymentsPromise]);
+
+            // 2. Inicializamos los contadores a cero.
+            let totalSalesValue = 0;
+            let totalPaidValue = 0;
+
+            // 3. Sumamos todas las ventas y los pagos realizados DENTRO de cada venta.
             salesSnapshot.forEach(doc => {
-                newTotal += doc.data().total_venta_usd || 0;
+                const sale = doc.data();
+                totalSalesValue += sale.total_venta_usd || 0;
+                // Sumamos el pago que se hizo al momento de esa venta específica
+                if (sale.pago_recibido && sale.pago_recibido.total_pagado_usd) {
+                    totalPaidValue += sale.pago_recibido.total_pagado_usd;
+                }
             });
 
+            // 4. Sumamos todos los pagos a cuenta que se hicieron por separado.
+            paymentsSnapshot.forEach(doc => {
+                totalPaidValue += doc.data().monto_total_usd || 0;
+            });
+
+            // 5. Calculamos la nueva deuda real.
+            const newDebt = totalSalesValue - totalPaidValue;
+
+            // 6. Actualizamos el documento del cliente con AMBOS valores correctos.
             await db.collection('clientes_mayoristas').doc(clientId).update({
-                total_comprado_usd: newTotal
+                total_comprado_usd: totalSalesValue,
+                deuda_usd: newDebt
             });
 
-            showGlobalFeedback(`¡Éxito! Total para "${clientName}" actualizado a ${formatearUSD(newTotal)}.`, 'success');
-            loadWholesaleClients();
+            showGlobalFeedback(`¡Éxito! Saldos para "${clientName}" resincronizados.`, 'success');
+            loadWholesaleClients(); // Esto refrescará la tarjeta con los valores correctos.
 
         } catch (error) {
-            console.error("Error al resincronizar el total del cliente:", error);
+            console.error("Error al resincronizar los saldos del cliente:", error);
             showGlobalFeedback("Error al resincronizar. Revisa la consola.", "error");
         }
     });
 }
-
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 
 function renderWholesaleClients(clients) {
