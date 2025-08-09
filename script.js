@@ -163,9 +163,7 @@ function initApp() {
         filterSalesStartDate: document.getElementById('filter-sales-start-date'),
         filterSalesEndDate: document.getElementById('filter-sales-end-date'),
         btnApplySalesFilters: document.getElementById('btn-apply-sales-filters'),
-        // ===== INICIO DE LA MODIFICACIÓN =====
         filterSalesImei: document.getElementById('filter-sales-imei'),
-        // ===== FIN DE LA MODIFICACIÓN =====
         btnScan: document.getElementById('btn-scan'),
         scannerContainer: document.getElementById('scanner-container'),
         productForm: document.getElementById('product-form'),
@@ -243,6 +241,7 @@ function initApp() {
         salesPageInfo: document.getElementById('sales-page-info'),
         tabFinanciera: document.getElementById('tab-financiera'),
         financieraView: document.getElementById('financiera-view'),
+        btnMakeDeposit: document.getElementById('btn-make-deposit'), // <-- AÑADIDO
         btnAddAccount: document.getElementById('btn-add-account'),
         financieraTotalBalance: document.getElementById('financiera-total-balance'),
         accountsListContainer: document.getElementById('accounts-list-container'),
@@ -386,6 +385,8 @@ function addEventListeners() {
             } else if (form.id === 'wholesale-payment-form') { saveWholesalePayment(form);
             } else if (form.id === 'financiera-account-form') { saveFinancialAccount(form.querySelector('button[type="submit"]'));
             } else if (form.id === 'move-money-form') { executeMoneyMovement(form.querySelector('button[type="submit"]'));
+            } else if (form.id === 'deposit-form') { // <-- AÑADIDO
+                saveDeposit(form.querySelector('button[type="submit"]'));
             } else if (form.id === 'retiro-socio-form') {
                 saveRetiroSocio(form.querySelector('button[type="submit"]'));
             } else if (form.id === 'vendedor-form') {
@@ -427,6 +428,10 @@ function addEventListeners() {
     s.btnAddProvider.addEventListener('click', promptToAddProvider);
     s.btnAddWholesaleClient.addEventListener('click', promptToAddWholesaleClient);
     
+    if (s.btnMakeDeposit) { // <-- AÑADIDO
+        s.btnMakeDeposit.addEventListener('click', promptToMakeDeposit);
+    }
+
     if (s.btnAddAccount) {
         s.btnAddAccount.addEventListener('click', promptToCreateAccount);
     }
@@ -535,17 +540,11 @@ function addEventListeners() {
                 case 'kpi-dollars-day': showKpiDetail('dolares', 'dia'); break;
                 case 'kpi-cash-day': showKpiDetail('efectivo_ars', 'dia'); break;
                 case 'kpi-transfer-day': showKpiDetail('transferencia_ars', 'dia'); break;
-                // ===== INICIO DE LA MODIFICACIÓN =====
                 case 'kpi-transfer-usd-day': showKpiDetail('transferencia_usd', 'dia'); break;
-                // ===== FIN DE LA MODIFICACIÓN =====
-                
                 case 'kpi-dollars-month': showKpiDetail('dolares', 'mes'); break;
                 case 'kpi-cash-month': showKpiDetail('efectivo_ars', 'mes'); break;
                 case 'kpi-transfer-month': showKpiDetail('transferencia_ars', 'mes'); break;
-                // ===== INICIO DE LA MODIFICACIÓN =====
                 case 'kpi-transfer-usd-month': showKpiDetail('transferencia_usd', 'mes'); break;
-                // ===== FIN DE LA MODIFICACIÓN =====
-
                 case 'kpi-profit-day': showProfitDetail('dia'); break;
                 case 'kpi-profit-month': showProfitDetail('mes'); break;
             }
@@ -7722,4 +7721,160 @@ async function deleteRetiroSocio(retiroId, retiroData) {
             showGlobalFeedback('No se pudo revertir el retiro.', 'error');
         }
     });
+}
+
+function promptToMakeDeposit() {
+    const accountsArsOptions = financialAccounts.filter(acc => acc.moneda === 'ARS' && acc.nombre !== 'Caja').map(acc => `<option value="${acc.id}|${acc.nombre}">${acc.nombre}</option>`).join('');
+    const accountsUsdOptions = financialAccounts.filter(acc => acc.moneda === 'USD' && acc.nombre !== 'Caja USD').map(acc => `<option value="${acc.id}|${acc.nombre}">${acc.nombre}</option>`).join('');
+
+    s.promptContainer.innerHTML = `
+    <div class="ingreso-modal-box">
+        <h3>Realizar Depósito desde Caja</h3>
+        <form id="deposit-form" novalidate>
+            <div class="form-group">
+                <select id="deposit-type" name="deposit_type" required>
+                    <option value="" disabled selected></option>
+                    <option value="ars_to_account">Desde Caja de Pesos (ARS) a Cuenta Bancaria</option>
+                    <option value="usd_to_account">Desde Caja de Dólares (USD) a Cuenta Bancaria</option>
+                </select>
+                <label for="deposit-type">Tipo de Depósito</label>
+            </div>
+
+            <div id="deposit-ars-fields" class="hidden">
+                <div class="form-group">
+                    <input type="number" name="amount_ars" placeholder=" " step="0.01">
+                    <label>Monto a Depositar (ARS)</label>
+                </div>
+                <div class="form-group">
+                    <select name="destination_account_ars">${accountsArsOptions}</select>
+                    <label>Depositar en la Cuenta</label>
+                </div>
+            </div>
+
+            <div id="deposit-usd-fields" class="hidden">
+                <div class="form-group">
+                    <input type="number" name="amount_usd" placeholder=" " step="0.01">
+                    <label>Monto a Depositar (USD)</label>
+                </div>
+                <div class="form-group">
+                    <select name="destination_account_usd">${accountsUsdOptions}</select>
+                    <label>Depositar en la Cuenta</label>
+                </div>
+            </div>
+
+            <div class="prompt-buttons">
+                <button type="submit" class="prompt-button confirm spinner-btn">
+                    <span class="btn-text">Confirmar Depósito</span>
+                    <div class="spinner"></div>
+                </button>
+                <button type="button" class="prompt-button cancel">Cancelar</button>
+            </div>
+        </form>
+    </div>`;
+
+    const form = document.getElementById('deposit-form');
+    const depositTypeSelect = form.querySelector('#deposit-type');
+    
+    depositTypeSelect.addEventListener('change', () => {
+        const type = depositTypeSelect.value;
+        const arsFields = form.querySelector('#deposit-ars-fields');
+        const usdFields = form.querySelector('#deposit-usd-fields');
+
+        arsFields.classList.toggle('hidden', type !== 'ars_to_account');
+        arsFields.querySelector('input').required = (type === 'ars_to_account');
+        arsFields.querySelector('select').required = (type === 'ars_to_account');
+
+        usdFields.classList.toggle('hidden', type !== 'usd_to_account');
+        usdFields.querySelector('input').required = (type === 'usd_to_account');
+        usdFields.querySelector('select').required = (type === 'usd_to_account');
+    });
+}
+
+async function saveDeposit(btn) {
+    toggleSpinner(btn, true);
+    const form = btn.form;
+    const formData = new FormData(form);
+    const depositType = formData.get('deposit_type');
+
+    try {
+        await db.runTransaction(async t => {
+            const fechaMovimiento = firebase.firestore.FieldValue.serverTimestamp();
+            const gastoRef = db.collection('gastos').doc();
+            const ingresoRef = db.collection('ingresos_caja').doc();
+
+            if (depositType === 'ars_to_account') {
+                const amount = parseFloat(formData.get('amount_ars'));
+                const destValue = formData.get('destination_account_ars');
+                if (!amount || amount <= 0 || !destValue) throw new Error("Monto y cuenta de destino son requeridos.");
+                
+                const [destId, destName] = destValue.split('|');
+                const destRef = db.collection('cuentas_financieras').doc(destId);
+
+                // 1. Crea un gasto para sacar el dinero de la caja de efectivo
+                t.set(gastoRef, {
+                    categoria: 'Movimiento Interno',
+                    descripcion: `Depósito a cuenta ${destName}`,
+                    monto: amount,
+                    metodo_pago: 'Pesos (Efectivo)',
+                    fecha: fechaMovimiento
+                });
+
+                // 2. Crea un ingreso para meter el dinero en la cuenta de transferencia
+                t.set(ingresoRef, {
+                    categoria: 'Movimiento Interno',
+                    descripcion: 'Depósito desde Caja de Efectivo',
+                    monto: amount,
+                    metodo: 'Pesos (Transferencia)',
+                    fecha: fechaMovimiento,
+                    cuenta_destino_id: destId,
+                    cuenta_destino_nombre: destName
+                });
+                
+                // 3. Actualiza el saldo de la cuenta
+                t.update(destRef, { saldo_actual_ars: firebase.firestore.FieldValue.increment(amount) });
+
+            } else if (depositType === 'usd_to_account') {
+                const amount = parseFloat(formData.get('amount_usd'));
+                const destValue = formData.get('destination_account_usd');
+                if (!amount || amount <= 0 || !destValue) throw new Error("Monto y cuenta de destino son requeridos.");
+
+                const [destId, destName] = destValue.split('|');
+                const destRef = db.collection('cuentas_financieras').doc(destId);
+                
+                // 1. Crea un gasto para sacar el dinero de la caja de dólares
+                t.set(gastoRef, {
+                    categoria: 'Movimiento Interno',
+                    descripcion: `Depósito a cuenta ${destName}`,
+                    monto: amount,
+                    metodo_pago: 'Dólares',
+                    fecha: fechaMovimiento
+                });
+
+                // 2. Crea un ingreso para meter el dinero en la cuenta de transferencia USD
+                t.set(ingresoRef, {
+                    categoria: 'Movimiento Interno',
+                    descripcion: 'Depósito desde Caja de Dólares',
+                    monto: amount,
+                    metodo: 'Dólares (Transferencia)',
+                    fecha: fechaMovimiento,
+                    cuenta_destino_usd_id: destId,
+                    cuenta_destino_usd_nombre: destName
+                });
+
+                // 3. Actualiza el saldo de la cuenta
+                t.update(destRef, { saldo_actual_usd: firebase.firestore.FieldValue.increment(amount) });
+            }
+        });
+
+        showGlobalFeedback('Depósito realizado y saldos actualizados con éxito.', 'success');
+        s.promptContainer.innerHTML = '';
+        loadFinancialData();
+        updateReports();
+
+    } catch (error) {
+        console.error("Error al registrar el depósito:", error);
+        showGlobalFeedback(error.message || 'Error al procesar el depósito.', 'error');
+    } finally {
+        toggleSpinner(btn, false);
+    }
 }
