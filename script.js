@@ -4348,13 +4348,9 @@ function promptToEditStock(item) {
     s.productFormSubmitBtn.querySelector('.btn-text').textContent = "Actualizar Producto";
     s.productForm.reset(); 
     
-    // ===== INICIO DE LA MODIFICACIÓN =====
-    // 1. Hacemos el campo IMEI editable.
     s.imeiInput.readOnly = false;
     s.imeiInput.value = item.imei;
-    // 2. Guardamos el IMEI original en el formulario para saber si cambió.
     s.productForm.dataset.originalImei = item.imei;
-    // ===== FIN DE LA MODIFICACIÓN =====
 
     document.getElementById('precio-costo-form').value = item.precio_costo_usd || ''; 
     s.modeloFormSelect.value = item.modelo;
@@ -4365,7 +4361,23 @@ function promptToEditStock(item) {
     s.proveedorFormSelect.value = item.proveedor || '';
     s.productForm.dataset.mode = 'update'; 
     s.productForm.classList.remove('hidden');
+
+    // ===== INICIO DE LA MODIFICACIÓN CLAVE =====
+    // Se añade la lógica del interruptor que faltaba en el modo de edición.
+    const paraRepararCheck = document.getElementById('para-reparar-check');
+    const reparacionFields = document.getElementById('reparacion-fields');
+    const defectoInput = document.getElementById('defecto-form');
+    const repuestoInput = document.getElementById('repuesto-form');
+
+    paraRepararCheck.addEventListener('change', (e) => {
+        const isChecked = e.target.checked;
+        reparacionFields.classList.toggle('hidden', !isChecked);
+        defectoInput.required = isChecked;
+        repuestoInput.required = isChecked;
+    });
+    // ===== FIN DE LA MODIFICACIÓN CLAVE =====
 }
+
 async function deleteStockItem(imei, item) {
     try {
         await db.runTransaction(async t => {
@@ -5249,64 +5261,93 @@ async function handleProductFormSubmit(e) {
 
     try {
         if (mode === 'update') {
-            // ===== INICIO DE LA MODIFICACIÓN COMPLETA DE LA LÓGICA DE ACTUALIZACIÓN =====
             const originalImei = form.dataset.originalImei;
             const newImei = imei;
+            const paraReparar = formData.get('para-reparar') === 'on';
 
-            // Construimos el objeto con todos los datos actualizados del formulario
-            const unitData = {
-                precio_costo_usd: parseFloat(formData.get('precio_costo_usd')) || 0,
-                modelo: formData.get('modelo'),
-                color: formData.get('color'),
-                bateria: parseInt(formData.get('bateria')),
-                almacenamiento: formData.get('almacenamiento'),
-                detalles_esteticos: formData.get('detalles'),
-                proveedor: formData.get('proveedor'),
-            };
-
-            if (newImei === originalImei) {
-                // CASO 1: El IMEI NO cambió, solo actualizamos los datos.
-                await db.collection("stock_individual").doc(originalImei).update(unitData);
-            } else {
-                // CASO 2: El IMEI SÍ cambió. Usamos una transacción para seguridad.
+            // ===== INICIO DE LA MODIFICACIÓN CLAVE =====
+            if (paraReparar) {
+                // CASO 1: El usuario activó el interruptor para enviar a reparación.
+                if (newImei !== originalImei) {
+                    throw new Error("No se puede cambiar el IMEI y enviar a reparación al mismo tiempo. Guarda un cambio a la vez.");
+                }
+                
                 await db.runTransaction(async (t) => {
-                    const oldDocRef = db.collection("stock_individual").doc(originalImei);
-                    const newDocRef = db.collection("stock_individual").doc(newImei);
+                    const stockRef = db.collection("stock_individual").doc(originalImei);
+                    const reparacionRef = db.collection("reparaciones").doc(originalImei);
 
-                    // Verificamos si el nuevo IMEI ya existe para evitar duplicados
-                    const newDocSnapshot = await t.get(newDocRef);
-                    if (newDocSnapshot.exists) {
-                        throw new Error(`El nuevo IMEI "${newImei}" ya existe en el stock.`);
-                    }
-                    
-                    // Leemos los datos antiguos para no perder la fecha de carga
-                    const oldDoc = await t.get(oldDocRef);
-                    const oldData = oldDoc.data();
+                    const stockDoc = await t.get(stockRef);
+                    if (!stockDoc.exists) throw new Error("El producto que intentas mover ya no existe en el stock.");
+                    const stockData = stockDoc.data();
 
-                    // Creamos el nuevo documento con los datos actualizados y la fecha original
-                    const newUnitData = {
-                        ...unitData, // Todos los datos del formulario
-                        imei: newImei,
-                        imei_last_4: newImei.slice(-4),
-                        estado: 'en_stock', // Nos aseguramos que mantenga el estado
-                        fechaDeCarga: oldData.fechaDeCarga // Mantenemos la fecha original
+                    const reparacionData = {
+                        ...stockData,
+                        estado_reparacion: 'en_proceso',
+                        defecto: formData.get('defecto'),
+                        repuesto_necesario: formData.get('repuesto'),
+                        fechaDeCarga: stockData.fechaDeCarga // Mantiene la fecha de carga original
                     };
                     
-                    t.set(newDocRef, newUnitData); // Creamos el nuevo
-                    t.delete(oldDocRef); // Borramos el antiguo
+                    t.set(reparacionRef, reparacionData); // Crea el registro en reparaciones
+                    t.delete(stockRef); // Elimina el registro del stock
                 });
-            }
-            
-            showGlobalFeedback("¡Producto actualizado con éxito!", "success");
-            setTimeout(() => {
-                resetManagementView();
-                switchView('dashboard', s.tabDashboard);
-                loadStock();
-                updateReports();
-            }, 1500);
-            // ===== FIN DE LA MODIFICACIÓN =====
 
-        } else { // MODO CREAR (Esta parte no se tocó)
+                showGlobalFeedback("Producto enviado a reparación con éxito.", "success");
+                setTimeout(() => {
+                    resetManagementView();
+                    switchView('dashboard', s.tabDashboard);
+                    switchDashboardView('reparacion', s.btnShowReparacion);
+                    updateReparacionCount();
+                    updateReports();
+                }, 1500);
+
+            } else {
+                // CASO 2: Es una actualización normal, sin enviar a reparación.
+                const unitData = {
+                    precio_costo_usd: parseFloat(formData.get('precio_costo_usd')) || 0,
+                    modelo: formData.get('modelo'),
+                    color: formData.get('color'),
+                    bateria: parseInt(formData.get('bateria')),
+                    almacenamiento: formData.get('almacenamiento'),
+                    detalles_esteticos: formData.get('detalles'),
+                    proveedor: formData.get('proveedor'),
+                };
+
+                if (newImei === originalImei) {
+                    await db.collection("stock_individual").doc(originalImei).update(unitData);
+                } else {
+                    await db.runTransaction(async (t) => {
+                        const oldDocRef = db.collection("stock_individual").doc(originalImei);
+                        const newDocRef = db.collection("stock_individual").doc(newImei);
+                        const newDocSnapshot = await t.get(newDocRef);
+                        if (newDocSnapshot.exists) {
+                            throw new Error(`El nuevo IMEI "${newImei}" ya existe en el stock.`);
+                        }
+                        const oldDoc = await t.get(oldDocRef);
+                        const oldData = oldDoc.data();
+                        const newUnitData = {
+                            ...unitData,
+                            imei: newImei,
+                            imei_last_4: newImei.slice(-4),
+                            estado: 'en_stock',
+                            fechaDeCarga: oldData.fechaDeCarga
+                        };
+                        t.set(newDocRef, newUnitData);
+                        t.delete(oldDocRef);
+                    });
+                }
+                
+                showGlobalFeedback("¡Producto actualizado con éxito!", "success");
+                setTimeout(() => {
+                    resetManagementView();
+                    switchView('dashboard', s.tabDashboard);
+                    loadStock();
+                    updateReports();
+                }, 1500);
+            }
+            // ===== FIN DE LA MODIFICACIÓN CLAVE =====
+
+        } else { // MODO CREAR (sin cambios)
             const paraReparar = formData.get('para-reparar') === 'on';
             const costoIndividual = parseFloat(formData.get('precio_costo_usd')) || 0;
             const commonData = {
@@ -5401,6 +5442,7 @@ async function handleProductFormSubmit(e) {
         toggleSpinner(btn, false);
     }
 }
+
 
 function resetManagementView(isBatchLoad = false, isCanje = false, isWholesaleSale = false) {
     s.promptContainer.innerHTML = '';
@@ -6303,11 +6345,15 @@ async function promptToRegisterWholesalePayment(clientId, clientName, currentDeb
             financialAccounts = accountsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         } catch (error) { showGlobalFeedback("Error al cargar las cuentas financieras.", "error"); return; }
     }
-    const accountsOptionsHtml = financialAccounts.length > 0
-        ? financialAccounts.map(acc => `<option value="${acc.id}|${acc.nombre}">${acc.nombre} (${formatearARS(acc.saldo_actual_ars)})</option>`).join('')
-        : '<option value="" disabled>No hay cuentas creadas</option>';
     
-    const accountSelectHtml = `<div class="form-group" style="margin-top: 1.5rem;"><select name="cuenta_destino"><option value="" disabled selected></option>${accountsOptionsHtml}</select><label>Acreditar en Cuenta</label></div>`;
+    // ===== INICIO DE LA MODIFICACIÓN (1/2) - Creamos los selectores para AMBAS monedas =====
+    const accountsArsOptionsHtml = financialAccounts.filter(acc => acc.moneda === 'ARS').map(acc => `<option value="${acc.id}|${acc.nombre}">${acc.nombre} (${formatearARS(acc.saldo_actual_ars)})</option>`).join('');
+    const accountsUsdOptionsHtml = financialAccounts.filter(acc => acc.moneda === 'USD').map(acc => `<option value="${acc.id}|${acc.nombre}">${acc.nombre} (${formatearUSD(acc.saldo_actual_usd)})</option>`).join('');
+
+    const accountArsSelectHtml = `<div class="form-group" style="margin-top: 1.5rem;"><select name="cuenta_destino_ars"><option value="">Seleccione cuenta...</option>${accountsArsOptionsHtml}</select><label>Acreditar en Cuenta ARS</label></div>`;
+    const accountUsdSelectHtml = `<div class="form-group" style="margin-top: 1.5rem;"><select name="cuenta_destino_usd"><option value="">Seleccione cuenta...</option>${accountsUsdOptionsHtml}</select><label>Acreditar en Cuenta USD</label></div>`;
+    // ===== FIN DE LA MODIFICACIÓN =====
+    
     const cotizacionHtml = `<div id="cotizacion-dolar-group" class="form-group hidden" style="margin-top: 1.5rem;"><input type="number" name="cotizacion_dolar" placeholder="Valor del dólar blue" step="0.01"><label>Cotización del Dólar</label></div>`;
 
     s.promptContainer.innerHTML = `
@@ -6320,12 +6366,14 @@ async function promptToRegisterWholesalePayment(clientId, clientName, currentDeb
                     <div class="form-group"><label for="payment-total">Monto del Pago (USD)</label><input type="number" id="payment-total" name="total" step="0.01" required></div>
                     <div class="form-group payment-details-group">
                         <label>Ingresa a Caja como</label>
-                        <div class="checkbox-group" style="margin-bottom: 0.5rem;"><input type="checkbox" id="pay-usd" name="pay-usd" class="payment-method-cb"><label for="pay-usd">Dólares</label></div>
-                        <div id="pay-usd-fields" class="hidden" style="padding-left: 25px;"><input type="number" name="dolares" placeholder="Monto USD"></div>
-                        <div class="checkbox-group" style="margin-bottom: 0.5rem;"><input type="checkbox" id="pay-ars-efectivo" name="pay-ars-efectivo" class="payment-method-cb"><label for="pay-ars-efectivo">Pesos (Efectivo)</label></div>
-                        <div id="pay-ars-efectivo-fields" class="hidden" style="padding-left: 25px;"><input type="number" name="efectivo" placeholder="Monto ARS"></div>
-                        <div class="checkbox-group" style="margin-bottom: 0.5rem;"><input type="checkbox" id="pay-ars-transfer" name="pay-ars-transfer" class="payment-method-cb"><label for="pay-ars-transfer">Pesos (Transferencia)</label></div>
-                        <div id="pay-ars-transfer-fields" class="hidden" style="padding-left: 25px;"><input type="number" name="transferencia" placeholder="Monto ARS">${accountSelectHtml}</div>
+                        
+                        <!-- ===== INICIO DE LA MODIFICACIÓN (2/2) - Se añade el nuevo bloque de Transferencia USD ===== -->
+                        <div class="payment-option"><label class="toggle-switch-group"><input type="checkbox" id="pay-usd" name="pay-usd" class="payment-method-cb"><span class="toggle-switch-label">Dólares (Efectivo)</span><span class="toggle-switch-slider"></span></label><div id="pay-usd-fields" class="payment-input-container hidden"><input type="number" name="dolares" placeholder="Monto USD"></div></div>
+                        <div class="payment-option"><label class="toggle-switch-group"><input type="checkbox" id="pay-ars-efectivo" name="pay-ars-efectivo" class="payment-method-cb"><span class="toggle-switch-label">Pesos (Efectivo)</span><span class="toggle-switch-slider"></span></label><div id="pay-ars-efectivo-fields" class="payment-input-container hidden"><input type="number" name="efectivo" placeholder="Monto ARS"></div></div>
+                        <div class="payment-option"><label class="toggle-switch-group"><input type="checkbox" id="pay-ars-transfer" name="pay-ars-transfer" class="payment-method-cb"><span class="toggle-switch-label">Transferencia (ARS)</span><span class="toggle-switch-slider"></span></label><div id="pay-ars-transfer-fields" class="payment-input-container hidden"><input type="number" name="transferencia" placeholder="Monto ARS">${accountArsSelectHtml}</div></div>
+                        <div class="payment-option"><label class="toggle-switch-group"><input type="checkbox" id="pay-usd-transfer" name="pay-usd-transfer" class="payment-method-cb"><span class="toggle-switch-label">Transferencia (USD)</span><span class="toggle-switch-slider"></span></label><div id="pay-usd-transfer-fields" class="payment-input-container hidden"><input type="number" name="transferencia_usd" placeholder="Monto USD">${accountUsdSelectHtml}</div></div>
+                        <!-- ===== FIN DE LA MODIFICACIÓN ===== -->
+                        
                         ${cotizacionHtml}
                     </div>
                     <div class="form-group"><label for="payment-notes">Notas (Opcional)</label><textarea id="payment-notes" name="notas" rows="2" placeholder="Ej: Saldo de la VTA-050"></textarea></div>
@@ -6344,10 +6392,18 @@ async function saveWholesalePayment(form) {
     const formData = new FormData(form);
     const totalPaymentUSD = parseFloat(formData.get('total'));
     const notas = (formData.get('notas') || '').trim();
-    const cuentaDestinoValue = formData.get('cuenta_destino');
-    const cotizacion = parseFloat(formData.get('cotizacion_dolar')) || 0;
     
-    // --- NUEVO: Obtenemos la venta asociada del formulario ---
+    // ===== INICIO DE LA MODIFICACIÓN (1/2) - Leemos los nuevos campos del formulario =====
+    const usdAmount = parseFloat(formData.get('dolares')) || 0;
+    const arsEfectivoAmount = parseFloat(formData.get('efectivo')) || 0;
+    const arsTransferAmount = parseFloat(formData.get('transferencia')) || 0;
+    const usdTransferAmount = parseFloat(formData.get('transferencia_usd')) || 0;
+    
+    const cuentaDestinoArsValue = formData.get('cuenta_destino_ars');
+    const cuentaDestinoUsdValue = formData.get('cuenta_destino_usd');
+    const cotizacion = parseFloat(formData.get('cotizacion_dolar')) || 0;
+    // ===== FIN DE LA MODIFICACIÓN =====
+
     const ventaAsociadaValue = formData.get('venta_asociada');
     let ventaAsociadaId = null;
     let ventaManualIdAsociada = null;
@@ -6355,13 +6411,10 @@ async function saveWholesalePayment(form) {
         [ventaAsociadaId, ventaManualIdAsociada] = ventaAsociadaValue.split('|');
     }
 
-    // (Validaciones que ya teníamos)
     if (isNaN(totalPaymentUSD) || totalPaymentUSD <= 0) { showGlobalFeedback("El monto del pago debe ser válido y mayor a cero.", "error"); toggleSpinner(btn, false); return; }
-    const usdAmount = parseFloat(formData.get('dolares')) || 0;
-    const arsEfectivoAmount = parseFloat(formData.get('efectivo')) || 0;
-    const arsTransferAmount = parseFloat(formData.get('transferencia')) || 0;
-    if ((usdAmount + arsEfectivoAmount + arsTransferAmount) === 0) { showGlobalFeedback("Debes especificar cómo ingresa el pago a la caja.", "error"); toggleSpinner(btn, false); return; }
-    if (arsTransferAmount > 0 && !cuentaDestinoValue) { showGlobalFeedback("Debes seleccionar una cuenta de destino para la transferencia.", "error"); toggleSpinner(btn, false); return; }
+    if ((usdAmount + arsEfectivoAmount + arsTransferAmount + usdTransferAmount) === 0) { showGlobalFeedback("Debes especificar cómo ingresa el pago a la caja.", "error"); toggleSpinner(btn, false); return; }
+    if (arsTransferAmount > 0 && !cuentaDestinoArsValue) { showGlobalFeedback("Debes seleccionar una cuenta de destino para la transferencia en ARS.", "error"); toggleSpinner(btn, false); return; }
+    if (usdTransferAmount > 0 && !cuentaDestinoUsdValue) { showGlobalFeedback("Debes seleccionar una cuenta de destino para la transferencia en USD.", "error"); toggleSpinner(btn, false); return; }
     if ((arsEfectivoAmount > 0 || arsTransferAmount > 0) && cotizacion <= 0) { showGlobalFeedback("Debes ingresar una cotización válida para pagos en pesos.", "error"); toggleSpinner(btn, false); return; }
 
     try {
@@ -6369,16 +6422,13 @@ async function saveWholesalePayment(form) {
             const fecha = firebase.firestore.FieldValue.serverTimestamp();
             const clientRef = db.collection('clientes_mayoristas').doc(clientId);
             
-            // 1. Siempre descontamos la deuda TOTAL del cliente
             t.update(clientRef, { deuda_usd: firebase.firestore.FieldValue.increment(-totalPaymentUSD) });
 
-            // 2. Si el pago está asociado a una venta, descontamos la deuda de ESA VENTA
             if (ventaAsociadaId) {
                 const ventaRef = db.collection('ventas_mayoristas').doc(ventaAsociadaId);
                 t.update(ventaRef, { deuda_generada_usd: firebase.firestore.FieldValue.increment(-totalPaymentUSD) });
             }
 
-            // 3. Creamos el registro de pago, guardando la referencia a la venta si existe
             const pagoRef = db.collection('pagos_mayoristas').doc();
             t.set(pagoRef, {
                 clienteId: clientId,
@@ -6391,7 +6441,6 @@ async function saveWholesalePayment(form) {
                 venta_manual_id_asociada: ventaManualIdAsociada
             });
 
-            // 4. Creamos los registros de ingreso en caja (esto sigue igual)
             let descripcionBase = `Cobranza de C/C a ${clientName}`;
             if (ventaManualIdAsociada) {
                 descripcionBase = `Pago de Venta #${ventaManualIdAsociada} de ${clientName}`;
@@ -6399,11 +6448,27 @@ async function saveWholesalePayment(form) {
             if (usdAmount > 0) { t.set(db.collection('ingresos_caja').doc(), { categoria: 'Cobranza Mayorista', descripcion: descripcionBase, monto: usdAmount, metodo: 'Dólares', fecha }); }
             if (arsEfectivoAmount > 0) { t.set(db.collection('ingresos_caja').doc(), { categoria: 'Cobranza Mayorista', descripcion: descripcionBase, monto: arsEfectivoAmount, metodo: 'Pesos (Efectivo)', fecha, cotizacion_dolar: cotizacion }); }
             if (arsTransferAmount > 0) {
-                const [cuentaId, cuentaNombre] = cuentaDestinoValue.split('|');
+                const [cuentaId, cuentaNombre] = cuentaDestinoArsValue.split('|');
                 t.set(db.collection('ingresos_caja').doc(), { categoria: 'Cobranza Mayorista', descripcion: descripcionBase, monto: arsTransferAmount, metodo: 'Pesos (Transferencia)', fecha, cuenta_destino_id: cuentaId, cuenta_destino_nombre: cuentaNombre, cotizacion_dolar: cotizacion });
                 const cuentaRef = db.collection('cuentas_financieras').doc(cuentaId);
                 t.update(cuentaRef, { saldo_actual_ars: firebase.firestore.FieldValue.increment(arsTransferAmount) });
             }
+            // ===== INICIO DE LA MODIFICACIÓN (2/2) - Lógica para guardar la transferencia en USD =====
+            if (usdTransferAmount > 0) {
+                const [cuentaId, cuentaNombre] = cuentaDestinoUsdValue.split('|');
+                t.set(db.collection('ingresos_caja').doc(), { 
+                    categoria: 'Cobranza Mayorista', 
+                    descripcion: descripcionBase, 
+                    monto: usdTransferAmount, 
+                    metodo: 'Dólares (Transferencia)', 
+                    fecha, 
+                    cuenta_destino_usd_id: cuentaId, 
+                    cuenta_destino_usd_nombre: cuentaNombre 
+                });
+                const cuentaRef = db.collection('cuentas_financieras').doc(cuentaId);
+                t.update(cuentaRef, { saldo_actual_usd: firebase.firestore.FieldValue.increment(usdTransferAmount) });
+            }
+            // ===== FIN DE LA MODIFICACIÓN =====
         });
 
         showGlobalFeedback('Pago de cliente registrado con éxito.', 'success');
