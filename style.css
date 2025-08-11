@@ -4210,3 +4210,47 @@ td.actions-cell {
         padding: 0.5rem;
     }
 }
+
+/* ======================================================================= */
+/* ====== ESTILOS PARA FILTROS DE COMISIÓN DENTRO DE CADA TARJETA ====== */
+/* ======================================================================= */
+
+/* Contenedor principal para los nuevos filtros */
+.commission-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: flex-end;
+    padding: 1rem 0;
+    margin-top: 1rem;
+    border-top: 1px solid var(--border-dark);
+}
+
+/* Grupo de cada filtro (etiqueta + input) */
+.commission-filters .filter-group {
+    flex: 1 1 120px; /* Permite que crezcan y se adapten */
+}
+
+/* Hacemos las etiquetas un poco más pequeñas */
+.commission-filters .filter-group label {
+    font-size: 0.75rem;
+    margin-bottom: 0.25rem;
+}
+
+/* Hacemos los inputs más compactos */
+.commission-filters input[type="date"] {
+    padding: 0.6rem;
+    font-size: 0.9rem;
+}
+
+/* Estilo para el botón de filtrar */
+.commission-filters .btn-filter-commission {
+    width: 100%;
+    padding: 0.7rem;
+    font-size: 0.9rem;
+    background-color: var(--brand-yellow);
+    color: #000;
+    border: none;
+    flex-basis: 100px; /* Ancho base */
+    flex-grow: 0;
+}

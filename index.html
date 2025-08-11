@@ -140,22 +140,13 @@
             <div id="commissions-section" class="hidden">
                 <div class="providers-header">
                     <h2>Reporte de Comisiones</h2>
+                    <button id="btn-resync-commissions" class="control-btn" style="background-color: var(--info-bg);">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+                        <span>Resincronizar Saldos</span>
+                    </button>
                     <button onclick="promptToAddVendedor()" class="control-btn" style="background-color: var(--success-bg);">+ Nuevo Vendedor</button>
                 </div>
-                <div class="filters-container">
-                    <div class="filter-group">
-                        <label for="filter-commissions-vendedor">Vendedor</label>
-                        <select id="filter-commissions-vendedor"></select>
-                    </div>
-                    <div class="filter-group">
-                        <label for="filter-commissions-start-date">Fecha Desde</label>
-                        <input type="date" id="filter-commissions-start-date">
-                    </div>
-                    <div class="filter-group">
-                        <label for="filter-commissions-end-date">Fecha Hasta</label>
-                        <input type="date" id="filter-commissions-end-date">
-                    </div>
-                </div>
+                <!-- El contenedor de filtros que estaba aquí fue eliminado -->
                 <div id="commissions-results-container"></div>
             </div>
             <div id="gastos-section" class="hidden">

@@ -117,6 +117,7 @@ let paginationState = {};
 
 document.addEventListener('DOMContentLoaded', initApp);
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
 function initApp() {
     Object.assign(s, {
         loginContainer: document.getElementById('login-container'),
@@ -189,10 +190,6 @@ function initApp() {
         gastosChartCanvas: document.getElementById('gastos-chart'),
         gastosList: document.getElementById('gastos-list'),
         commissionsResultsContainer: document.getElementById('commissions-results-container'),
-        filterCommissionsVendedor: document.getElementById('filter-commissions-vendedor'),
-        filterCommissionsStartDate: document.getElementById('filter-commissions-start-date'),
-        filterCommissionsEndDate: document.getElementById('filter-commissions-end-date'),
-        btnCalculateCommissions: document.getElementById('btn-calculate-commissions'),
         filterGastosStartDate: document.getElementById('filter-gastos-start-date'),
         filterGastosEndDate: document.getElementById('filter-gastos-end-date'),
         btnApplyGastosFilter: document.getElementById('btn-apply-gastos-filter'),
@@ -206,6 +203,7 @@ function initApp() {
         ingresosPeriodTotalUsd: document.getElementById('ingresos-period-total-usd'),
         kpiStockValue: document.getElementById('kpi-stock-value'),
         kpiStockCount: document.getElementById('kpi-stock-count'),
+        kpiReparacionCount: document.getElementById('kpi-reparacion-count'),
         kpiDollarsDay: document.getElementById('kpi-dollars-day'),
         kpiCashDay: document.getElementById('kpi-cash-day'),
         kpiTransferDay: document.getElementById('kpi-transfer-day'),
@@ -241,7 +239,7 @@ function initApp() {
         salesPageInfo: document.getElementById('sales-page-info'),
         tabFinanciera: document.getElementById('tab-financiera'),
         financieraView: document.getElementById('financiera-view'),
-        btnMakeDeposit: document.getElementById('btn-make-deposit'), // <-- AÑADIDO
+        btnMakeDeposit: document.getElementById('btn-make-deposit'),
         btnAddAccount: document.getElementById('btn-add-account'),
         financieraTotalBalance: document.getElementById('financiera-total-balance'),
         accountsListContainer: document.getElementById('accounts-list-container'),
@@ -307,6 +305,7 @@ function populateAllSelects() {
     populateSelect(s.proveedorFormSelect, proveedoresConCanje, "Selecciona..."); 
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
 function addEventListeners() {
     s.logoutButton.addEventListener('click', () => auth.signOut());
     
@@ -373,6 +372,8 @@ function addEventListeners() {
                 if (mode === 'create') { saveIngreso(form.querySelector('button[type="submit"]'));
                 } else { updateIngreso(form.dataset.ingresoId, form.querySelector('button[type="submit"]')); }
             } else if (form.id === 'commission-payment-form') { saveCommissionPayment(form);
+            } else if (form.id === 'add-commission-form') {
+                saveAddedCommissionBalance(form.querySelector('button[type="submit"]'));
             } else if (form.id === 'batch-id-form') {
                 const batchIdManual = form.batchNumber.value.trim();
                 if (!batchIdManual) { showGlobalFeedback("El ID del lote no puede estar vacío.", "error"); return; }
@@ -385,7 +386,7 @@ function addEventListeners() {
             } else if (form.id === 'wholesale-payment-form') { saveWholesalePayment(form);
             } else if (form.id === 'financiera-account-form') { saveFinancialAccount(form.querySelector('button[type="submit"]'));
             } else if (form.id === 'move-money-form') { executeMoneyMovement(form.querySelector('button[type="submit"]'));
-            } else if (form.id === 'deposit-form') { // <-- AÑADIDO
+            } else if (form.id === 'deposit-form') {
                 saveDeposit(form.querySelector('button[type="submit"]'));
             } else if (form.id === 'retiro-socio-form') {
                 saveRetiroSocio(form.querySelector('button[type="submit"]'));
@@ -395,9 +396,10 @@ function addEventListeners() {
         }
     });
     
-    s.filterCommissionsVendedor.addEventListener('change', loadCommissions);
-    s.filterCommissionsStartDate.addEventListener('change', loadCommissions);
-    s.filterCommissionsEndDate.addEventListener('change', loadCommissions);
+    const btnResyncCommissions = document.getElementById('btn-resync-commissions');
+    if (btnResyncCommissions) {
+        btnResyncCommissions.addEventListener('click', resincronizarSaldosDeVendedores);
+    }
 
     s.btnApplyStockFilters.addEventListener('click', () => loadStock('first'));
     s.btnApplySalesFilters.addEventListener('click', () => loadSales('first'));
@@ -428,7 +430,7 @@ function addEventListeners() {
     s.btnAddProvider.addEventListener('click', promptToAddProvider);
     s.btnAddWholesaleClient.addEventListener('click', promptToAddWholesaleClient);
     
-    if (s.btnMakeDeposit) { // <-- AÑADIDO
+    if (s.btnMakeDeposit) {
         s.btnMakeDeposit.addEventListener('click', promptToMakeDeposit);
     }
 
@@ -519,6 +521,9 @@ function addEventListeners() {
         }
         else if (button.classList.contains('btn-delete-vendedor')) {
             deleteVendedor(vendorName);
+        }
+        else if (button.classList.contains('btn-add-balance')) {
+            promptToAddCommissionBalance(vendorName);
         }
     });
     
@@ -3320,18 +3325,18 @@ async function reverseEgresoTransaction(egresoId, egresoData, kpiType, period) {
 
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
 async function loadCommissions() {
     s.commissionsResultsContainer.innerHTML = `<p class="dashboard-loader">Calculando comisiones...</p>`;
-    toggleSpinner(s.btnCalculateCommissions, true);
     
     try {
-        const vendorNameFilter = s.filterCommissionsVendedor.value;
-        const vendorsToQuery = vendorNameFilter ? [vendorNameFilter] : vendedores;
+        // ===================== INICIO DE LA CORRECCIÓN CLAVE (1/2) =====================
+        // Se elimina la referencia al filtro de vendedor que ya no existe.
+        // La consulta ahora siempre busca a todos los vendedores.
+        const vendorsToQuery = vendedores;
+        // ====================== FIN DE LA CORRECCIÓN CLAVE =======================
 
         if (vendorsToQuery.length === 0) {
             s.commissionsResultsContainer.innerHTML = `<p class="dashboard-loader">No hay vendedores para mostrar.</p>`;
-            toggleSpinner(s.btnCalculateCommissions, false);
             return;
         }
 
@@ -3346,96 +3351,130 @@ async function loadCommissions() {
             }
         });
 
-        // --- INICIO DE LA CORRECCIÓN ---
-        // 1. Quitamos el filtro de desigualdad en 'comision_vendedor_usd'
-        let salesQuery = db.collection("ventas"); 
+        const now = new Date();
+        const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+        const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
         
-        if (vendorNameFilter) {
-            salesQuery = salesQuery.where("vendedor", "==", vendorNameFilter);
-        }
-        
-        const startDate = s.filterCommissionsStartDate.value;
-        const endDate = s.filterCommissionsEndDate.value;
-        if (startDate) {
-            salesQuery = salesQuery.where('fecha_venta', '>=', new Date(startDate + 'T00:00:00'));
-        }
-        if (endDate) {
-            salesQuery = salesQuery.where('fecha_venta', '<=', new Date(endDate + 'T23:59:59'));
-        }
-        
-        const salesSnapshot = await salesQuery.get();
+        // ===================== INICIO DE LA CORRECCIÓN CLAVE (2/2) =====================
+        // Se elimina el .where('comision_vendedor_usd', '>', 0) de la consulta inicial
+        // para evitar el conflicto con el filtro de fecha que reportaba la consola.
+        let salesQuery = db.collection("ventas");
+        let adjustmentsQuery = db.collection("ajustes_comisiones");
 
-        // 2. Filtramos por comisión > 0 en el lado del cliente
-        const salesByVendor = salesSnapshot.docs
-            .filter(doc => (doc.data().comision_vendedor_usd || 0) > 0) // <--- Filtro en JavaScript
-            .reduce((acc, doc) => {
-                const sale = doc.data();
-                const vendorName = sale.vendedor;
-                if (!acc[vendorName]) {
-                    acc[vendorName] = [];
-                }
-                acc[vendorName].push(sale);
-                return acc;
-            }, {});
-        // --- FIN DE LA CORRECCIÓN ---
+        salesQuery = salesQuery.where('fecha_venta', '>=', startOfDay).where('fecha_venta', '<=', endOfDay);
+        adjustmentsQuery = adjustmentsQuery.where('fecha', '>=', startOfDay).where('fecha', '<=', endOfDay);
         
-        renderCommissions(vendorData, salesByVendor);
+        const [salesSnapshot, adjustmentsSnapshot] = await Promise.all([salesQuery.get(), adjustmentsQuery.get()]);
+
+        const commissionEventsByVendor = {};
+
+        // El filtro de comision > 0 se hace aquí, en el código, para que la consulta sea válida.
+        salesSnapshot.docs.forEach(doc => {
+            const sale = doc.data();
+            if ((sale.comision_vendedor_usd || 0) > 0) {
+                const vendorName = sale.vendedor;
+                if (!commissionEventsByVendor[vendorName]) commissionEventsByVendor[vendorName] = [];
+                commissionEventsByVendor[vendorName].push({
+                    type: 'venta', date: sale.fecha_venta.toDate(),
+                    description: `${sale.producto.modelo || 'Producto'} ${sale.producto.color || ''}`,
+                    amount: sale.comision_vendedor_usd
+                });
+            }
+        });
+        // ====================== FIN DE LA CORRECCIÓN CLAVE =======================
+
+        adjustmentsSnapshot.docs.forEach(doc => {
+            const adjustment = doc.data();
+            const vendorName = adjustment.vendedor;
+            if (!commissionEventsByVendor[vendorName]) commissionEventsByVendor[vendorName] = [];
+            commissionEventsByVendor[vendorName].push({
+                type: 'ajuste', date: adjustment.fecha.toDate(),
+                description: adjustment.motivo || 'Ajuste manual',
+                amount: adjustment.monto_usd
+            });
+        });
+
+        renderCommissions(vendorData, commissionEventsByVendor);
 
     } catch (error) {
         handleDBError(error, s.commissionsResultsContainer, "comisiones");
-    } finally {
-        toggleSpinner(s.btnCalculateCommissions, false);
     }
 }
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA
-function renderCommissions(vendorData, salesByVendor) {
+function renderCommissions(vendorData, commissionEventsByVendor) {
     if (Object.keys(vendorData).length === 0) {
         s.commissionsResultsContainer.innerHTML = `<p class="dashboard-loader">No hay vendedores creados. ¡Crea el primero!</p>`;
         return;
     }
 
+    const today = new Date().toISOString().slice(0, 10);
     let html = '';
     for (const vendorName in vendorData) {
         const vendor = vendorData[vendorName];
-        const sales = salesByVendor[vendorName] || [];
-
-        const currentPeriodCommission = sales.reduce((sum, sale) => sum + (sale.comision_vendedor_usd || 0), 0);
-        const totalPendingAmount = (vendor.comision_pendiente_usd || 0) + currentPeriodCommission;
+        const events = commissionEventsByVendor[vendorName] || [];
         
-        const salesListHtml = sales.map(sale => `
-            <div class="commission-sale-item">
-                <div class="commission-sale-main">
-                    <span class="commission-sale-product">${sale.producto.modelo || 'Producto desc.'} ${sale.producto.color || ''}</span>
-                    <span class="commission-sale-amount">${formatearUSD(sale.comision_vendedor_usd)}</span>
-                </div>
-                <span class="commission-sale-date">${new Date((sale.fecha_venta?.seconds || 0) * 1000).toLocaleString('es-AR', {day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'})} hs</span>
-            </div>
-        `).join('');
+        events.sort((a, b) => b.date - a.date);
+
+        const totalPendingAmount = vendor.comision_pendiente_usd || 0;
+        
+        const eventsListHtml = events.map(event => {
+            if (event.type === 'ajuste') {
+                return `<div class="commission-sale-item" style="border-left: 4px solid var(--info-bg);"><div class="commission-sale-main"><span class="commission-sale-product" style="font-style: italic;">Ajuste Manual: ${event.description}</span><span class="commission-sale-amount" style="color: var(--info-bg);">${formatearUSD(event.amount)}</span></div><span class="commission-sale-date">${event.date.toLocaleString('es-AR', {day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'})} hs</span></div>`;
+            }
+            return `<div class="commission-sale-item"><div class="commission-sale-main"><span class="commission-sale-product">${event.description}</span><span class="commission-sale-amount">${formatearUSD(event.amount)}</span></div><span class="commission-sale-date">${event.date.toLocaleString('es-AR', {day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'})} hs</span></div>`;
+        }).join('');
 
         // ===================== INICIO DE LA MODIFICACIÓN =====================
-        // Se añade un botón de eliminar en la cabecera de la tarjeta
+        // Se añade el HTML de los filtros dentro de cada tarjeta.
+        const filtersHtml = `
+            <div class="commission-filters">
+                <div class="filter-group">
+                    <label>Desde</label>
+                    <input type="date" class="commission-start-date" value="${today}">
+                </div>
+                <div class="filter-group">
+                    <label>Hasta</label>
+                    <input type="date" class="commission-end-date" value="${today}">
+                </div>
+                <div class="filter-group">
+                    <button class="btn-filter-commission" data-vendor="${vendorName}">Filtrar</button>
+                </div>
+            </div>`;
+        // ====================== FIN DE LA MODIFICACIÓN =======================
+
         html += `
             <div class="commission-vendor-card" data-vendor-name="${vendorName}">
                 <div class="vendor-card-header">
-                    <div style="display: flex; align-items: center; gap: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
                         <h3>${vendorName}</h3>
-                        <button class="pcm-delete-btn btn-delete-vendedor" title="Eliminar Vendedor">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                        </button>
+                        <button class="pcm-delete-btn btn-add-balance" title="Sumar saldo a favor (Bono, adelanto, etc.)" style="border: 1px solid var(--success-bg);"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--success-bg)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
+                        <button class="pcm-delete-btn btn-delete-vendedor" title="Eliminar Vendedor"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
                     </div>
                     <div class="vendor-commission-details">
                          <span class="vendor-total-commission" title="Comisión PENDIENTE de pago">${formatearUSD(totalPendingAmount)}</span>
                          <button class="btn-pay-commission" data-pending-amount="${totalPendingAmount}" title="Registrar un pago de comisión a este vendedor" ${totalPendingAmount <= 0 ? 'disabled' : ''}>Pagar Comisión</button>
                     </div>
                 </div>
-                ${salesListHtml ? `<div class="commission-sales-list">${salesListHtml}</div>` : '<p class="dashboard-loader" style="font-size:0.9rem; padding: 1rem 0;">No hay nuevas comisiones en este período.</p>'}
+                
+                <div class="commission-sales-list" id="details-list-${vendorName.replace(/\s+/g, '')}">
+                    ${eventsListHtml || '<p class="dashboard-loader" style="font-size:0.9rem; padding: 1rem 0;">No hay comisiones para mostrar hoy.</p>'}
+                </div>
+
+                ${filtersHtml} 
+
                 <div class="commission-payment-history" id="history-${vendorName.replace(/\s+/g, '')}"></div>
             </div>
         `;
-        // ====================== FIN DE LA MODIFICACIÓN =======================
     }
     s.commissionsResultsContainer.innerHTML = html;
+
+    // Se añaden listeners a los nuevos botones de "Filtrar"
+    document.querySelectorAll('.btn-filter-commission').forEach(button => {
+        button.addEventListener('click', (e) => {
+            filterVendorHistory(e.currentTarget);
+        });
+    });
 
     Object.keys(vendorData).forEach(vendorName => {
         showCommissionPaymentHistory(vendorName);
@@ -5105,7 +5144,6 @@ async function registerSale(imei, productDetails, btn) {
     const valorCanjeUSD = formData.get('acepta-canje') === 'on' ? (parseFloat(formData.get('canje-valor')) || 0) : 0;
     const cotizacion = parseFloat(formData.get('cotizacion_dolar')) || 1;
     
-    // ===== INICIO DE LA MODIFICACIÓN =====
     const montoDolares = parseFloat(formData.get('monto_dolares')) || 0;
     const montoEfectivo = parseFloat(formData.get('monto_efectivo')) || 0;
     const montoTransferencia = parseFloat(formData.get('monto_transferencia')) || 0;
@@ -5132,7 +5170,6 @@ async function registerSale(imei, productDetails, btn) {
     if (montoEfectivo > 0) pagosRecibidos.push('Pesos (Efectivo)');
     if (montoTransferencia > 0) pagosRecibidos.push('Pesos (Transferencia)');
     if (montoTransferenciaUsd > 0) pagosRecibidos.push('Dólares (Transferencia)');
-    // ===== FIN DE LA MODIFICACIÓN =====
 
     const saleData = {
         imei_vendido: imei,
@@ -5150,7 +5187,7 @@ async function registerSale(imei, productDetails, btn) {
         monto_dolares: montoDolares,
         monto_efectivo: montoEfectivo,
         monto_transferencia: montoTransferencia,
-        monto_transferencia_usd: montoTransferenciaUsd, // Nuevo campo
+        monto_transferencia_usd: montoTransferenciaUsd,
         comision_pagada: false
     };
     
@@ -5161,8 +5198,8 @@ async function registerSale(imei, productDetails, btn) {
     }
     if (montoTransferenciaUsd > 0 && cuentaDestinoUsdValue) {
         const [id, nombre] = cuentaDestinoUsdValue.split('|');
-        saleData.cuenta_destino_usd_id = id; // Nuevo campo
-        saleData.cuenta_destino_usd_nombre = nombre; // Nuevo campo
+        saleData.cuenta_destino_usd_id = id;
+        saleData.cuenta_destino_usd_nombre = nombre;
     }
 
     try {
@@ -5170,19 +5207,27 @@ async function registerSale(imei, productDetails, btn) {
             const saleRef = db.collection("ventas").doc();
             t.update(db.collection("stock_individual").doc(imei), { estado: 'vendido' });
             
-            // Lógica existente para transferencia en ARS (NO SE TOCA)
             if (saleData.monto_transferencia > 0 && saleData.cuenta_destino_id) {
                 const cuentaRef = db.collection("cuentas_financieras").doc(saleData.cuenta_destino_id);
                 t.update(cuentaRef, { saldo_actual_ars: firebase.firestore.FieldValue.increment(saleData.monto_transferencia) });
             }
 
-            // ===== INICIO DE LA MODIFICACIÓN =====
-            // Nueva lógica para transferencia en USD
             if (saleData.monto_transferencia_usd > 0 && saleData.cuenta_destino_usd_id) {
                 const cuentaRef = db.collection("cuentas_financieras").doc(saleData.cuenta_destino_usd_id);
                 t.update(cuentaRef, { saldo_actual_usd: firebase.firestore.FieldValue.increment(saleData.monto_transferencia_usd) });
             }
-            // ===== FIN DE LA MODIFICACIÓN =====
+
+            // ===================== INICIO DE LA CORRECCIÓN CLAVE =====================
+            // Si la venta tiene una comisión, la sumamos al total pendiente del vendedor.
+            if (saleData.comision_vendedor_usd > 0) {
+                const vendorRef = db.collection("vendedores").doc(saleData.vendedor);
+                // Usamos FieldValue.increment para sumar de forma segura el nuevo valor.
+                // Esto funciona aunque el vendedor no exista, creando el campo si es necesario.
+                t.update(vendorRef, { 
+                    comision_pendiente_usd: firebase.firestore.FieldValue.increment(saleData.comision_vendedor_usd) 
+                });
+            }
+            // ====================== FIN DE LA CORRECCIÓN CLAVE =======================
 
             if (saleData.hubo_canje) {
                 const canjeParaReparar = formData.get('canje-para-reparar') === 'on';
@@ -6998,7 +7043,7 @@ function promptToAddVendedor() {
     </div>`;
 }
 
-// Función que guarda el vendedor en la base de datos
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
 async function saveVendedor(btn) {
     toggleSpinner(btn, true);
     const form = btn.form;
@@ -7007,7 +7052,12 @@ async function saveVendedor(btn) {
     
     const vendedorData = {
         nombre: form.nombre.value.trim(),
-        comision_pendiente_usd: saldoInicial, 
+        // ===================== INICIO DE LA MODIFICACIÓN =====================
+        // Guardamos el saldo inicial en un campo separado para mantenerlo como referencia histórica.
+        saldo_inicial_usd: saldoInicial,
+        // El saldo pendiente actual comienza siendo igual al saldo inicial.
+        comision_pendiente_usd: saldoInicial,
+        // ====================== FIN DE LA MODIFICACIÓN =======================
         fecha_creacion: firebase.firestore.FieldValue.serverTimestamp()
     };
 
@@ -7018,12 +7068,11 @@ async function saveVendedor(btn) {
     }
 
     try {
-        // Usamos el nombre como ID del documento para evitar duplicados
-        await db.collection('vendedores').doc(vendedorData.nombre).set(vendedorData);
-        showGlobalFeedback('Vendedor agregado con éxito', 'success');
+        await db.collection('vendedores').doc(vendedorData.nombre).set(vendedorData, { merge: true }); // Usamos merge:true por si el vendedor ya existe
+        showGlobalFeedback('Vendedor agregado/actualizado con éxito', 'success');
         s.promptContainer.innerHTML = '';
-        await loadAndPopulateSelects(); // Recargamos los selects de toda la app
-        loadCommissions(); // Recargamos la vista de comisiones
+        await loadAndPopulateSelects();
+        loadCommissions();
     } catch (error) {
         console.error("Error guardando al vendedor:", error);
         showGlobalFeedback('Error al guardar. Es posible que ya exista un vendedor con ese nombre.', 'error', 5000);
@@ -7941,5 +7990,234 @@ async function saveDeposit(btn) {
         showGlobalFeedback(error.message || 'Error al procesar el depósito.', 'error');
     } finally {
         toggleSpinner(btn, false);
+    }
+}
+
+// AÑADE ESTA FUNCIÓN COMPLETA AL FINAL DE TU SCRIPT.JS
+async function resincronizarSaldosDeVendedores() {
+    const message = `Esta acción recalculará el saldo pendiente de TODOS los vendedores basándose en su saldo inicial y su historial completo de ventas y pagos.
+    <br><br>
+    Esto es útil para corregir cualquier discrepancia en los totales. ¿Deseas continuar?`;
+
+    showConfirmationModal('Confirmar Resincronización de Saldos', message, async () => {
+        const loadingFeedbackId = 'resync-loading';
+        showGlobalFeedback('Resincronizando saldos de todos los vendedores, por favor espera...', 'loading', 15000);
+
+        try {
+            // 1. Obtenemos todos los datos necesarios en paralelo
+            const vendorsPromise = db.collection('vendedores').get();
+            const salesPromise = db.collection('ventas').where('comision_vendedor_usd', '>', 0).get();
+            const paymentsPromise = db.collection('pagos_comisiones').get();
+            
+            const [vendorsSnapshot, salesSnapshot, paymentsSnapshot] = await Promise.all([vendorsPromise, salesPromise, paymentsPromise]);
+
+            // 2. Procesamos y agrupamos los datos para un acceso rápido
+            const salesByVendor = {};
+            salesSnapshot.forEach(doc => {
+                const sale = doc.data();
+                if (!salesByVendor[sale.vendedor]) salesByVendor[sale.vendedor] = [];
+                salesByVendor[sale.vendedor].push(sale.comision_vendedor_usd);
+            });
+
+            const paymentsByVendor = {};
+            paymentsSnapshot.forEach(doc => {
+                const payment = doc.data();
+                if (!paymentsByVendor[payment.vendedor]) paymentsByVendor[payment.vendedor] = [];
+                paymentsByVendor[payment.vendedor].push(payment.monto_usd);
+            });
+
+            // 3. Iteramos sobre cada vendedor y recalculamos su saldo
+            const batch = db.batch();
+            let vendorsUpdatedCount = 0;
+
+            vendorsSnapshot.forEach(vendorDoc => {
+                const vendorName = vendorDoc.id;
+                const vendorData = vendorDoc.data();
+                
+                // El saldo inicial es el que se guardó al crearlo o 0 por defecto
+                const saldoInicial = vendorData.saldo_inicial_usd || 0;
+                
+                // Sumamos todas las comisiones de su historial
+                const totalComisiones = (salesByVendor[vendorName] || []).reduce((sum, current) => sum + current, 0);
+                
+                // Sumamos todos los pagos que se le han hecho
+                const totalPagos = (paymentsByVendor[vendorName] || []).reduce((sum, current) => sum + current, 0);
+
+                // Calculamos el nuevo saldo pendiente correcto
+                const nuevoSaldoCalculado = saldoInicial + totalComisiones - totalPagos;
+                
+                // Preparamos la actualización en un batch para eficiencia
+                const vendorRef = db.collection('vendedores').doc(vendorName);
+                batch.update(vendorRef, { comision_pendiente_usd: nuevoSaldoCalculado });
+                vendorsUpdatedCount++;
+            });
+
+            // 4. Ejecutamos todas las actualizaciones a la vez
+            await batch.commit();
+
+            showGlobalFeedback(`¡Éxito! Se han resincronizado los saldos de ${vendorsUpdatedCount} vendedores.`, 'success');
+            
+            // 5. Recargamos la vista de comisiones para mostrar los datos corregidos
+            loadCommissions();
+
+        } catch (error) {
+            console.error("Error durante la resincronización de saldos:", error);
+            showGlobalFeedback('Error crítico durante la resincronización. Revisa la consola.', 'error');
+        }
+    });
+}
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
+function promptToAddCommissionBalance(vendorName) {
+    // ===================== INICIO DE LA MODIFICACIÓN =====================
+    // Se ha cambiado el HTML interno para usar el estilo de formulario moderno
+    // que soluciona el problema de superposición de la etiqueta.
+    s.promptContainer.innerHTML = `
+    <div class="ingreso-modal-box">
+        <h3>Sumar Saldo a ${vendorName}</h3>
+        <form id="add-commission-form" data-vendor-name="${vendorName}" novalidate>
+            <div class="form-group">
+                <input type="number" id="add-commission-amount" name="amount" required placeholder=" " step="0.01" min="0.01">
+                <label for="add-commission-amount">Monto a Sumar (USD)</label>
+            </div>
+            <div class="form-group">
+                <textarea id="add-commission-reason" name="reason" rows="1" placeholder=" "></textarea>
+                <label for="add-commission-reason">Motivo (Ej: Bono, Adelanto, Ajuste) - Opcional</label>
+            </div>
+            <div class="prompt-buttons">
+                <button type="submit" class="prompt-button confirm spinner-btn">
+                    <span class="btn-text">Confirmar y Sumar</span>
+                    <div class="spinner"></div>
+                </button>
+                <button type="button" class="prompt-button cancel">Cancelar</button>
+            </div>
+        </form>
+    </div>`;
+    // ====================== FIN DE LA MODIFICACIÓN =======================
+
+    const textarea = document.getElementById('add-commission-reason');
+    if (textarea) {
+        textarea.addEventListener('input', () => {
+            textarea.style.height = 'auto';
+            textarea.style.height = (textarea.scrollHeight) + 'px';
+        });
+    }
+}
+
+// AÑADE ESTA OTRA FUNCIÓN NUEVA AL FINAL DEL SCRIPT
+async function saveAddedCommissionBalance(btn) {
+    toggleSpinner(btn, true);
+    const form = btn.form;
+    const vendorName = form.dataset.vendorName;
+    const amount = parseFloat(form.amount.value);
+    const reason = form.reason.value.trim() || 'Ajuste manual de saldo';
+
+    if (!vendorName || isNaN(amount) || amount <= 0) {
+        showGlobalFeedback("El monto debe ser un número válido y mayor a cero.", "error");
+        toggleSpinner(btn, false);
+        return;
+    }
+
+    try {
+        const vendorRef = db.collection('vendedores').doc(vendorName);
+        
+        // Usamos una transacción para asegurar la consistencia.
+        await db.runTransaction(async (t) => {
+            // Creamos un registro del ajuste para tener un historial.
+            const adjustmentRef = db.collection('ajustes_comisiones').doc();
+            t.set(adjustmentRef, {
+                vendedor: vendorName,
+                monto_usd: amount,
+                motivo: reason,
+                tipo: 'SUMA_MANUAL',
+                fecha: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            // Incrementamos el saldo pendiente del vendedor.
+            t.update(vendorRef, {
+                comision_pendiente_usd: firebase.firestore.FieldValue.increment(amount)
+            });
+        });
+
+        showGlobalFeedback(`Se sumaron ${formatearUSD(amount)} al saldo de ${vendorName}.`, 'success');
+        s.promptContainer.innerHTML = '';
+        loadCommissions(); // Recargamos la vista para mostrar el nuevo total.
+
+    } catch (error) {
+        console.error("Error al sumar saldo al vendedor:", error);
+        showGlobalFeedback("Error al actualizar el saldo del vendedor.", "error");
+    } finally {
+        toggleSpinner(btn, false);
+    }
+}
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+async function filterVendorHistory(filterButton) {
+    const vendorName = filterButton.dataset.vendor;
+    const card = filterButton.closest('.commission-vendor-card');
+    const startDate = card.querySelector('.commission-start-date').value;
+    const endDate = card.querySelector('.commission-end-date').value;
+    const detailsListContainer = card.querySelector('.commission-sales-list');
+
+    if (!startDate || !endDate) {
+        showGlobalFeedback("Debes seleccionar una fecha de inicio y fin.", "error");
+        return;
+    }
+
+    detailsListContainer.innerHTML = `<p class="dashboard-loader">Buscando historial...</p>`;
+
+    try {
+        const start = new Date(startDate + 'T00:00:00');
+        const end = new Date(endDate + 'T23:59:59');
+
+        // ===================== INICIO DE LA CORRECCIÓN CLAVE =====================
+        // Se elimina el ".where('comision_vendedor_usd', '>', 0)" de la consulta
+        // para evitar el error de Firebase.
+        let salesQuery = db.collection("ventas")
+            .where("vendedor", "==", vendorName)
+            .where('fecha_venta', '>=', start)
+            .where('fecha_venta', '<=', end);
+        // ====================== FIN DE LA CORRECCIÓN CLAVE =======================
+            
+        let adjustmentsQuery = db.collection("ajustes_comisiones").where("vendedor", "==", vendorName).where('fecha', '>=', start).where('fecha', '<=', end);
+
+        const [salesSnapshot, adjustmentsSnapshot] = await Promise.all([salesQuery.get(), adjustmentsQuery.get()]);
+
+        let commissionEvents = [];
+
+        // ===================== INICIO DE LA CORRECCIÓN CLAVE =====================
+        // El filtro para comisiones mayores a cero se aplica ahora aquí, en el código.
+        salesSnapshot.docs.forEach(doc => {
+            const sale = doc.data();
+            if ((sale.comision_vendedor_usd || 0) > 0) {
+                commissionEvents.push({ type: 'venta', date: sale.fecha_venta.toDate(), description: `${sale.producto.modelo || 'Producto'} ${sale.producto.color || ''}`, amount: sale.comision_vendedor_usd });
+            }
+        });
+        // ====================== FIN DE LA CORRECCIÓN CLAVE =======================
+
+        adjustmentsSnapshot.docs.forEach(doc => {
+            const adjustment = doc.data();
+            commissionEvents.push({ type: 'ajuste', date: adjustment.fecha.toDate(), description: adjustment.motivo || 'Ajuste manual', amount: adjustment.monto_usd });
+        });
+
+        if (commissionEvents.length === 0) {
+            detailsListContainer.innerHTML = `<p class="dashboard-loader" style="font-size:0.9rem; padding: 1rem 0;">No se encontraron comisiones en este período.</p>`;
+            return;
+        }
+
+        commissionEvents.sort((a, b) => b.date - a.date);
+
+        const eventsListHtml = commissionEvents.map(event => {
+            if (event.type === 'ajuste') {
+                return `<div class="commission-sale-item" style="border-left: 4px solid var(--info-bg);"><div class="commission-sale-main"><span class="commission-sale-product" style="font-style: italic;">Ajuste Manual: ${event.description}</span><span class="commission-sale-amount" style="color: var(--info-bg);">${formatearUSD(event.amount)}</span></div><span class="commission-sale-date">${event.date.toLocaleString('es-AR', {day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'})} hs</span></div>`;
+            }
+            return `<div class="commission-sale-item"><div class="commission-sale-main"><span class="commission-sale-product">${event.description}</span><span class="commission-sale-amount">${formatearUSD(event.amount)}</span></div><span class="commission-sale-date">${event.date.toLocaleString('es-AR', {day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'})} hs</span></div>`;
+        }).join('');
+
+        detailsListContainer.innerHTML = eventsListHtml;
+
+    } catch (error) {
+        console.error("Error filtrando historial del vendedor:", error);
+        detailsListContainer.innerHTML = `<p class="dashboard-loader" style="color:var(--error-bg);">Error al cargar el historial.</p>`;
     }
 }
