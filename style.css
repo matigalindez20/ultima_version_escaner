@@ -4332,3 +4332,42 @@ td.actions-cell {
     vertical-align: top; /* Asegura la alineación si hay saltos de línea en otras celdas */
     cursor: help; /* Muestra un cursor de ayuda para indicar que hay más info */
 }
+
+/* AÑADE ESTO AL FINAL DE TU ARCHIVO style.css */
+
+.reports-actions-container {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 3rem;
+    margin-top: 1rem; /* Lo acerca un poco al título */
+}
+
+.btn-view-charts {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.8rem 1.5rem;
+    background-color: transparent;
+    border: 2px solid var(--brand-yellow);
+    color: var(--brand-yellow);
+    border-radius: var(--border-radius);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 1rem;
+    transition: all 0.2s ease-in-out;
+}
+
+.btn-view-charts:hover {
+    background-color: var(--brand-yellow);
+    color: #000;
+    transform: translateY(-3px);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+}
+
+.btn-view-charts svg {
+    transition: stroke 0.2s ease-in-out;
+}
+
+.btn-view-charts:hover svg {
+    stroke: #000;
+}
