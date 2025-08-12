@@ -374,6 +374,11 @@ function addEventListeners() {
             } else if (form.id === 'commission-payment-form') { saveCommissionPayment(form);
             } else if (form.id === 'add-commission-form') {
                 saveAddedCommissionBalance(form.querySelector('button[type="submit"]'));
+            // ===================== INICIO DE LA MODIFICACIÓN (2/2) =====================
+            // Se añade la condición para el nuevo formulario de cambio de moneda.
+            } else if (form.id === 'currency-exchange-form') {
+                saveCurrencyExchange(form.querySelector('button[type="submit"]'));
+            // ====================== FIN DE LA MODIFICACIÓN =======================
             } else if (form.id === 'batch-id-form') {
                 const batchIdManual = form.batchNumber.value.trim();
                 if (!batchIdManual) { showGlobalFeedback("El ID del lote no puede estar vacío.", "error"); return; }
@@ -400,6 +405,14 @@ function addEventListeners() {
     if (btnResyncCommissions) {
         btnResyncCommissions.addEventListener('click', resincronizarSaldosDeVendedores);
     }
+    
+    // ===================== INICIO DE LA MODIFICACIÓN (1/2) =====================
+    // Se añade el listener para el nuevo botón de cambio de moneda.
+    const btnCurrencyExchange = document.getElementById('btn-currency-exchange');
+    if (btnCurrencyExchange) {
+        btnCurrencyExchange.addEventListener('click', promptForCurrencyExchange);
+    }
+    // ====================== FIN DE LA MODIFICACIÓN =======================
 
     s.btnApplyStockFilters.addEventListener('click', () => loadStock('first'));
     s.btnApplySalesFilters.addEventListener('click', () => loadSales('first'));
@@ -3160,11 +3173,7 @@ async function showKpiDetail(kpiType, period) {
             }
         });
         
-        // ===================== INICIO DE LA CORRECCIÓN CLAVE =====================
-        // Se ordena la lista combinada por la propiedad 'fecha' para asegurar
-        // el orden cronológico descendente (el más nuevo primero).
         transactions.sort((a, b) => b.fecha - a.fecha);
-        // ====================== FIN DE LA CORRECCIÓN CLAVE =======================
 
         if (transactions.length === 0) {
             detailContent.innerHTML = `<p class="dashboard-loader">No hay movimientos para este período.</p>`;
@@ -3184,18 +3193,27 @@ async function showKpiDetail(kpiType, period) {
             }).join('')}</tbody></table></div>`;
         detailContent.innerHTML = tableHTML;
 
+        // ===================== INICIO DE LA MODIFICACIÓN =====================
+        // Se actualiza el listener del botón de eliminar para que sea más inteligente.
         detailContent.querySelectorAll('.btn-delete-kpi-item').forEach(btn => btn.addEventListener('click', (e) => {
             const row = e.currentTarget.closest('tr');
             const id = row.dataset.id;
             const collection = row.dataset.collection;
             const data = JSON.parse(row.dataset.item.replace(/\\'/g, "'"));
             
-            if (collection === 'ventas') handleSaleDeletion(id, data);
-            else if (collection === 'ingresos_caja' || collection === 'gastos') {
+            // Si es una operación de cambio de moneda, llama a la nueva función
+            if (data.categoria === 'Cambio de Moneda' && data.exchangeId) {
+                deleteCurrencyExchangeTransaction(data, kpiType, period);
+            } 
+            // Si no, sigue con la lógica anterior
+            else if (collection === 'ventas') {
+                handleSaleDeletion(id, data);
+            } else if (collection === 'ingresos_caja' || collection === 'gastos') {
                 const type = collection === 'gastos' ? 'Gasto' : 'Ingreso';
                 showConfirmationModal(`Eliminar ${type}`, `¿Seguro que quieres eliminar este movimiento?`, () => deleteSimpleTransaction(id, collection, kpiType, period));
             }
         }));
+        // ====================== FIN DE LA MODIFICACIÓN =======================
 
     } catch (error) {
         handleDBError(error, detailContent, `el detalle de ${kpiType}`);
@@ -8221,4 +8239,195 @@ async function filterVendorHistory(filterButton) {
         console.error("Error filtrando historial del vendedor:", error);
         detailsListContainer.innerHTML = `<p class="dashboard-loader" style="color:var(--error-bg);">Error al cargar el historial.</p>`;
     }
+}
+
+// AÑADE ESTA FUNCIÓN COMPLETA AL FINAL DE TU SCRIPT.JS
+function promptForCurrencyExchange() {
+    s.promptContainer.innerHTML = `
+    <div class="ingreso-modal-box">
+        <h3>Cambio de Moneda</h3>
+        <p style="text-align:center; color: var(--text-muted); margin-top:-1.5rem; margin-bottom: 2rem;">Selecciona el tipo de operación que quieres realizar.</p>
+        <div class="prompt-buttons">
+            <button id="btn-sell-usd-flow" class="prompt-button confirm">Vender Dólares (a Pesos)</button>
+            <button id="btn-buy-usd-flow" class="prompt-button confirm" style="background-color: var(--success-bg);">Comprar Dólares (con Pesos)</button>
+        </div>
+        <div class="prompt-buttons" style="margin-top: 1rem;">
+            <button class="prompt-button cancel">Cancelar</button>
+        </div>
+    </div>`;
+
+    document.getElementById('btn-sell-usd-flow').onclick = () => promptForExchangeDetails('sell-usd');
+    document.getElementById('btn-buy-usd-flow').onclick = () => promptForExchangeDetails('buy-usd');
+}
+
+// AÑADE ESTA OTRA FUNCIÓN COMPLETA AL FINAL DE TU SCRIPT.JS
+function promptForExchangeDetails(mode) {
+    const isSelling = mode === 'sell-usd';
+    const title = isSelling ? "Vender Dólares a Pesos" : "Comprar Dólares con Pesos";
+    const primaryLabel = isSelling ? "Monto a Vender (USD)" : "Monto a Gastar (ARS)";
+    const secondaryLabel = isSelling ? "Recibirás (ARS)" : "Recibirás (USD)";
+    const primaryName = isSelling ? "amount_usd" : "amount_ars";
+    const secondaryName = isSelling ? "result_ars" : "result_usd";
+
+    s.promptContainer.innerHTML = `
+    <div class="ingreso-modal-box">
+        <h3>${title}</h3>
+        <form id="currency-exchange-form" data-mode="${mode}" novalidate>
+            <div class="form-group">
+                <input type="number" id="exchange-primary-amount" name="${primaryName}" required placeholder=" " step="0.01">
+                <label for="exchange-primary-amount">${primaryLabel}</label>
+            </div>
+            <div class="form-group">
+                <input type="number" id="exchange-cotizacion" name="cotizacion" required placeholder=" " step="0.01">
+                <label for="exchange-cotizacion">Cotización del Dólar</label>
+            </div>
+            <div class="form-group">
+                <input type="text" id="exchange-result-amount" name="${secondaryName}" readonly style="background-color: #222; color: var(--brand-yellow); font-weight: bold;">
+                <label for="exchange-result-amount">${secondaryLabel}</label>
+            </div>
+            <div class="prompt-buttons">
+                <button type="submit" class="prompt-button confirm spinner-btn">
+                    <span class="btn-text">Confirmar Operación</span>
+                    <div class="spinner"></div>
+                </button>
+                <button type="button" class="prompt-button cancel">Cancelar</button>
+            </div>
+        </form>
+    </div>`;
+
+    const form = document.getElementById('currency-exchange-form');
+    const primaryInput = form.querySelector('#exchange-primary-amount');
+    const cotizacionInput = form.querySelector('#exchange-cotizacion');
+    const resultInput = form.querySelector('#exchange-result-amount');
+
+    const calculateResult = () => {
+        const primaryAmount = parseFloat(primaryInput.value) || 0;
+        const cotizacion = parseFloat(cotizacionInput.value) || 0;
+        if (primaryAmount > 0 && cotizacion > 0) {
+            const result = isSelling ? primaryAmount * cotizacion : primaryAmount / cotizacion;
+            resultInput.value = result.toFixed(2);
+        } else {
+            resultInput.value = '';
+        }
+    };
+
+    primaryInput.addEventListener('input', calculateResult);
+    cotizacionInput.addEventListener('input', calculateResult);
+}
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+async function saveCurrencyExchange(btn) {
+    toggleSpinner(btn, true);
+    const form = btn.form;
+    const mode = form.dataset.mode;
+    const formData = new FormData(form);
+    
+    const primaryAmount = parseFloat(formData.get(mode === 'sell-usd' ? 'amount_usd' : 'amount_ars'));
+    const cotizacion = parseFloat(formData.get('cotizacion'));
+
+    if (isNaN(primaryAmount) || primaryAmount <= 0 || isNaN(cotizacion) || cotizacion <= 0) {
+        showGlobalFeedback("Debes ingresar un monto y una cotización válidos.", "error");
+        toggleSpinner(btn, false);
+        return;
+    }
+
+    try {
+        // ===================== INICIO DE LA MODIFICACIÓN (1/2) =====================
+        // Creamos un ID único para vincular ambas transacciones (gasto e ingreso).
+        const exchangeId = db.collection('gastos').doc().id;
+        // ====================== FIN DE LA MODIFICACIÓN =======================
+
+        await db.runTransaction(async t => {
+            const fecha = firebase.firestore.FieldValue.serverTimestamp();
+            const gastoRef = db.collection('gastos').doc();
+            const ingresoRef = db.collection('ingresos_caja').doc();
+
+            if (mode === 'sell-usd') { // Vender Dólares
+                const montoArsResult = primaryAmount * cotizacion;
+                t.set(gastoRef, {
+                    categoria: 'Cambio de Moneda',
+                    descripcion: `Venta de ${formatearUSD(primaryAmount)} a ${formatearARS(cotizacion)}`,
+                    monto: primaryAmount,
+                    metodo_pago: 'Dólares',
+                    fecha,
+                    exchangeId: exchangeId // Guardamos el ID de vínculo
+                });
+                t.set(ingresoRef, {
+                    categoria: 'Cambio de Moneda',
+                    descripcion: `Ingreso por venta de dólares`,
+                    monto: montoArsResult,
+                    metodo: 'Pesos (Efectivo)',
+                    fecha,
+                    exchangeId: exchangeId // Guardamos el MISMO ID de vínculo
+                });
+
+            } else { // Comprar Dólares
+                const montoUsdResult = primaryAmount / cotizacion;
+                
+                // ===================== INICIO DE LA MODIFICACIÓN (2/2) =====================
+                // Ahora los datos del gasto y del ingreso también incluyen el ID de vínculo.
+                t.set(gastoRef, {
+                    categoria: 'Cambio de Moneda',
+                    descripcion: `Compra de dólares con ${formatearARS(primaryAmount)} a ${formatearARS(cotizacion)}`,
+                    monto: primaryAmount,
+                    metodo_pago: 'Pesos (Efectivo)',
+                    fecha,
+                    exchangeId: exchangeId
+                });
+                t.set(ingresoRef, {
+                    categoria: 'Cambio de Moneda',
+                    descripcion: `Ingreso por compra a ${formatearARS(cotizacion)}`,
+                    monto: montoUsdResult,
+                    metodo: 'Dólares',
+                    fecha,
+                    exchangeId: exchangeId
+                });
+                // ====================== FIN DE LA MODIFICACIÓN =======================
+            }
+        });
+        showGlobalFeedback("Operación de cambio registrada con éxito.", "success");
+        s.promptContainer.innerHTML = '';
+        updateReports();
+
+    } catch (error) {
+        console.error("Error al registrar el cambio de moneda:", error);
+        showGlobalFeedback("Error al procesar la operación. Revisa la consola.", "error");
+    } finally {
+        toggleSpinner(btn, false);
+    }
+}
+
+// AÑADE ESTA FUNCIÓN NUEVA AL FINAL DEL SCRIPT
+async function deleteCurrencyExchangeTransaction(data, kpiType, period) {
+    const { exchangeId } = data;
+    if (!exchangeId) {
+        showGlobalFeedback("Error: no se pudo encontrar el ID de la operación vinculada.", "error");
+        return;
+    }
+
+    const message = `Esta es una operación de cambio de moneda vinculada. Si continúas, se eliminarán <strong>tanto el Gasto como el Ingreso</strong> asociados a esta operación.<br><br>¿Estás seguro de que quieres revertir la operación completa?`;
+
+    showConfirmationModal('Confirmar Reversión de Operación', message, async () => {
+        try {
+            await db.runTransaction(async t => {
+                // Buscar tanto el gasto como el ingreso que compartan el mismo ID de operación
+                const gastoQuery = db.collection('gastos').where('exchangeId', '==', exchangeId);
+                const ingresoQuery = db.collection('ingresos_caja').where('exchangeId', '==', exchangeId);
+                
+                const [gastoSnapshot, ingresoSnapshot] = await Promise.all([gastoQuery.get(), ingresoQuery.get()]);
+
+                // Eliminar los documentos encontrados
+                gastoSnapshot.forEach(doc => t.delete(doc.ref));
+                ingresoSnapshot.forEach(doc => t.delete(doc.ref));
+            });
+
+            showGlobalFeedback("Operación de cambio revertida con éxito.", "success");
+            updateReports(); // Actualizamos los KPIs principales
+            showKpiDetail(kpiType, period); // Recargamos la vista de detalle
+
+        } catch (error) {
+            console.error("Error al revertir la operación de cambio:", error);
+            showGlobalFeedback("No se pudo revertir la operación. Revisa la consola.", "error");
+        }
+    });
 }

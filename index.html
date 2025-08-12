@@ -146,7 +146,6 @@
                     </button>
                     <button onclick="promptToAddVendedor()" class="control-btn" style="background-color: var(--success-bg);">+ Nuevo Vendedor</button>
                 </div>
-                <!-- El contenedor de filtros que estaba aquí fue eliminado -->
                 <div id="commissions-results-container"></div>
             </div>
             <div id="gastos-section" class="hidden">
@@ -322,6 +321,14 @@
                         <div class="kpi-value" id="kpi-transfer-usd-day">...</div>
                     </div>
                 </div>
+
+                <div id="btn-currency-exchange-container" style="display: flex; justify-content: center; margin: 1.5rem 0;">
+                    <button id="btn-currency-exchange" class="control-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+                        <span>Cambio de Moneda</span>
+                    </button>
+                </div>
+                
                  <div class="kpi-container two-cols centered">
                      <div class="kpi-card">
                         <div class="kpi-title">Ganancia Neta (Profit)</div>

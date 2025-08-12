@@ -4254,3 +4254,32 @@ td.actions-cell {
     flex-basis: 100px; /* Ancho base */
     flex-grow: 0;
 }
+
+/* ======================================================================= */
+/* ====== ESTILOS PARA EL NUEVO BOTÓN DE CAMBIO DE MONEDA ====== */
+/* ======================================================================= */
+#btn-currency-exchange {
+    width: auto;
+    padding: 0.8rem 1.5rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    background: transparent;
+    border: 2px solid var(--info-bg);
+    color: var(--info-bg);
+    transition: all 0.2s ease-in-out;
+}
+
+#btn-currency-exchange:hover {
+    background: var(--info-bg);
+    color: var(--text-light);
+    transform: translateY(-2px);
+}
+
+#btn-currency-exchange svg {
+    stroke: var(--info-bg);
+    transition: stroke 0.2s ease-in-out;
+}
+
+#btn-currency-exchange:hover svg {
+    stroke: var(--text-light);
+}
