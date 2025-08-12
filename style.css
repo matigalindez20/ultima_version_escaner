@@ -1665,7 +1665,7 @@ td.actions-cell {
     color: var(--text-muted);
 }
 
-/* === ESTILOS PARA FORMULARIOS MODERNOS EN POP-UPS === */
+/* REEMPLAZA CON ESTA REGLA */
 #prompt-container .ingreso-modal-box {
     background-color: rgba(29, 29, 29, 0.7);
     backdrop-filter: blur(10px);
@@ -1673,6 +1673,7 @@ td.actions-cell {
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: var(--border-radius);
     padding: 2.5rem;
+    max-width: 600px; /* <--- AÑADIDO */
 }
 
 #prompt-container .ingreso-modal-box h3 {

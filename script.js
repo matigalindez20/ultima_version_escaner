@@ -3104,7 +3104,7 @@ function deleteBatch(batchId, batchNumber, providerId, providerName, batchCost) 
     });
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
 async function showKpiDetail(kpiType, period) {
     const now = new Date();
     let startDate, endDate, title = '';
@@ -3190,19 +3190,17 @@ async function showKpiDetail(kpiType, period) {
             }).join('')}</tbody></table></div>`;
         detailContent.innerHTML = tableHTML;
 
-        // ===================== INICIO DE LA MODIFICACIÓN =====================
-        // Se actualiza el listener del botón de eliminar para que sea más inteligente.
         detailContent.querySelectorAll('.btn-delete-kpi-item').forEach(btn => btn.addEventListener('click', (e) => {
             const row = e.currentTarget.closest('tr');
             const id = row.dataset.id;
             const collection = row.dataset.collection;
             const data = JSON.parse(row.dataset.item.replace(/\\'/g, "'"));
             
-            // Si es una operación de cambio de moneda, llama a la nueva función
-            if (data.categoria === 'Cambio de Moneda' && data.exchangeId) {
+            // ===================== INICIO DE LA MODIFICACIÓN =====================
+            if ((data.categoria === 'Cambio de Moneda' || data.categoria === 'Movimiento Interno' || data.categoria === 'Cambio y Depósito') && data.exchangeId) {
                 deleteCurrencyExchangeTransaction(data, kpiType, period);
             } 
-            // Si no, sigue con la lógica anterior
+            // ====================== FIN DE LA MODIFICACIÓN =======================
             else if (collection === 'ventas') {
                 handleSaleDeletion(id, data);
             } else if (collection === 'ingresos_caja' || collection === 'gastos') {
@@ -3210,7 +3208,6 @@ async function showKpiDetail(kpiType, period) {
                 showConfirmationModal(`Eliminar ${type}`, `¿Seguro que quieres eliminar este movimiento?`, () => deleteSimpleTransaction(id, collection, kpiType, period));
             }
         }));
-        // ====================== FIN DE LA MODIFICACIÓN =======================
 
     } catch (error) {
         handleDBError(error, detailContent, `el detalle de ${kpiType}`);
@@ -7853,9 +7850,10 @@ async function deleteRetiroSocio(retiroId, retiroData) {
     });
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
 function promptToMakeDeposit() {
-    const accountsArsOptions = financialAccounts.filter(acc => acc.moneda === 'ARS' && acc.nombre !== 'Caja').map(acc => `<option value="${acc.id}|${acc.nombre}">${acc.nombre}</option>`).join('');
-    const accountsUsdOptions = financialAccounts.filter(acc => acc.moneda === 'USD' && acc.nombre !== 'Caja USD').map(acc => `<option value="${acc.id}|${acc.nombre}">${acc.nombre}</option>`).join('');
+    const accountsArsOptions = financialAccounts.filter(acc => acc.moneda === 'ARS').map(acc => `<option value="${acc.id}|${acc.nombre}">${acc.nombre}</option>`).join('');
+    const accountsUsdOptions = financialAccounts.filter(acc => acc.moneda === 'USD').map(acc => `<option value="${acc.id}|${acc.nombre}">${acc.nombre}</option>`).join('');
 
     s.promptContainer.innerHTML = `
     <div class="ingreso-modal-box">
@@ -7864,37 +7862,29 @@ function promptToMakeDeposit() {
             <div class="form-group">
                 <select id="deposit-type" name="deposit_type" required>
                     <option value="" disabled selected></option>
-                    <option value="ars_to_account">Desde Caja de Pesos (ARS) a Cuenta Bancaria</option>
-                    <option value="usd_to_account">Desde Caja de Dólares (USD) a Cuenta Bancaria</option>
+                    <option value="ars_to_ars">Desde Caja de Pesos (ARS) a Cuenta ARS</option>
+                    <option value="usd_to_usd">Desde Caja de Dólares (USD) a Cuenta USD</option>
+                    <option value="ars_to_usd">Desde Caja de Pesos (ARS) a Cuenta USD (Compra)</option>
+                    <option value="usd_to_ars">Desde Caja de Dólares (USD) a Cuenta ARS (Venta)</option>
                 </select>
-                <label for="deposit-type">Tipo de Depósito</label>
+                <label for="deposit-type">Tipo de Operación</label>
             </div>
 
-            <div id="deposit-ars-fields" class="hidden">
-                <div class="form-group">
-                    <input type="number" name="amount_ars" placeholder=" " step="0.01">
-                    <label>Monto a Depositar (ARS)</label>
-                </div>
-                <div class="form-group">
-                    <select name="destination_account_ars">${accountsArsOptions}</select>
-                    <label>Depositar en la Cuenta</label>
-                </div>
+            <!-- Campos para depósitos simples -->
+            <div id="deposit-simple-ars" class="hidden"><div class="form-group"><input type="number" name="amount_ars_simple" placeholder=" " step="0.01"><label>Monto a Depositar (ARS)</label></div><div class="form-group"><select name="destination_account_ars">${accountsArsOptions}</select><label>Depositar en la Cuenta ARS</label></div></div>
+            <div id="deposit-simple-usd" class="hidden"><div class="form-group"><input type="number" name="amount_usd_simple" placeholder=" " step="0.01"><label>Monto a Depositar (USD)</label></div><div class="form-group"><select name="destination_account_usd">${accountsUsdOptions}</select><label>Depositar en la Cuenta USD</label></div></div>
+            
+            <!-- Campos para depósitos con cambio de divisa -->
+            <div id="deposit-exchange-fields" class="hidden" style="display: flex; gap: 1rem;">
+                <div style="flex: 1;"><div class="form-group"><input type="number" name="amount_exchange_source" placeholder=" " step="0.01"><label id="label-exchange-source"></label></div></div>
+                <div style="flex: 1;"><div class="form-group"><input type="number" name="cotizacion" placeholder=" " step="0.01"><label>A Cotización de</label></div></div>
+                <div style="flex: 1;"><div class="form-group"><input type="text" name="amount_exchange_result" readonly style="background-color: #222; color: var(--brand-yellow);"><label id="label-exchange-result"></label></div></div>
             </div>
-
-            <div id="deposit-usd-fields" class="hidden">
-                <div class="form-group">
-                    <input type="number" name="amount_usd" placeholder=" " step="0.01">
-                    <label>Monto a Depositar (USD)</label>
-                </div>
-                <div class="form-group">
-                    <select name="destination_account_usd">${accountsUsdOptions}</select>
-                    <label>Depositar en la Cuenta</label>
-                </div>
-            </div>
+            <div id="deposit-exchange-destination" class="hidden"><div class="form-group"><select name="destination_account_exchange"></select><label id="label-exchange-destination"></label></div></div>
 
             <div class="prompt-buttons">
                 <button type="submit" class="prompt-button confirm spinner-btn">
-                    <span class="btn-text">Confirmar Depósito</span>
+                    <span class="btn-text">Confirmar Operación</span>
                     <div class="spinner"></div>
                 </button>
                 <button type="button" class="prompt-button cancel">Cancelar</button>
@@ -7907,19 +7897,52 @@ function promptToMakeDeposit() {
     
     depositTypeSelect.addEventListener('change', () => {
         const type = depositTypeSelect.value;
-        const arsFields = form.querySelector('#deposit-ars-fields');
-        const usdFields = form.querySelector('#deposit-usd-fields');
+        
+        // Ocultamos todos los contenedores de campos
+        ['deposit-simple-ars', 'deposit-simple-usd', 'deposit-exchange-fields', 'deposit-exchange-destination'].forEach(id => form.querySelector(`#${id}`).classList.add('hidden'));
+        
+        const exchangeSourceInput = form.querySelector('[name="amount_exchange_source"]');
+        const cotizacionInput = form.querySelector('[name="cotizacion"]');
+        const destExchangeSelect = form.querySelector('[name="destination_account_exchange"]');
 
-        arsFields.classList.toggle('hidden', type !== 'ars_to_account');
-        arsFields.querySelector('input').required = (type === 'ars_to_account');
-        arsFields.querySelector('select').required = (type === 'ars_to_account');
+        const calculateResult = () => {
+            const sourceAmount = parseFloat(exchangeSourceInput.value) || 0;
+            const cotizacion = parseFloat(cotizacionInput.value) || 0;
+            const resultInput = form.querySelector('[name="amount_exchange_result"]');
+            if(sourceAmount > 0 && cotizacion > 0) {
+                const result = type === 'ars_to_usd' ? sourceAmount / cotizacion : sourceAmount * cotizacion;
+                resultInput.value = result.toFixed(2);
+            } else {
+                resultInput.value = '';
+            }
+        };
 
-        usdFields.classList.toggle('hidden', type !== 'usd_to_account');
-        usdFields.querySelector('input').required = (type === 'usd_to_account');
-        usdFields.querySelector('select').required = (type === 'usd_to_account');
+        exchangeSourceInput.oninput = calculateResult;
+        cotizacionInput.oninput = calculateResult;
+
+        if (type === 'ars_to_ars') {
+            form.querySelector('#deposit-simple-ars').classList.remove('hidden');
+        } else if (type === 'usd_to_usd') {
+            form.querySelector('#deposit-simple-usd').classList.remove('hidden');
+        } else if (type === 'ars_to_usd') { // Comprar USD con ARS de caja
+            form.querySelector('#deposit-exchange-fields').classList.remove('hidden');
+            form.querySelector('#deposit-exchange-destination').classList.remove('hidden');
+            form.querySelector('#label-exchange-source').textContent = 'Monto a Gastar (ARS)';
+            form.querySelector('#label-exchange-result').textContent = 'Recibirás en Cuenta (USD)';
+            form.querySelector('#label-exchange-destination').textContent = 'Depositar en Cuenta USD';
+            destExchangeSelect.innerHTML = accountsUsdOptions;
+        } else if (type === 'usd_to_ars') { // Vender USD de caja
+            form.querySelector('#deposit-exchange-fields').classList.remove('hidden');
+            form.querySelector('#deposit-exchange-destination').classList.remove('hidden');
+            form.querySelector('#label-exchange-source').textContent = 'Monto a Vender (USD)';
+            form.querySelector('#label-exchange-result').textContent = 'Recibirás en Cuenta (ARS)';
+            form.querySelector('#label-exchange-destination').textContent = 'Depositar en Cuenta ARS';
+            destExchangeSelect.innerHTML = accountsArsOptions;
+        }
     });
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
 async function saveDeposit(btn) {
     toggleSpinner(btn, true);
     const form = btn.form;
@@ -7927,72 +7950,58 @@ async function saveDeposit(btn) {
     const depositType = formData.get('deposit_type');
 
     try {
+        const exchangeId = db.collection('gastos').doc().id; // ID para vincular gasto e ingreso
+
         await db.runTransaction(async t => {
             const fechaMovimiento = firebase.firestore.FieldValue.serverTimestamp();
             const gastoRef = db.collection('gastos').doc();
             const ingresoRef = db.collection('ingresos_caja').doc();
 
-            if (depositType === 'ars_to_account') {
-                const amount = parseFloat(formData.get('amount_ars'));
+            if (depositType === 'ars_to_ars') {
+                const amount = parseFloat(formData.get('amount_ars_simple'));
                 const destValue = formData.get('destination_account_ars');
                 if (!amount || amount <= 0 || !destValue) throw new Error("Monto y cuenta de destino son requeridos.");
                 
                 const [destId, destName] = destValue.split('|');
-                const destRef = db.collection('cuentas_financieras').doc(destId);
+                t.set(gastoRef, { categoria: 'Movimiento Interno', descripcion: `Depósito a cuenta ${destName}`, monto: amount, metodo_pago: 'Pesos (Efectivo)', fecha: fechaMovimiento, exchangeId });
+                t.set(ingresoRef, { categoria: 'Movimiento Interno', descripcion: 'Depósito desde Caja Efectivo', monto: amount, metodo: 'Pesos (Transferencia)', fecha: fechaMovimiento, cuenta_destino_id: destId, cuenta_destino_nombre: destName, exchangeId });
+                t.update(db.collection('cuentas_financieras').doc(destId), { saldo_actual_ars: firebase.firestore.FieldValue.increment(amount) });
 
-                // 1. Crea un gasto para sacar el dinero de la caja de efectivo
-                t.set(gastoRef, {
-                    categoria: 'Movimiento Interno',
-                    descripcion: `Depósito a cuenta ${destName}`,
-                    monto: amount,
-                    metodo_pago: 'Pesos (Efectivo)',
-                    fecha: fechaMovimiento
-                });
-
-                // 2. Crea un ingreso para meter el dinero en la cuenta de transferencia
-                t.set(ingresoRef, {
-                    categoria: 'Movimiento Interno',
-                    descripcion: 'Depósito desde Caja de Efectivo',
-                    monto: amount,
-                    metodo: 'Pesos (Transferencia)',
-                    fecha: fechaMovimiento,
-                    cuenta_destino_id: destId,
-                    cuenta_destino_nombre: destName
-                });
-                
-                // 3. Actualiza el saldo de la cuenta
-                t.update(destRef, { saldo_actual_ars: firebase.firestore.FieldValue.increment(amount) });
-
-            } else if (depositType === 'usd_to_account') {
-                const amount = parseFloat(formData.get('amount_usd'));
+            } else if (depositType === 'usd_to_usd') {
+                const amount = parseFloat(formData.get('amount_usd_simple'));
                 const destValue = formData.get('destination_account_usd');
                 if (!amount || amount <= 0 || !destValue) throw new Error("Monto y cuenta de destino son requeridos.");
-
-                const [destId, destName] = destValue.split('|');
-                const destRef = db.collection('cuentas_financieras').doc(destId);
                 
-                // 1. Crea un gasto para sacar el dinero de la caja de dólares
-                t.set(gastoRef, {
-                    categoria: 'Movimiento Interno',
-                    descripcion: `Depósito a cuenta ${destName}`,
-                    monto: amount,
-                    metodo_pago: 'Dólares',
-                    fecha: fechaMovimiento
-                });
+                const [destId, destName] = destValue.split('|');
+                t.set(gastoRef, { categoria: 'Movimiento Interno', descripcion: `Depósito a cuenta ${destName}`, monto: amount, metodo_pago: 'Dólares', fecha: fechaMovimiento, exchangeId });
+                t.set(ingresoRef, { categoria: 'Movimiento Interno', descripcion: 'Depósito desde Caja Dólares', monto: amount, metodo: 'Dólares (Transferencia)', fecha: fechaMovimiento, cuenta_destino_usd_id: destId, cuenta_destino_usd_nombre: destName, exchangeId });
+                t.update(db.collection('cuentas_financieras').doc(destId), { saldo_actual_usd: firebase.firestore.FieldValue.increment(amount) });
 
-                // 2. Crea un ingreso para meter el dinero en la cuenta de transferencia USD
-                t.set(ingresoRef, {
-                    categoria: 'Movimiento Interno',
-                    descripcion: 'Depósito desde Caja de Dólares',
-                    monto: amount,
-                    metodo: 'Dólares (Transferencia)',
-                    fecha: fechaMovimiento,
-                    cuenta_destino_usd_id: destId,
-                    cuenta_destino_usd_nombre: destName
-                });
+            } else if (depositType === 'ars_to_usd') { // Comprar USD con ARS y depositar
+                const amountArs = parseFloat(formData.get('amount_exchange_source'));
+                const cotizacion = parseFloat(formData.get('cotizacion'));
+                const destValue = formData.get('destination_account_exchange');
+                if (!amountArs || !cotizacion || !destValue) throw new Error("Monto, cotización y cuenta son requeridos.");
+                
+                const amountUsdResult = amountArs / cotizacion;
+                const [destId, destName] = destValue.split('|');
+                
+                t.set(gastoRef, { categoria: 'Cambio y Depósito', descripcion: `Compra de USD con ${formatearARS(amountArs)} a ${formatearARS(cotizacion)}`, monto: amountArs, metodo_pago: 'Pesos (Efectivo)', fecha: fechaMovimiento, exchangeId });
+                t.set(ingresoRef, { categoria: 'Cambio y Depósito', descripcion: `Depósito de USD comprados`, monto: amountUsdResult, metodo: 'Dólares (Transferencia)', fecha: fechaMovimiento, cuenta_destino_usd_id: destId, cuenta_destino_usd_nombre: destName, exchangeId });
+                t.update(db.collection('cuentas_financieras').doc(destId), { saldo_actual_usd: firebase.firestore.FieldValue.increment(amountUsdResult) });
+            
+            } else if (depositType === 'usd_to_ars') { // Vender USD y depositar ARS
+                const amountUsd = parseFloat(formData.get('amount_exchange_source'));
+                const cotizacion = parseFloat(formData.get('cotizacion'));
+                const destValue = formData.get('destination_account_exchange');
+                if (!amountUsd || !cotizacion || !destValue) throw new Error("Monto, cotización y cuenta son requeridos.");
+                
+                const amountArsResult = amountUsd * cotizacion;
+                const [destId, destName] = destValue.split('|');
 
-                // 3. Actualiza el saldo de la cuenta
-                t.update(destRef, { saldo_actual_usd: firebase.firestore.FieldValue.increment(amount) });
+                t.set(gastoRef, { categoria: 'Cambio y Depósito', descripcion: `Venta de ${formatearUSD(amountUsd)} a ${formatearARS(cotizacion)}`, monto: amountUsd, metodo_pago: 'Dólares', fecha: fechaMovimiento, exchangeId });
+                t.set(ingresoRef, { categoria: 'Cambio y Depósito', descripcion: 'Depósito de ARS por venta de USD', monto: amountArsResult, metodo: 'Pesos (Transferencia)', fecha: fechaMovimiento, cuenta_destino_id: destId, cuenta_destino_nombre: destName, exchangeId });
+                t.update(db.collection('cuentas_financieras').doc(destId), { saldo_actual_ars: firebase.firestore.FieldValue.increment(amountArsResult) });
             }
         });
 
@@ -8394,7 +8403,7 @@ async function saveCurrencyExchange(btn) {
     }
 }
 
-// AÑADE ESTA FUNCIÓN NUEVA AL FINAL DEL SCRIPT
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 async function deleteCurrencyExchangeTransaction(data, kpiType, period) {
     const { exchangeId } = data;
     if (!exchangeId) {
@@ -8402,25 +8411,43 @@ async function deleteCurrencyExchangeTransaction(data, kpiType, period) {
         return;
     }
 
-    const message = `Esta es una operación de cambio de moneda vinculada. Si continúas, se eliminarán <strong>tanto el Gasto como el Ingreso</strong> asociados a esta operación.<br><br>¿Estás seguro de que quieres revertir la operación completa?`;
+    const message = `Esta es una operación vinculada (ingreso/gasto). Si continúas, se eliminarán <strong>ambas partes</strong> de la transacción y se revertirá cualquier cambio en los saldos de las cuentas.<br><br>¿Estás seguro de que quieres revertir la operación completa?`;
 
     showConfirmationModal('Confirmar Reversión de Operación', message, async () => {
         try {
             await db.runTransaction(async t => {
-                // Buscar tanto el gasto como el ingreso que compartan el mismo ID de operación
+                // 1. Buscamos el gasto y el ingreso que comparten el mismo ID de operación
                 const gastoQuery = db.collection('gastos').where('exchangeId', '==', exchangeId);
                 const ingresoQuery = db.collection('ingresos_caja').where('exchangeId', '==', exchangeId);
                 
                 const [gastoSnapshot, ingresoSnapshot] = await Promise.all([gastoQuery.get(), ingresoQuery.get()]);
 
-                // Eliminar los documentos encontrados
+                // 2. Procesamos la reversión del saldo de la cuenta ANTES de borrar nada
+                for (const doc of ingresoSnapshot.docs) {
+                    const ingresoData = doc.data();
+                    // Si el INGRESO fue una transferencia a una cuenta ARS, RESTAMOS el monto de esa cuenta.
+                    if (ingresoData.cuenta_destino_id && ingresoData.metodo === 'Pesos (Transferencia)') {
+                        const cuentaRef = db.collection('cuentas_financieras').doc(ingresoData.cuenta_destino_id);
+                        t.update(cuentaRef, { saldo_actual_ars: firebase.firestore.FieldValue.increment(-ingresoData.monto) });
+                    }
+                    // Si el INGRESO fue una transferencia a una cuenta USD, RESTAMOS el monto de esa cuenta.
+                    if (ingresoData.cuenta_destino_usd_id && ingresoData.metodo === 'Dólares (Transferencia)') {
+                        const cuentaRef = db.collection('cuentas_financieras').doc(ingresoData.cuenta_destino_usd_id);
+                        t.update(cuentaRef, { saldo_actual_usd: firebase.firestore.FieldValue.increment(-ingresoData.monto) });
+                    }
+                }
+
+                // 3. Ahora sí, eliminamos los documentos de gasto e ingreso
                 gastoSnapshot.forEach(doc => t.delete(doc.ref));
                 ingresoSnapshot.forEach(doc => t.delete(doc.ref));
             });
 
             showGlobalFeedback("Operación de cambio revertida con éxito.", "success");
-            updateReports(); // Actualizamos los KPIs principales
-            showKpiDetail(kpiType, period); // Recargamos la vista de detalle
+            
+            // 4. Recargamos todas las vistas afectadas para mostrar los saldos correctos
+            updateReports();
+            loadFinancialData();
+            showKpiDetail(kpiType, period);
 
         } catch (error) {
             console.error("Error al revertir la operación de cambio:", error);
