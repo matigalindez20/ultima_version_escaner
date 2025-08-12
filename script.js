@@ -3094,6 +3094,7 @@ function deleteBatch(batchId, batchNumber, providerId, providerName, batchCost) 
     });
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 async function showKpiDetail(kpiType, period) {
     const now = new Date();
     let startDate, endDate, title = '';
@@ -3115,16 +3116,13 @@ async function showKpiDetail(kpiType, period) {
         const transactions = [];
         const kpiMoneda = kpiType.includes('dolares') || kpiType.includes('usd') ? 'USD' : 'ARS';
         
-        // ===== INICIO DE LA MODIFICACIÓN =====
-        // Se añade .orderBy() a CADA consulta para asegurar el orden descendente desde Firebase
         const promises = [
-            db.collection('ventas').where('fecha_venta', '>=', startDate).where('fecha_venta', '<=', endDate).orderBy('fecha_venta', 'desc').get(),
-            db.collection('ingresos_caja').where('fecha', '>=', startDate).where('fecha', '<=', endDate).orderBy('fecha', 'desc').get(),
-            db.collection('gastos').where('fecha', '>=', startDate).where('fecha', '<=', endDate).orderBy('fecha', 'desc').get(),
-            db.collection('ventas_mayoristas').where('fecha_venta', '>=', startDate).where('fecha_venta', '<=', endDate).orderBy('fecha_venta', 'desc').get(),
-            db.collection('movimientos_internos').where('fecha', '>=', startDate).where('fecha', '<=', endDate).orderBy('fecha', 'desc').get()
+            db.collection('ventas').where('fecha_venta', '>=', startDate).where('fecha_venta', '<=', endDate).get(),
+            db.collection('ingresos_caja').where('fecha', '>=', startDate).where('fecha', '<=', endDate).get(),
+            db.collection('gastos').where('fecha', '>=', startDate).where('fecha', '<=', endDate).get(),
+            db.collection('ventas_mayoristas').where('fecha_venta', '>=', startDate).where('fecha_venta', '<=', endDate).get(),
+            db.collection('movimientos_internos').where('fecha', '>=', startDate).where('fecha', '<=', endDate).get()
         ];
-        // ===== FIN DE LA MODIFICACIÓN =====
         
         const [salesSnap, miscIncomesSnap, expensesSnap, wholesaleSalesSnap, internalMovesSnap] = await Promise.all(promises);
         
@@ -3162,8 +3160,11 @@ async function showKpiDetail(kpiType, period) {
             }
         });
         
-        // Se mantiene el sort final para mezclar correctamente los datos de las diferentes fuentes
-        transactions.sort((a, b) => b.date - a.date);
+        // ===================== INICIO DE LA CORRECCIÓN CLAVE =====================
+        // Se ordena la lista combinada por la propiedad 'fecha' para asegurar
+        // el orden cronológico descendente (el más nuevo primero).
+        transactions.sort((a, b) => b.fecha - a.fecha);
+        // ====================== FIN DE LA CORRECCIÓN CLAVE =======================
 
         if (transactions.length === 0) {
             detailContent.innerHTML = `<p class="dashboard-loader">No hay movimientos para este período.</p>`;
