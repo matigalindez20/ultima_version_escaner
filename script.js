@@ -374,11 +374,8 @@ function addEventListeners() {
             } else if (form.id === 'commission-payment-form') { saveCommissionPayment(form);
             } else if (form.id === 'add-commission-form') {
                 saveAddedCommissionBalance(form.querySelector('button[type="submit"]'));
-            // ===================== INICIO DE LA MODIFICACIÓN (2/2) =====================
-            // Se añade la condición para el nuevo formulario de cambio de moneda.
             } else if (form.id === 'currency-exchange-form') {
                 saveCurrencyExchange(form.querySelector('button[type="submit"]'));
-            // ====================== FIN DE LA MODIFICACIÓN =======================
             } else if (form.id === 'batch-id-form') {
                 const batchIdManual = form.batchNumber.value.trim();
                 if (!batchIdManual) { showGlobalFeedback("El ID del lote no puede estar vacío.", "error"); return; }
@@ -406,9 +403,9 @@ function addEventListeners() {
         btnResyncCommissions.addEventListener('click', resincronizarSaldosDeVendedores);
     }
     
-    // ===================== INICIO DE LA MODIFICACIÓN (1/2) =====================
-    // Se añade el listener para el nuevo botón de cambio de moneda.
-    const btnCurrencyExchange = document.getElementById('btn-currency-exchange');
+    // ===================== INICIO DE LA MODIFICACIÓN =====================
+    // Se cambia el ID al que escucha el evento por el del nuevo botón de icono.
+    const btnCurrencyExchange = document.getElementById('btn-currency-exchange-icon');
     if (btnCurrencyExchange) {
         btnCurrencyExchange.addEventListener('click', promptForCurrencyExchange);
     }
