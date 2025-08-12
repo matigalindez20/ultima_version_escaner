@@ -4733,14 +4733,12 @@ async function handleSaleDeletion(saleId, saleItem) {
     }
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 async function loadSales(direction = 'first') {
     const type = 'sales';
 
-    // ===== INICIO DE LA MODIFICACIÓN (1/3) =====
-    // Se añade el nuevo filtro de IMEI al estado de la paginación
     const imeiFilterValue = s.filterSalesImei.value.trim();
     const newFiltersJSON = JSON.stringify([s.filterSalesVendedor.value, s.filterSalesStartDate.value, s.filterSalesEndDate.value, imeiFilterValue]);
-    // ===== FIN DE LA MODIFICACIÓN (1/3) =====
 
     if (!paginationState[type] || paginationState[type].lastFilters !== newFiltersJSON) {
         direction = 'first';
@@ -4755,19 +4753,14 @@ async function loadSales(direction = 'first') {
         };
     }
     
-    // ===== INICIO DE LA MODIFICACIÓN (2/3) =====
-    // Se añade la lógica para que el filtro de IMEI tenga prioridad
     const filters = [];
     if (imeiFilterValue) {
-        // Si se busca por IMEI, se ignora el resto de los filtros
         filters.push(['imei_last_4', '==', imeiFilterValue]);
     } else {
-        // Si no, se aplican los filtros normales
         if (s.filterSalesStartDate.value) filters.push(['fecha_venta', '>=', new Date(s.filterSalesStartDate.value + 'T00:00:00')]);
         if (s.filterSalesEndDate.value) filters.push(['fecha_venta', '<=', new Date(s.filterSalesEndDate.value + 'T23:59:59')]);
         if (s.filterSalesVendedor.value) filters.push(['vendedor', '==', s.filterSalesVendedor.value]);
     }
-    // ===== FIN DE LA MODIFICACIÓN (2/3) =====
 
     await loadPaginatedData({
         type: type,
@@ -4792,16 +4785,29 @@ async function loadSales(direction = 'first') {
             }
             const ventaJSON = JSON.stringify(venta).replace(/'/g, "\\'");
             
-            // ===== INICIO DE LA MODIFICACIÓN (3/3) =====
-            // Se crea el HTML para mostrar el modelo y el IMEI juntos
             const productoConImeiHtml = `
                 ${venta.producto.modelo || ''} ${venta.producto.color || ''}
                 <br>
                 <small class="time-muted">IMEI: ${venta.imei_vendido || 'N/A'}</small>
             `;
-            // Se reemplaza la celda del producto por la nueva variable
-            return `<tr data-sale-id="${doc.id}" data-sale-item='${ventaJSON}'><td>${fechaFormateada}</td><td>${productoConImeiHtml}</td><td>${venta.nombre_cliente || '-'}</td><td>${venta.vendedor}</td><td>${formatearUSD(venta.precio_venta_usd)}</td><td>${venta.metodo_pago}</td><td class="garantia-cell">${garantiaHtml}</td><td class="actions-cell"><button class="edit-btn btn-edit-sale" title="Editar Venta"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button><button class="delete-btn btn-delete-sale" title="Revertir Venta"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button></td></tr>`;
-            // ===== FIN DE LA MODIFICACIÓN (3/3) =====
+
+            // ===================== INICIO DE LA MODIFICACIÓN =====================
+            // Se añade la clase 'client-cell' y el atributo 'title' a la celda del cliente.
+            const clienteInfo = venta.nombre_cliente || '-';
+            return `<tr data-sale-id="${doc.id}" data-sale-item='${ventaJSON}'>
+                        <td>${fechaFormateada}</td>
+                        <td>${productoConImeiHtml}</td>
+                        <td class="client-cell" title="${clienteInfo}">${clienteInfo}</td>
+                        <td>${venta.vendedor}</td>
+                        <td>${formatearUSD(venta.precio_venta_usd)}</td>
+                        <td>${venta.metodo_pago}</td>
+                        <td class="garantia-cell">${garantiaHtml}</td>
+                        <td class="actions-cell">
+                            <button class="edit-btn btn-edit-sale" title="Editar Venta"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                            <button class="delete-btn btn-delete-sale" title="Revertir Venta"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button>
+                        </td>
+                    </tr>`;
+            // ====================== FIN DE LA MODIFICACIÓN =======================
         },
         setupEventListeners: () => {
              document.querySelectorAll('.garantia-icon').forEach(icon => { let tooltip = null; icon.addEventListener('mouseenter', (e) => { const text = e.currentTarget.dataset.tooltip; tooltip = document.createElement('div'); tooltip.className = 'garantia-tooltip'; tooltip.textContent = text; e.currentTarget.appendChild(tooltip); setTimeout(() => { tooltip.classList.add('visible'); }, 10); }); icon.addEventListener('mouseleave', () => { if (tooltip) { tooltip.classList.remove('visible'); tooltip.addEventListener('transitionend', () => tooltip.remove()); } }); });

@@ -4317,3 +4317,18 @@ td.actions-cell {
         transform: scale(1.1) rotate(450deg);
     }
 }
+
+/* ======================================================================= */
+/* ====== ESTILOS PARA ABREVIAR TEXTO LARGO EN LA TABLA DE VENTAS ====== */
+/* ======================================================================= */
+
+/* Le damos a la columna "Cliente" un ancho máximo y manejamos el desbordamiento */
+/* REEMPLAZA CON ESTA NUEVA REGLA */
+.client-cell {
+    max-width: 60px; /* Ancho máximo reducido para que sea más compacto */
+    white-space: nowrap; /* Evita que el texto salte a la siguiente línea */
+    overflow: hidden; /* Oculta el texto que no cabe */
+    text-overflow: ellipsis; /* Añade los puntos suspensivos (...) */
+    vertical-align: top; /* Asegura la alineación si hay saltos de línea en otras celdas */
+    cursor: help; /* Muestra un cursor de ayuda para indicar que hay más info */
+}
