@@ -4371,3 +4371,72 @@ td.actions-cell {
 .btn-view-charts:hover svg {
     stroke: #000;
 }
+
+/* AÑADE O REEMPLAZA ESTO EN TU style.css */
+
+/* Contenedor de la fila para centrar todo verticalmente */
+.comision-fila {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center; /* <-- ESTA LÍNEA ES CLAVE para la alineación vertical */
+    margin-bottom: 0.5rem;
+}
+
+/* El botón ahora es un contenedor invisible */
+.comision-fila .delete-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    width: 45px;
+    height: 45px;
+    transition: transform 0.2s ease;
+}
+
+/* El ícono de la cruz (la 'x') */
+.comision-fila .delete-btn svg {
+    stroke: var(--text-muted); /* Color gris sutil por defecto */
+    width: 20px;
+    height: 20px;
+    transition: stroke 0.2s ease;
+}
+
+/* Efecto al pasar el mouse sobre el botón */
+.comision-fila .delete-btn:hover {
+    transform: scale(1.1); /* La cruz se agranda un poco */
+}
+
+.comision-fila .delete-btn:hover svg {
+    stroke: var(--error-bg); /* La cruz se vuelve roja */
+}
+
+/* AÑADE O REEMPLAZA ESTO EN TU style.css */
+
+/* Nuevo estilo para el botón "+ Agregar Comisionista" */
+#btn-add-comisionista {
+    /* Estilo base (fantasma) */
+    background-color: transparent;
+    border: 2px solid var(--info-bg); /* Borde azul sutil */
+    color: var(--info-bg); /* Texto azul */
+    
+    /* Tamaño más pequeño y refinado */
+    width: auto; /* Ancho automático según el texto */
+    padding: 0.6rem 1.2rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+
+    /* Posicionamiento y otros */
+    margin-top: 0.5rem;
+    margin-bottom: 1.5rem;
+    transition: all 0.2s ease-in-out; /* Animación suave */
+}
+
+/* Efecto al pasar el mouse por encima */
+#btn-add-comisionista:hover {
+    background-color: var(--info-bg); /* Se rellena de azul */
+    color: #ffffff; /* El texto se vuelve blanco */
+    transform: translateY(-2px); /* Efecto de "levantarse" */
+}

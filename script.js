@@ -653,6 +653,7 @@ function moveNavSlider(activeTab) {
     s.navSlider.style.width = `${offsetWidth}px`;
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 async function updateReports() {
     // Definimos todos los elementos que vamos a actualizar
     const kpiElements = {
@@ -733,8 +734,14 @@ async function updateReports() {
                 salesSnapshot.forEach(doc => {
                     const venta = doc.data();
                     const cost = venta.imei_vendido ? (costMap.get(venta.imei_vendido) || 0) : 0;
-                    const commission = venta.comision_vendedor_usd || 0;
-                    totalProfit += (venta.precio_venta_usd || 0) - cost - commission;
+                    
+                    // ===================== INICIO DE LA CORRECCIÓN CLAVE =====================
+                    // Ahora, la comisión total se toma del nuevo campo `comision_total_usd`.
+                    // Mantenemos `comision_vendedor_usd` como respaldo para las ventas viejas.
+                    const comisionTotalVenta = venta.comision_total_usd || venta.comision_vendedor_usd || 0;
+                    totalProfit += (venta.precio_venta_usd || 0) - cost - comisionTotalVenta;
+                    // ====================== FIN DE LA CORRECCIÓN CLAVE =======================
+
                     totalIncomes.usd += venta.monto_dolares || 0;
                     totalIncomes.cash += venta.monto_efectivo || 0;
                     totalIncomes.transfer += venta.monto_transferencia || 0;
@@ -3244,14 +3251,17 @@ async function showProfitDetail(period) {
         const costDocs = await Promise.all(costPromises);
         const costMap = new Map(costDocs.map(doc => [doc.id, doc.data()?.precio_costo_usd || 0]));
 
-        // ===================== INICIO DE LA MODIFICACIÓN =====================
-        // Añadimos el atributo 'data-label' a cada celda (<td>)
         let tableHTML = `<table><thead><tr><th>Producto</th><th>Precio Venta</th><th>Costo Producto</th><th>Comisión</th><th>Ganancia Neta</th></tr></thead><tbody>`;
         salesSnapshot.forEach(doc => {
             const venta = doc.data();
             const precioVenta = venta.precio_venta_usd || 0;
             const costoProducto = costMap.get(venta.imei_vendido) || 0;
-            const comision = venta.comision_vendedor_usd || 0;
+            
+            // ===================== INICIO DE LA CORRECCIÓN CLAVE =====================
+            // Leemos del campo nuevo `comision_total_usd` y si no existe (venta vieja), usamos el anterior.
+            const comision = venta.comision_total_usd || venta.comision_vendedor_usd || 0;
+            // ====================== FIN DE LA CORRECCIÓN CLAVE =======================
+            
             const ganancia = precioVenta - costoProducto - comision;
 
             tableHTML += `<tr>
@@ -3262,7 +3272,6 @@ async function showProfitDetail(period) {
                     <td data-label="Ganancia Neta" style="font-weight:bold; color:var(--brand-yellow);">${formatearUSD(ganancia)}</td>
                 </tr>`;
         });
-        // ====================== FIN DE LA MODIFICACIÓN =======================
         tableHTML += '</tbody></table>';
         detailContent.innerHTML = tableHTML;
 
@@ -3342,11 +3351,7 @@ async function loadCommissions() {
     s.commissionsResultsContainer.innerHTML = `<p class="dashboard-loader">Calculando comisiones...</p>`;
     
     try {
-        // ===================== INICIO DE LA CORRECCIÓN CLAVE (1/2) =====================
-        // Se elimina la referencia al filtro de vendedor que ya no existe.
-        // La consulta ahora siempre busca a todos los vendedores.
         const vendorsToQuery = vendedores;
-        // ====================== FIN DE LA CORRECCIÓN CLAVE =======================
 
         if (vendorsToQuery.length === 0) {
             s.commissionsResultsContainer.innerHTML = `<p class="dashboard-loader">No hay vendedores para mostrar.</p>`;
@@ -3368,44 +3373,78 @@ async function loadCommissions() {
         const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
         const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
         
-        // ===================== INICIO DE LA CORRECCIÓN CLAVE (2/2) =====================
-        // Se elimina el .where('comision_vendedor_usd', '>', 0) de la consulta inicial
-        // para evitar el conflicto con el filtro de fecha que reportaba la consola.
-        let salesQuery = db.collection("ventas");
-        let adjustmentsQuery = db.collection("ajustes_comisiones");
+        const chunks = [];
+        for (let i = 0; i < vendorsToQuery.length; i += 10) {
+            chunks.push(vendorsToQuery.slice(i, i + 10));
+        }
 
-        salesQuery = salesQuery.where('fecha_venta', '>=', startOfDay).where('fecha_venta', '<=', endOfDay);
-        adjustmentsQuery = adjustmentsQuery.where('fecha', '>=', startOfDay).where('fecha', '<=', endOfDay);
+        const salesPromises = chunks.map(chunk => {
+            return db.collection("ventas")
+                .where('vendedores_implicados', 'array-contains-any', chunk)
+                .where('fecha_venta', '>=', startOfDay)
+                .where('fecha_venta', '<=', endOfDay)
+                .get();
+        });
+
+        const adjustmentsQuery = db.collection("ajustes_comisiones").where('fecha', '>=', startOfDay).where('fecha', '<=', endOfDay);
         
-        const [salesSnapshot, adjustmentsSnapshot] = await Promise.all([salesQuery.get(), adjustmentsQuery.get()]);
+        // ===================== INICIO DE LA CORRECCIÓN CLAVE =====================
+        // Se añade .get() a adjustmentsQuery para que se ejecute la consulta.
+        const snapshots = await Promise.all([...salesPromises, adjustmentsQuery.get()]);
+        // ====================== FIN DE LA CORRECCIÓN CLAVE =======================
+        
+        const salesSnapshots = snapshots.slice(0, -1);
+        const adjustmentsSnapshot = snapshots[snapshots.length - 1];
+
+        const allSaleDocs = salesSnapshots.flatMap(snapshot => snapshot.docs);
 
         const commissionEventsByVendor = {};
 
-        // El filtro de comision > 0 se hace aquí, en el código, para que la consulta sea válida.
-        salesSnapshot.docs.forEach(doc => {
+        allSaleDocs.forEach(doc => {
             const sale = doc.data();
-            if ((sale.comision_vendedor_usd || 0) > 0) {
-                const vendorName = sale.vendedor;
-                if (!commissionEventsByVendor[vendorName]) commissionEventsByVendor[vendorName] = [];
-                commissionEventsByVendor[vendorName].push({
-                    type: 'venta', date: sale.fecha_venta.toDate(),
-                    description: `${sale.producto.modelo || 'Producto'} ${sale.producto.color || ''}`,
-                    amount: sale.comision_vendedor_usd
+            // Lógica para ventas nuevas (con comisiones en array)
+            if (sale.comisiones && Array.isArray(sale.comisiones)) {
+                sale.comisiones.forEach(comision => {
+                    const vendorName = comision.vendedor;
+                    if (vendorsToQuery.includes(vendorName)) {
+                        if (!commissionEventsByVendor[vendorName]) commissionEventsByVendor[vendorName] = [];
+                        commissionEventsByVendor[vendorName].push({
+                            type: 'venta', date: sale.fecha_venta.toDate(),
+                            description: `${sale.producto.modelo || 'Producto'} ${sale.producto.color || ''}`,
+                            amount: comision.monto
+                        });
+                    }
                 });
+            } 
+            // Lógica de respaldo para ventas viejas (con un solo vendedor)
+            else if (sale.vendedor && sale.comision_vendedor_usd > 0) {
+                const vendorName = sale.vendedor;
+                if (vendorsToQuery.includes(vendorName)) {
+                    if (!commissionEventsByVendor[vendorName]) commissionEventsByVendor[vendorName] = [];
+                    commissionEventsByVendor[vendorName].push({
+                        type: 'venta', date: sale.fecha_venta.toDate(),
+                        description: `${sale.producto.modelo || 'Producto'} ${sale.producto.color || ''}`,
+                        amount: sale.comision_vendedor_usd
+                    });
+                }
             }
         });
-        // ====================== FIN DE LA CORRECCIÓN CLAVE =======================
 
-        adjustmentsSnapshot.docs.forEach(doc => {
-            const adjustment = doc.data();
-            const vendorName = adjustment.vendedor;
-            if (!commissionEventsByVendor[vendorName]) commissionEventsByVendor[vendorName] = [];
-            commissionEventsByVendor[vendorName].push({
-                type: 'ajuste', date: adjustment.fecha.toDate(),
-                description: adjustment.motivo || 'Ajuste manual',
-                amount: adjustment.monto_usd
+        // Aseguramos que adjustmentsSnapshot no sea undefined antes de usarlo
+        if (adjustmentsSnapshot && adjustmentsSnapshot.docs) {
+            adjustmentsSnapshot.docs.forEach(doc => {
+                const adjustment = doc.data();
+                const vendorName = adjustment.vendedor;
+                if (vendorsToQuery.includes(vendorName)) {
+                    if (!commissionEventsByVendor[vendorName]) commissionEventsByVendor[vendorName] = [];
+                    commissionEventsByVendor[vendorName].push({
+                        type: 'ajuste', date: adjustment.fecha.toDate(),
+                        description: adjustment.motivo || 'Ajuste manual',
+                        amount: adjustment.monto_usd
+                    });
+                }
             });
-        });
+        }
 
         renderCommissions(vendorData, commissionEventsByVendor);
 
@@ -4603,6 +4642,7 @@ async function updateSale(saleId, btn) {
     }
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 async function deleteSale(saleId) {
     try {
         await db.runTransaction(async t => {
@@ -4612,32 +4652,50 @@ async function deleteSale(saleId) {
             if (!saleDoc.exists) throw new Error(`La venta con ID ${saleId} ya no existe.`);
             
             const saleData = saleDoc.data();
-            let stockRef = null, stockDoc = null;
+            let stockRef = null;
+            let stockDoc = null;
             
-            // ===== INICIO DE LA MODIFICACIÓN =====
-            // Preparamos las variables para ambas monedas
-            let cuentaArsRef = null, cuentaArsDoc = null;
-            let cuentaUsdRef = null, cuentaUsdDoc = null;
-            // ===== FIN DE LA MODIFICACIÓN =====
+            let cuentaArsRef = null;
+            let cuentaArsDoc = null;
+            let cuentaUsdRef = null;
+            let cuentaUsdDoc = null;
 
             if (saleData.imei_vendido) {
                 stockRef = db.collection("stock_individual").doc(saleData.imei_vendido);
                 stockDoc = await t.get(stockRef);
             }
 
-            // ===== INICIO DE LA MODIFICACIÓN =====
-            // Buscamos la cuenta ARS si existe la referencia
             if (saleData.cuenta_destino_id) {
                 cuentaArsRef = db.collection("cuentas_financieras").doc(saleData.cuenta_destino_id);
                 cuentaArsDoc = await t.get(cuentaArsRef);
             }
-            // Buscamos la cuenta USD si existe la referencia
             if (saleData.cuenta_destino_usd_id) {
                 cuentaUsdRef = db.collection("cuentas_financieras").doc(saleData.cuenta_destino_usd_id);
                 cuentaUsdDoc = await t.get(cuentaUsdRef);
             }
 
-            // Ahora revertimos los saldos
+            // --- INICIO DE LA LÓGICA DE REVERSIÓN DE COMISIONES ---
+            // Primero, verificamos si es una venta con la nueva estructura de comisiones múltiples
+            if (saleData.comisiones && Array.isArray(saleData.comisiones)) {
+                // Si es así, iteramos sobre cada comisión registrada en la venta
+                for (const comision of saleData.comisiones) {
+                    const vendorRef = db.collection("vendedores").doc(comision.vendedor);
+                    // Y restamos el monto de la comisión al saldo pendiente de cada vendedor
+                    t.update(vendorRef, { 
+                        comision_pendiente_usd: firebase.firestore.FieldValue.increment(-comision.monto) 
+                    });
+                }
+            } 
+            // Si no, verificamos si es una venta con la estructura antigua
+            else if (saleData.vendedor && saleData.comision_vendedor_usd > 0) {
+                const vendorRef = db.collection("vendedores").doc(saleData.vendedor);
+                // Y restamos la comisión del único vendedor que había
+                t.update(vendorRef, { 
+                    comision_pendiente_usd: firebase.firestore.FieldValue.increment(-saleData.comision_vendedor_usd) 
+                });
+            }
+            // --- FIN DE LA LÓGICA DE REVERSIÓN DE COMISIONES ---
+
             if (cuentaArsDoc && cuentaArsDoc.exists) {
                 const montoARevertir = saleData.monto_transferencia || 0;
                 t.update(cuentaArsRef, { 
@@ -4655,7 +4713,6 @@ async function deleteSale(saleId) {
             } else if (saleData.cuenta_destino_usd_id) {
                 console.warn(`La cuenta USD con ID ${saleData.cuenta_destino_usd_id} fue eliminada. No se pudo revertir el saldo.`);
             }
-            // ===== FIN DE LA MODIFICACIÓN =====
 
             if (stockDoc && stockDoc.exists) {
                 t.update(stockRef, { estado: 'en_stock' });
@@ -4679,10 +4736,11 @@ async function deleteSale(saleId) {
         showGlobalFeedback("Venta revertida con éxito.", "success");
         
         loadSales();
-        loadFinancialData(); // <-- CLAVE: Recargamos los datos financieros
+        loadFinancialData();
         updateCanjeCount();
         updateReparacionCount();
         updateReports();
+        loadCommissions(); // <-- CLAVE: Recargamos la vista de comisiones para ver el saldo actualizado
 
     } catch (error) {
         console.error("Error al eliminar la venta:", error);
@@ -5115,13 +5173,21 @@ async function promptToSell(imei, details) {
         }
     }
 
-    const vendedoresOptions = vendedores.map(v => `<option value="${v}">${v}</option>`).join('');
     const modelosOptions = modelos.map(m => `<option value="${m}">${m}</option>`).join('');
-    
-    // ===== INICIO DE LA MODIFICACIÓN =====
-    // Filtramos las cuentas por moneda para los selectores
     const accountsArsOptions = financialAccounts.filter(acc => acc.moneda === 'ARS').map(acc => `<option value="${acc.id}|${acc.nombre}">${acc.nombre}</option>`).join('');
     const accountsUsdOptions = financialAccounts.filter(acc => acc.moneda === 'USD').map(acc => `<option value="${acc.id}|${acc.nombre}">${acc.nombre}</option>`).join('');
+
+    // --- INICIO DE LA MODIFICACIÓN CLAVE ---
+    const comisionesHtml = `
+        <div class="form-group">
+            <label>Comisiones</label>
+            <div id="comisiones-container">
+                <!-- Las filas de comisiones se agregarán aquí dinámicamente -->
+            </div>
+            <button type="button" id="btn-add-comisionista">+ Agregar Comisionista</button>
+        </div>
+    `;
+    // --- FIN DE LA MODIFICACIÓN CLAVE ---
 
     const metodosDePagoHtml = `
         <div class="form-group">
@@ -5129,16 +5195,29 @@ async function promptToSell(imei, details) {
             <div id="payment-methods-container">
                 <div class="payment-option"><label class="toggle-switch-group"><input type="checkbox" name="metodo_pago_check" value="Dólares"><span class="toggle-switch-label">Dólares (Efectivo)</span><span class="toggle-switch-slider"></span></label><div class="payment-input-container hidden"><input type="number" name="monto_dolares" placeholder="Monto en USD" step="0.01"></div></div>
                 <div class="payment-option"><label class="toggle-switch-group"><input type="checkbox" name="metodo_pago_check" value="Pesos (Efectivo)"><span class="toggle-switch-label">Pesos (Efectivo)</span><span class="toggle-switch-slider"></span></label><div class="payment-input-container hidden"><input type="number" name="monto_efectivo" placeholder="Monto en ARS" step="0.01"></div></div>
-                
                 <div class="payment-option"><label class="toggle-switch-group"><input type="checkbox" name="metodo_pago_check" value="Pesos (Transferencia)"><span class="toggle-switch-label">Transferencia (ARS)</span><span class="toggle-switch-slider"></span></label><div class="payment-input-container hidden"><input type="number" name="monto_transferencia" placeholder="Monto en ARS" step="0.01"><select name="cuenta_destino_ars"><option value="">Seleccione cuenta ARS...</option>${accountsArsOptions}</select></div></div>
                 <div class="payment-option"><label class="toggle-switch-group"><input type="checkbox" name="metodo_pago_check" value="Dólares (Transferencia)"><span class="toggle-switch-label">Transferencia (USD)</span><span class="toggle-switch-slider"></span></label><div class="payment-input-container hidden"><input type="number" name="monto_transferencia_usd" placeholder="Monto en USD" step="0.01"><select name="cuenta_destino_usd"><option value="">Seleccione cuenta USD...</option>${accountsUsdOptions}</select></div></div>
             </div>
         </div>`;
-    // ===== FIN DE LA MODIFICACIÓN =====
 
     const canjeHtml = `<hr style="border-color:var(--border-dark);margin:1.5rem 0;"><label class="toggle-switch-group"><input type="checkbox" id="acepta-canje" name="acepta-canje"><span class="toggle-switch-label">Acepta Plan Canje</span><span class="toggle-switch-slider"></span></label><div id="plan-canje-fields" class="hidden"><h4>Detalles del Equipo Recibido</h4><div class="form-group"><label for="sell-canje-modelo">Modelo Recibido</label><select id="sell-canje-modelo" name="canje-modelo">${modelosOptions}</select></div><div class="form-group"><label for="sell-canje-valor">Valor Toma (USD)</label><input type="number" id="sell-canje-valor" name="canje-valor"></div><div class="form-group"><label for="sell-canje-observaciones">Observaciones</label><textarea id="sell-canje-observaciones" name="canje-observaciones" rows="2"></textarea></div><label class="toggle-switch-group"><input type="checkbox" id="canje-para-reparar-check" name="canje-para-reparar"><span class="toggle-switch-label">Equipo de Canje Dañado (Enviar a Reparación)</span><span class="toggle-switch-slider"></span></label><div id="canje-reparacion-fields" class="hidden" style="animation: fadeIn 0.4s;"><div class="form-group"><label for="canje-defecto-form">Defecto del Equipo Recibido</label><input type="text" id="canje-defecto-form" name="canje-defecto" placeholder="Ej: Pantalla rota, no enciende..."></div><div class="form-group"><label for="canje-repuesto-form">Repuesto Necesario</label><input type="text" id="canje-repuesto-form" name="canje-repuesto" placeholder="Ej: Módulo de pantalla iPhone 12 Pro..."></div></div></div>`;
 
-    s.promptContainer.innerHTML = `<div class="container container-sm" style="margin:auto;"><div class="prompt-box"><h3>Registrar Venta</h3><form id="sell-form"><div class="details-box"><div class="detail-item"><span>Vendiendo:</span> <strong>${details.modelo || ''}</strong></div><div class="detail-item"><span>IMEI:</span> <strong>${imei}</strong></div></div><div class="form-group"><label for="sell-nombre-cliente">Nombre del Cliente (Opcional)</label><input type="text" id="sell-nombre-cliente" name="nombre_cliente"></div><div class="form-group"><label for="sell-precio-venta">Precio Venta TOTAL (USD)</label><input type="number" id="sell-precio-venta" name="precioVenta" required></div>${metodosDePagoHtml}<div class="form-group"><label for="sell-cotizacion-dolar">Cotización Dólar (si aplica)</label><input type="number" id="sell-cotizacion-dolar" name="cotizacion_dolar" placeholder="Ej: 1200"></div><div class="form-group"><label for="sell-vendedor">Vendedor</label><select id="sell-vendedor" name="vendedor" required><option value="">Seleccione...</option>${vendedoresOptions}</select></div><div id="comision-vendedor-field" class="form-group hidden"><label for="sell-comision-vendedor">Comisión Vendedor (USD)</label><input type="number" id="sell-comision-vendedor" name="comision_vendedor_usd"></div>${canjeHtml}<div class="prompt-buttons"><button type="submit" class="prompt-button confirm spinner-btn"><span class="btn-text">Registrar Venta</span><div class="spinner"></div></button><button type="button" class="prompt-button cancel">Cancelar</button></div></form></div></div>`;
+    s.promptContainer.innerHTML = `<div class="container container-sm" style="margin:auto;"><div class="prompt-box"><h3>Registrar Venta</h3><form id="sell-form"><div class="details-box"><div class="detail-item"><span>Vendiendo:</span> <strong>${details.modelo || ''}</strong></div><div class="detail-item"><span>IMEI:</span> <strong>${imei}</strong></div></div><div class="form-group"><label for="sell-nombre-cliente">Nombre del Cliente (Opcional)</label><input type="text" id="sell-nombre-cliente" name="nombre_cliente"></div><div class="form-group"><label for="sell-precio-venta">Precio Venta TOTAL (USD)</label><input type="number" id="sell-precio-venta" name="precioVenta" required></div>${metodosDePagoHtml}<div class="form-group"><label for="sell-cotizacion-dolar">Cotización Dólar (si aplica)</label><input type="number" id="sell-cotizacion-dolar" name="cotizacion_dolar" placeholder="Ej: 1200"></div>${comisionesHtml}${canjeHtml}<div class="prompt-buttons"><button type="submit" class="prompt-button confirm spinner-btn"><span class="btn-text">Registrar Venta</span><div class="spinner"></div></button><button type="button" class="prompt-button cancel">Cancelar</button></div></form></div></div>`;
+    
+    // --- INICIO DE LA LÓGICA PARA EL NUEVO FORMULARIO ---
+    // Añadimos la primera fila de comisión por defecto
+    agregarFilaComision(); 
+    
+    // Listener para el botón de AÑADIR
+    document.getElementById('btn-add-comisionista').addEventListener('click', agregarFilaComision);
+    
+    // Listener para los botones de ELIMINAR (usando delegación de eventos)
+    document.getElementById('comisiones-container').addEventListener('click', function(e) {
+        if (e.target && e.target.closest('.btn-remove-comision')) {
+            e.target.closest('.comision-fila').remove();
+        }
+    });
+    // --- FIN DE LA LÓGICA ---
     
     const form = document.getElementById('sell-form');
     form.addEventListener('change', (e) => {
@@ -5147,7 +5226,6 @@ async function promptToSell(imei, details) {
             const container = target.closest('.payment-option').querySelector('.payment-input-container');
             container.classList.toggle('hidden', !target.checked);
         }
-        if (target.id === 'sell-vendedor') { form.querySelector('#comision-vendedor-field').classList.toggle('hidden', !target.value); }
         if (target.id === 'acepta-canje') { document.getElementById('plan-canje-fields').classList.toggle('hidden', !target.checked); }
         if (target.id === 'canje-para-reparar-check') { document.getElementById('canje-reparacion-fields').classList.toggle('hidden', !target.checked); }
     });
@@ -5158,6 +5236,30 @@ async function registerSale(imei, productDetails, btn) {
     toggleSpinner(btn, true);
     const form = btn.form;
     const formData = new FormData(form);
+
+    // --- INICIO DE LA NUEVA LÓGICA PARA LEER COMISIONES ---
+    const comisionFilas = form.querySelectorAll('.comision-fila');
+    const comisionesArray = [];
+    let totalComision = 0;
+    const vendedoresImplicados = new Set(); // Usamos un Set para evitar duplicados
+
+    comisionFilas.forEach(fila => {
+        const vendedor = fila.querySelector('[name="vendedor_comision"]').value;
+        const monto = parseFloat(fila.querySelector('[name="monto_comision_usd"]').value) || 0;
+
+        if (vendedor && monto > 0) {
+            comisionesArray.push({ vendedor: vendedor, monto: monto });
+            vendedoresImplicados.add(vendedor);
+            totalComision += monto;
+        }
+    });
+
+    if (comisionFilas.length > 0 && comisionesArray.length === 0) {
+        showGlobalFeedback("Debes seleccionar un vendedor y un monto de comisión válido.", "error");
+        toggleSpinner(btn, false);
+        return;
+    }
+    // --- FIN DE LA NUEVA LÓGICA ---
 
     const ventaTotalUSD = parseFloat(formData.get('precioVenta')) || 0;
     const valorCanjeUSD = formData.get('acepta-canje') === 'on' ? (parseFloat(formData.get('canje-valor')) || 0) : 0;
@@ -5179,7 +5281,7 @@ async function registerSale(imei, productDetails, btn) {
         showGlobalFeedback("Debes seleccionar una cuenta de destino para la transferencia en ARS.", "error");
         toggleSpinner(btn, false); return;
     }
-     if (montoTransferenciaUsd > 0 && !cuentaDestinoUsdValue) {
+    if (montoTransferenciaUsd > 0 && !cuentaDestinoUsdValue) {
         showGlobalFeedback("Debes seleccionar una cuenta de destino para la transferencia en USD.", "error");
         toggleSpinner(btn, false); return;
     }
@@ -5197,8 +5299,14 @@ async function registerSale(imei, productDetails, btn) {
         precio_venta_usd: ventaTotalUSD,
         nombre_cliente: formData.get('nombre_cliente').trim() || null,
         metodo_pago: pagosRecibidos.join(' + '),
-        vendedor: formData.get('vendedor'),
-        comision_vendedor_usd: parseFloat(formData.get('comision_vendedor_usd')) || 0,
+        
+        // --- NUEVA ESTRUCTURA DE DATOS PARA COMISIONES ---
+        vendedor_display: Array.from(vendedoresImplicados).join(', '), // Un texto para mostrar rápido
+        vendedores_implicados: Array.from(vendedoresImplicados), // Un array para poder buscar
+        comisiones: comisionesArray, // El array con el detalle de las comisiones
+        comision_total_usd: totalComision, // La suma de todas las comisiones
+        // --- FIN DE LA NUEVA ESTRUCTURA ---
+
         fecha_venta: firebase.firestore.FieldValue.serverTimestamp(),
         hubo_canje: valorCanjeUSD > 0,
         valor_toma_canje_usd: valorCanjeUSD,
@@ -5207,7 +5315,6 @@ async function registerSale(imei, productDetails, btn) {
         monto_efectivo: montoEfectivo,
         monto_transferencia: montoTransferencia,
         monto_transferencia_usd: montoTransferenciaUsd,
-        comision_pagada: false
     };
     
     if (montoTransferencia > 0 && cuentaDestinoArsValue) {
@@ -5236,19 +5343,19 @@ async function registerSale(imei, productDetails, btn) {
                 t.update(cuentaRef, { saldo_actual_usd: firebase.firestore.FieldValue.increment(saleData.monto_transferencia_usd) });
             }
 
-            // ===================== INICIO DE LA CORRECCIÓN CLAVE =====================
-            // Si la venta tiene una comisión, la sumamos al total pendiente del vendedor.
-            if (saleData.comision_vendedor_usd > 0) {
-                const vendorRef = db.collection("vendedores").doc(saleData.vendedor);
-                // Usamos FieldValue.increment para sumar de forma segura el nuevo valor.
-                // Esto funciona aunque el vendedor no exista, creando el campo si es necesario.
-                t.update(vendorRef, { 
-                    comision_pendiente_usd: firebase.firestore.FieldValue.increment(saleData.comision_vendedor_usd) 
-                });
+            // --- LÓGICA CLAVE: ACTUALIZAR EL SALDO DE CADA VENDEDOR ---
+            if (comisionesArray.length > 0) {
+                for (const comision of comisionesArray) {
+                    const vendorRef = db.collection("vendedores").doc(comision.vendedor);
+                    t.update(vendorRef, { 
+                        comision_pendiente_usd: firebase.firestore.FieldValue.increment(comision.monto) 
+                    });
+                }
             }
-            // ====================== FIN DE LA CORRECCIÓN CLAVE =======================
+            // --- FIN DE LA LÓGICA CLAVE ---
 
             if (saleData.hubo_canje) {
+                // ... (El resto de la lógica del canje no cambia)
                 const canjeParaReparar = formData.get('canje-para-reparar') === 'on';
 
                 if (canjeParaReparar) {
@@ -8460,4 +8567,30 @@ async function deleteCurrencyExchangeTransaction(data, kpiType, period) {
             showGlobalFeedback("No se pudo revertir la operación. Revisa la consola.", "error");
         }
     });
+}
+
+function agregarFilaComision() {
+    const container = document.getElementById('comisiones-container');
+    if (!container) return;
+
+    const vendedoresOptions = vendedores.map(v => `<option value="${v}">${v}</option>`).join('');
+    
+    const nuevaFila = document.createElement('div');
+    nuevaFila.className = 'comision-fila';
+    // Este es el HTML para cada fila de comisionista
+    nuevaFila.innerHTML = `
+        <div class="form-group" style="flex: 2;">
+            <select name="vendedor_comision" required>
+                <option value="">Seleccione vendedor...</option>
+                ${vendedoresOptions}
+            </select>
+        </div>
+        <div class="form-group" style="flex: 1;">
+            <input type="number" name="monto_comision_usd" placeholder="Comisión USD" step="0.01" required min="0">
+        </div>
+        <button type="button" class="delete-btn btn-remove-comision" title="Quitar comisionista">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+    `;
+    container.appendChild(nuevaFila);
 }
