@@ -727,36 +727,53 @@ async function updateReports() {
             let totalOperationalExpenses = { usd: 0, cash: 0, transfer: 0, transfer_usd: 0 };
             let totalProfit = 0;
         
+            // Profit de Ventas Minoristas
             if (!salesSnapshot.empty) {
                 const costPromises = salesSnapshot.docs.map(saleDoc => db.collection("stock_individual").doc(saleDoc.data().imei_vendido).get());
                 const costDocs = await Promise.all(costPromises);
                 const costMap = new Map(costDocs.map(doc => [doc.id, doc.data()?.precio_costo_usd || 0]));
                 salesSnapshot.forEach(doc => {
                     const venta = doc.data();
-                    const cost = venta.imei_vendido ? (costMap.get(venta.imei_vendido) || 0) : 0;
-                    
-                    // ===================== INICIO DE LA CORRECCIÓN CLAVE =====================
-                    // Ahora, la comisión total se toma del nuevo campo `comision_total_usd`.
-                    // Mantenemos `comision_vendedor_usd` como respaldo para las ventas viejas.
-                    const comisionTotalVenta = venta.comision_total_usd || venta.comision_vendedor_usd || 0;
-                    totalProfit += (venta.precio_venta_usd || 0) - cost - comisionTotalVenta;
-                    // ====================== FIN DE LA CORRECCIÓN CLAVE =======================
-
+                    // IMPORTANTE: Solo procesamos ventas que NO son parte de una venta mayorista
+                    if (!venta.venta_mayorista_ref) {
+                        const cost = venta.imei_vendido ? (costMap.get(venta.imei_vendido) || 0) : 0;
+                        const comisionTotalVenta = venta.comision_total_usd || venta.comision_vendedor_usd || 0;
+                        totalProfit += (venta.precio_venta_usd || 0) - cost - comisionTotalVenta;
+                    }
                     totalIncomes.usd += venta.monto_dolares || 0;
                     totalIncomes.cash += venta.monto_efectivo || 0;
                     totalIncomes.transfer += venta.monto_transferencia || 0;
                     totalIncomes.transfer_usd += venta.monto_transferencia_usd || 0;
                 });
             }
-            
-            wholesaleSalesSnapshot.forEach(doc => {
-                const payment = doc.data().pago_recibido || {};
-                totalIncomes.usd += payment.usd || 0;
-                totalIncomes.cash += payment.ars_efectivo || 0;
-                totalIncomes.transfer += payment.ars_transferencia || 0;
-                totalIncomes.transfer_usd += payment.usd_transferencia || 0;
-            });
 
+            // ===================== INICIO DE LA LÓGICA DE PROFIT MAYORISTA =====================
+            // Profit de Ventas Mayoristas
+            if (!wholesaleSalesSnapshot.empty) {
+                for (const wsDoc of wholesaleSalesSnapshot.docs) {
+                    const wholesaleSale = wsDoc.data();
+                    const payment = wholesaleSale.pago_recibido || {};
+                    totalIncomes.usd += payment.usd || 0;
+                    totalIncomes.cash += payment.ars_efectivo || 0;
+                    totalIncomes.transfer += payment.ars_transferencia || 0;
+                    totalIncomes.transfer_usd += payment.usd_transferencia || 0;
+
+                    // Ahora calculamos el profit de esta venta mayorista
+                    const individualSales = await db.collection('ventas').where('venta_mayorista_ref', '==', wsDoc.id).get();
+                    let totalCostWholesale = 0;
+                    if (!individualSales.empty) {
+                        const costPromises = individualSales.docs.map(doc => db.collection("stock_individual").doc(doc.data().imei_vendido).get());
+                        const costDocs = await Promise.all(costPromises);
+                        costDocs.forEach(costDoc => {
+                            if (costDoc.exists) totalCostWholesale += costDoc.data().precio_costo_usd || 0;
+                        });
+                    }
+                    const comisionTotalWholesale = wholesaleSale.comision_total_usd || 0;
+                    totalProfit += (wholesaleSale.total_venta_usd || 0) - totalCostWholesale - comisionTotalWholesale;
+                }
+            }
+            // ===================== FIN DE LA LÓGICA DE PROFIT MAYORISTA =====================
+            
             miscIncomesSnap.forEach(doc => {
                 const ingreso = doc.data();
                 if (ingreso.metodo === 'Dólares') totalIncomes.usd += ingreso.monto || 0;
@@ -771,7 +788,6 @@ async function updateReports() {
                 if (gasto.metodo_pago === 'Pesos (Efectivo)') totalExpenses.cash += gasto.monto || 0;
                 if (gasto.metodo_pago === 'Pesos (Transferencia)') totalExpenses.transfer += gasto.monto || 0;
                 if (gasto.metodo_pago === 'Dólares (Transferencia)') totalExpenses.transfer_usd += gasto.monto || 0;
-
                 if (gasto.categoria !== 'Pago a Proveedor' && gasto.categoria !== 'Comisiones' && gasto.categoria !== 'Retiro de Socio') {
                     if (gasto.metodo_pago === 'Dólares') totalOperationalExpenses.usd += gasto.monto || 0;
                     if (gasto.metodo_pago === 'Pesos (Efectivo)') totalOperationalExpenses.cash += gasto.monto || 0;
@@ -796,7 +812,6 @@ async function updateReports() {
                 transfer: totalIncomes.transfer - totalExpenses.transfer,
                 transfer_usd: totalIncomes.transfer_usd - totalExpenses.transfer_usd
             };
-        
             return { netIncomes, expenses: totalOperationalExpenses, profit: totalProfit };
         };
 
@@ -821,7 +836,6 @@ async function updateReports() {
         if (kpiElements.expensesMonthCash) kpiElements.expensesMonthCash.textContent = formatearARS(monthly.expenses.cash);
         if (kpiElements.expensesMonthTransfer) kpiElements.expensesMonthTransfer.textContent = formatearARS(monthly.expenses.transfer);
         if (kpiElements.expensesMonthTransferUsd) kpiElements.expensesMonthTransferUsd.textContent = formatearUSD(monthly.expenses.transfer_usd);
-
     } catch (error) {
         console.error("Error al actualizar los informes:", error);
         Object.values(kpiElements).forEach(el => { if (el) el.textContent = 'Error'; });
@@ -1449,48 +1463,46 @@ function renderWholesaleLoader() {
     s.productForm.classList.remove('hidden');
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 async function finalizeWholesaleSale(form) {
     const btn = form.querySelector('button[type="submit"]');
     toggleSpinner(btn, true);
 
     const formData = new FormData(form);
     const saleId = formData.get('sale_id').trim();
+    
+    // --- LECTURA DE DATOS DE COMISIÓN ---
+    const comisionFilas = form.querySelectorAll('.comision-fila');
+    const comisionesArray = [];
+    let totalComision = 0;
+    const vendedoresImplicados = new Set();
+    comisionFilas.forEach(fila => {
+        const vendedor = fila.querySelector('[name="vendedor_comision"]').value;
+        const monto = parseFloat(fila.querySelector('[name="monto_comision_usd"]').value) || 0;
+        if (vendedor && monto > 0) {
+            comisionesArray.push({ vendedor: vendedor, monto: monto });
+            vendedoresImplicados.add(vendedor);
+            totalComision += monto;
+        }
+    });
+    // --- FIN DE LECTURA ---
 
-    // ===== INICIO DE LA MODIFICACIÓN CLAVE =====
-    // Hacemos la lectura de datos más segura, verificando qué checkboxes están marcados.
     const metodosSeleccionados = formData.getAll('metodo_pago_check');
-
     const montoUsdEfectivo = metodosSeleccionados.includes('Dólares') ? parseFloat(formData.get('monto_dolares')) || 0 : 0;
     const montoArsEfectivo = metodosSeleccionados.includes('Pesos (Efectivo)') ? parseFloat(formData.get('monto_efectivo')) || 0 : 0;
     const montoArsTransferencia = metodosSeleccionados.includes('Pesos (Transferencia)') ? parseFloat(formData.get('monto_transferencia')) || 0 : 0;
     const montoUsdTransferencia = metodosSeleccionados.includes('Dólares (Transferencia)') ? parseFloat(formData.get('monto_transferencia_usd')) || 0 : 0;
-    
     const cuentaDestinoArsValue = metodosSeleccionados.includes('Pesos (Transferencia)') ? formData.get('cuenta_destino_ars') : null;
     const cuentaDestinoUsdValue = metodosSeleccionados.includes('Dólares (Transferencia)') ? formData.get('cuenta_destino_usd') : null;
-    
     const pagoEnPesos = montoArsEfectivo > 0 || montoArsTransferencia > 0;
     const cotizacion = pagoEnPesos ? parseFloat(formData.get('cotizacion_dolar')) || 1 : 1;
-    // ===== FIN DE LA MODIFICACIÓN CLAVE =====
 
-    if (!saleId) {
-        showGlobalFeedback("El ID de la venta es obligatorio.", "error");
-        toggleSpinner(btn, false);
-        return;
-    }
-    if (montoArsTransferencia > 0 && !cuentaDestinoArsValue) {
-        showGlobalFeedback("Debes seleccionar una cuenta ARS para la transferencia.", "error");
-        toggleSpinner(btn, false);
-        return;
-    }
-    if (montoUsdTransferencia > 0 && !cuentaDestinoUsdValue) {
-        showGlobalFeedback("Debes seleccionar una cuenta USD para la transferencia.", "error");
-        toggleSpinner(btn, false);
-        return;
-    }
+    if (!saleId) { showGlobalFeedback("El ID de la venta es obligatorio.", "error"); toggleSpinner(btn, false); return; }
+    if (montoArsTransferencia > 0 && !cuentaDestinoArsValue) { showGlobalFeedback("Debes seleccionar una cuenta ARS para la transferencia.", "error"); toggleSpinner(btn, false); return; }
+    if (montoUsdTransferencia > 0 && !cuentaDestinoUsdValue) { showGlobalFeedback("Debes seleccionar una cuenta USD para la transferencia.", "error"); toggleSpinner(btn, false); return; }
 
     try {
         const { clientId, clientName, items, totalSaleValue } = wholesaleSaleContext;
-        
         const usarSaldo = formData.get('usar_saldo_cliente') === 'on';
         
         await db.runTransaction(async (t) => {
@@ -1512,24 +1524,22 @@ async function finalizeWholesaleSale(form) {
             const totalPagadoUSD = montoUsdEfectivo + montoUsdTransferencia + (totalPagadoPesos > 0 ? (totalPagadoPesos / cotizacion) : 0);
             const deudaGenerada = totalSaleValue - totalPagadoUSD - creditoAplicado;
             
+            // --- NUEVOS DATOS GUARDADOS EN EL DOCUMENTO ---
             const masterSaleData = {
-                clienteId: clientId,
-                clienteNombre: clientName,
-                venta_id_manual: saleId,
-                fecha_venta: saleDate,
+                clienteId: clientId, clienteNombre: clientName, venta_id_manual: saleId, fecha_venta: saleDate,
                 total_venta_usd: totalSaleValue,
                 pago_recibido: {
-                    usd: montoUsdEfectivo,
-                    ars_efectivo: montoArsEfectivo,
-                    ars_transferencia: montoArsTransferencia,
-                    usd_transferencia: montoUsdTransferencia,
-                    cotizacion_dolar: cotizacion,
-                    total_pagado_usd: totalPagadoUSD
+                    usd: montoUsdEfectivo, ars_efectivo: montoArsEfectivo, ars_transferencia: montoArsTransferencia,
+                    usd_transferencia: montoUsdTransferencia, cotizacion_dolar: cotizacion, total_pagado_usd: totalPagadoUSD
                 },
                 saldo_favor_aplicado: creditoAplicado,
                 deuda_generada_usd: deudaGenerada > 0.01 ? deudaGenerada : 0,
                 cantidad_equipos: items.length,
+                comisiones: comisionesArray,
+                comision_total_usd: totalComision,
+                vendedores_implicados: Array.from(vendedoresImplicados)
             };
+            // --- FIN DE NUEVOS DATOS ---
 
             if (montoArsTransferencia > 0) {
                 const [cuentaId, cuentaNombre] = cuentaDestinoArsValue.split('|');
@@ -1552,12 +1562,8 @@ async function finalizeWholesaleSale(form) {
             for (const item of items) {
                 const ventaIndividualRef = db.collection('ventas').doc();
                 t.set(ventaIndividualRef, {
-                    imei_vendido: item.imei,
-                    producto: item.details,
-                    precio_venta_usd: item.precio_venta_usd,
-                    metodo_pago: 'Venta Mayorista',
-                    vendedor: `Mayorista: ${clientName}`,
-                    fecha_venta: saleDate,
+                    imei_vendido: item.imei, producto: item.details, precio_venta_usd: item.precio_venta_usd,
+                    metodo_pago: 'Venta Mayorista', vendedor: `Mayorista: ${clientName}`, fecha_venta: saleDate,
                     venta_mayorista_ref: wholesaleSaleRef.id,
                 });
                 const stockRef = db.collection('stock_individual').doc(item.imei);
@@ -1565,12 +1571,20 @@ async function finalizeWholesaleSale(form) {
             }
 
             const cambioNetoEnDeuda = totalSaleValue - totalPagadoUSD;
-            
             t.update(clientRef, {
                 total_comprado_usd: firebase.firestore.FieldValue.increment(totalSaleValue),
                 deuda_usd: firebase.firestore.FieldValue.increment(cambioNetoEnDeuda),
                 fecha_ultima_compra: saleDate
             });
+
+            // --- ACTUALIZAR SALDO DE COMISIONISTAS ---
+            if (comisionesArray.length > 0) {
+                for (const comision of comisionesArray) {
+                    const vendorRef = db.collection("vendedores").doc(comision.vendedor);
+                    t.update(vendorRef, { comision_pendiente_usd: firebase.firestore.FieldValue.increment(comision.monto) });
+                }
+            }
+            // --- FIN DE ACTUALIZACIÓN ---
         });
 
         showGlobalFeedback(`¡Venta mayorista ${saleId} registrada con éxito!`, 'success', 5000);
@@ -5599,6 +5613,7 @@ function resetManagementView(isBatchLoad = false, isCanje = false, isWholesaleSa
     delete s.productForm.dataset.canjeId;
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 async function promptToFinalizeWholesaleSale() {
     if (!wholesaleSaleContext || wholesaleSaleContext.items.length === 0) {
         showGlobalFeedback("No has agregado ningún equipo a la venta.", "error");
@@ -5637,8 +5652,6 @@ async function promptToFinalizeWholesaleSale() {
         showGlobalFeedback("No se pudo obtener el saldo del cliente.", "error");
     }
 
-    // ===== INICIO DE LA MODIFICACIÓN =====
-    // Filtramos las cuentas por moneda y creamos los desplegables
     const accountsArsOptions = financialAccounts.filter(acc => acc.moneda === 'ARS').map(acc => `<option value="${acc.id}|${acc.nombre}">${acc.nombre}</option>`).join('');
     const accountsUsdOptions = financialAccounts.filter(acc => acc.moneda === 'USD').map(acc => `<option value="${acc.id}|${acc.nombre}">${acc.nombre}</option>`).join('');
 
@@ -5652,7 +5665,20 @@ async function promptToFinalizeWholesaleSale() {
                 <div class="payment-option"><label class="toggle-switch-group"><input type="checkbox" name="metodo_pago_check" value="Dólares (Transferencia)"><span class="toggle-switch-label">Paga con Transferencia (USD)</span><span class="toggle-switch-slider"></span></label><div class="payment-input-container hidden"><input type="number" name="monto_transferencia_usd" placeholder="Monto en USD" step="0.01"><select name="cuenta_destino_usd">${accountsUsdOptions}</select></div></div>
             </div>
         </div>`;
-    // ===== FIN DE LA MODIFICACIÓN =====
+    
+    // ===================== INICIO DE LA MODIFICACIÓN CLAVE =====================
+    // Reutilizamos exactamente el mismo HTML y lógica que en las ventas normales
+    const comisionesHtml = `
+        <hr style="border-color:var(--border-dark);margin:1.5rem 0;">
+        <div class="form-group">
+            <label>Comisiones de la Venta</label>
+            <div id="comisiones-container">
+                <!-- Las filas de comisiones se agregarán aquí dinámicamente -->
+            </div>
+            <button type="button" id="btn-add-comisionista">+ Agregar Comisionista</button>
+        </div>
+    `;
+    // ====================== FIN DE LA MODIFICACIÓN CLAVE =======================
 
     s.promptContainer.innerHTML = `
     <div class="container container-sm wholesale-sale-modal-box">
@@ -5664,37 +5690,33 @@ async function promptToFinalizeWholesaleSale() {
                     <strong style="font-size: 2.2rem; color: var(--brand-yellow);">${formatearUSD(totalSaleValue)}</strong>
                 </div>
             </div>
-
             ${saldoHtml}
-            
             <div id="deuda-final-container" class="details-box" style="margin-top: 1rem; border-color: var(--brand-yellow); display: ${deudaFinalEstimada > 0 ? 'block' : 'none'};">
                  <div class="detail-item" style="flex-direction: column;">
                     <span style="font-size: 1rem; color: var(--text-muted);">Deuda Restante a Pagar</span>
-                    <strong id="deuda-final-display" style="font-size: 2.2rem; color: var(--error-bg);">
-                        ${formatearUSD(deudaFinalEstimada)}
-                    </strong>
+                    <strong id="deuda-final-display" style="font-size: 2.2rem; color: var(--error-bg);">${formatearUSD(deudaFinalEstimada)}</strong>
                 </div>
             </div>
-
-            <div class="form-group">
-                <label>ID de la Venta (Ej: VTA-050)</label>
-                <input type="text" name="sale_id" required>
-            </div>
+            <div class="form-group"><label>ID de la Venta (Ej: VTA-050)</label><input type="text" name="sale_id" required></div>
             ${metodosDePagoHtml}
-            <div class="form-group">
-                <label>Cotización del Dólar (si se paga en ARS)</label>
-                <input type="number" name="cotizacion_dolar" placeholder="Ej: 1200">
-            </div>
-            
+            <div class="form-group"><label>Cotización del Dólar (si se paga en ARS)</label><input type="number" name="cotizacion_dolar" placeholder="Ej: 1200"></div>
+            ${comisionesHtml}
             <div class="prompt-buttons">
-                <button type="submit" class="prompt-button confirm spinner-btn">
-                    <span class="btn-text">Confirmar y Guardar Venta</span>
-                    <div class="spinner"></div>
-                </button>
+                <button type="submit" class="prompt-button confirm spinner-btn"><span class="btn-text">Confirmar y Guardar Venta</span><div class="spinner"></div></button>
                 <button type="button" class="prompt-button cancel">Cancelar</button>
             </div>
         </form>
     </div>`;
+    
+    // --- LÓGICA PARA EL NUEVO FORMULARIO DE COMISIONES ---
+    agregarFilaComision(); 
+    document.getElementById('btn-add-comisionista').addEventListener('click', agregarFilaComision);
+    document.getElementById('comisiones-container').addEventListener('click', function(e) {
+        if (e.target && e.target.closest('.btn-remove-comision')) {
+            e.target.closest('.comision-fila').remove();
+        }
+    });
+    // --- FIN DE LA LÓGICA ---
     
     const form = document.getElementById('wholesale-sale-finalize-form');
     const usarSaldoCheckbox = document.getElementById('usar-saldo-cliente');
@@ -5725,6 +5747,7 @@ async function promptToFinalizeWholesaleSale() {
         });
     });
 }
+
 function showFeedback(message, type = 'info') {
     s.feedbackMessage.textContent = message;
     s.feedbackMessage.className = `feedback-message ${type}`;
