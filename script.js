@@ -3348,11 +3348,10 @@ async function reverseEgresoTransaction(egresoId, egresoData, kpiType, period) {
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 async function loadCommissions() {
-    s.commissionsResultsContainer.innerHTML = `<p class="dashboard-loader">Calculando comisiones...</p>`;
+    s.commissionsResultsContainer.innerHTML = `<p class="dashboard-loader">Cargando vendedores...</p>`;
     
     try {
         const vendorsToQuery = vendedores;
-
         if (vendorsToQuery.length === 0) {
             s.commissionsResultsContainer.innerHTML = `<p class="dashboard-loader">No hay vendedores para mostrar.</p>`;
             return;
@@ -3369,92 +3368,21 @@ async function loadCommissions() {
             }
         });
 
-        const now = new Date();
-        const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-        const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-        
-        const chunks = [];
-        for (let i = 0; i < vendorsToQuery.length; i += 10) {
-            chunks.push(vendorsToQuery.slice(i, i + 10));
-        }
+        // 1. Renderizamos las "cáscaras" de las tarjetas, solo con los totales.
+        renderCommissions(vendorData);
 
-        const salesPromises = chunks.map(chunk => {
-            return db.collection("ventas")
-                .where('vendedores_implicados', 'array-contains-any', chunk)
-                .where('fecha_venta', '>=', startOfDay)
-                .where('fecha_venta', '<=', endOfDay)
-                .get();
+        // 2. AHORA, disparamos automáticamente el filtro para CADA tarjeta recién creada.
+        document.querySelectorAll('.btn-filter-commission').forEach(button => {
+            filterVendorHistory(button); 
         });
-
-        const adjustmentsQuery = db.collection("ajustes_comisiones").where('fecha', '>=', startOfDay).where('fecha', '<=', endOfDay);
-        
-        // ===================== INICIO DE LA CORRECCIÓN CLAVE =====================
-        // Se añade .get() a adjustmentsQuery para que se ejecute la consulta.
-        const snapshots = await Promise.all([...salesPromises, adjustmentsQuery.get()]);
-        // ====================== FIN DE LA CORRECCIÓN CLAVE =======================
-        
-        const salesSnapshots = snapshots.slice(0, -1);
-        const adjustmentsSnapshot = snapshots[snapshots.length - 1];
-
-        const allSaleDocs = salesSnapshots.flatMap(snapshot => snapshot.docs);
-
-        const commissionEventsByVendor = {};
-
-        allSaleDocs.forEach(doc => {
-            const sale = doc.data();
-            // Lógica para ventas nuevas (con comisiones en array)
-            if (sale.comisiones && Array.isArray(sale.comisiones)) {
-                sale.comisiones.forEach(comision => {
-                    const vendorName = comision.vendedor;
-                    if (vendorsToQuery.includes(vendorName)) {
-                        if (!commissionEventsByVendor[vendorName]) commissionEventsByVendor[vendorName] = [];
-                        commissionEventsByVendor[vendorName].push({
-                            type: 'venta', date: sale.fecha_venta.toDate(),
-                            description: `${sale.producto.modelo || 'Producto'} ${sale.producto.color || ''}`,
-                            amount: comision.monto
-                        });
-                    }
-                });
-            } 
-            // Lógica de respaldo para ventas viejas (con un solo vendedor)
-            else if (sale.vendedor && sale.comision_vendedor_usd > 0) {
-                const vendorName = sale.vendedor;
-                if (vendorsToQuery.includes(vendorName)) {
-                    if (!commissionEventsByVendor[vendorName]) commissionEventsByVendor[vendorName] = [];
-                    commissionEventsByVendor[vendorName].push({
-                        type: 'venta', date: sale.fecha_venta.toDate(),
-                        description: `${sale.producto.modelo || 'Producto'} ${sale.producto.color || ''}`,
-                        amount: sale.comision_vendedor_usd
-                    });
-                }
-            }
-        });
-
-        // Aseguramos que adjustmentsSnapshot no sea undefined antes de usarlo
-        if (adjustmentsSnapshot && adjustmentsSnapshot.docs) {
-            adjustmentsSnapshot.docs.forEach(doc => {
-                const adjustment = doc.data();
-                const vendorName = adjustment.vendedor;
-                if (vendorsToQuery.includes(vendorName)) {
-                    if (!commissionEventsByVendor[vendorName]) commissionEventsByVendor[vendorName] = [];
-                    commissionEventsByVendor[vendorName].push({
-                        type: 'ajuste', date: adjustment.fecha.toDate(),
-                        description: adjustment.motivo || 'Ajuste manual',
-                        amount: adjustment.monto_usd
-                    });
-                }
-            });
-        }
-
-        renderCommissions(vendorData, commissionEventsByVendor);
 
     } catch (error) {
         handleDBError(error, s.commissionsResultsContainer, "comisiones");
     }
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA
-function renderCommissions(vendorData, commissionEventsByVendor) {
+// AHORA, REEMPLAZA TAMBIÉN ESTA OTRA FUNCIÓN COMPLETA
+function renderCommissions(vendorData) {
     if (Object.keys(vendorData).length === 0) {
         s.commissionsResultsContainer.innerHTML = `<p class="dashboard-loader">No hay vendedores creados. ¡Crea el primero!</p>`;
         return;
@@ -3464,36 +3392,14 @@ function renderCommissions(vendorData, commissionEventsByVendor) {
     let html = '';
     for (const vendorName in vendorData) {
         const vendor = vendorData[vendorName];
-        const events = commissionEventsByVendor[vendorName] || [];
-        
-        events.sort((a, b) => b.date - a.date);
-
         const totalPendingAmount = vendor.comision_pendiente_usd || 0;
         
-        const eventsListHtml = events.map(event => {
-            if (event.type === 'ajuste') {
-                return `<div class="commission-sale-item" style="border-left: 4px solid var(--info-bg);"><div class="commission-sale-main"><span class="commission-sale-product" style="font-style: italic;">Ajuste Manual: ${event.description}</span><span class="commission-sale-amount" style="color: var(--info-bg);">${formatearUSD(event.amount)}</span></div><span class="commission-sale-date">${event.date.toLocaleString('es-AR', {day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'})} hs</span></div>`;
-            }
-            return `<div class="commission-sale-item"><div class="commission-sale-main"><span class="commission-sale-product">${event.description}</span><span class="commission-sale-amount">${formatearUSD(event.amount)}</span></div><span class="commission-sale-date">${event.date.toLocaleString('es-AR', {day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'})} hs</span></div>`;
-        }).join('');
-
-        // ===================== INICIO DE LA MODIFICACIÓN =====================
-        // Se añade el HTML de los filtros dentro de cada tarjeta.
         const filtersHtml = `
             <div class="commission-filters">
-                <div class="filter-group">
-                    <label>Desde</label>
-                    <input type="date" class="commission-start-date" value="${today}">
-                </div>
-                <div class="filter-group">
-                    <label>Hasta</label>
-                    <input type="date" class="commission-end-date" value="${today}">
-                </div>
-                <div class="filter-group">
-                    <button class="btn-filter-commission" data-vendor="${vendorName}">Filtrar</button>
-                </div>
+                <div class="filter-group"><label>Desde</label><input type="date" class="commission-start-date" value="${today}"></div>
+                <div class="filter-group"><label>Hasta</label><input type="date" class="commission-end-date" value="${today}"></div>
+                <div class="filter-group"><button class="btn-filter-commission" data-vendor="${vendorName}">Filtrar</button></div>
             </div>`;
-        // ====================== FIN DE LA MODIFICACIÓN =======================
 
         html += `
             <div class="commission-vendor-card" data-vendor-name="${vendorName}">
@@ -3509,19 +3415,18 @@ function renderCommissions(vendorData, commissionEventsByVendor) {
                     </div>
                 </div>
                 
+                <!-- El contenedor de detalles empieza con un mensaje de "cargando" -->
                 <div class="commission-sales-list" id="details-list-${vendorName.replace(/\s+/g, '')}">
-                    ${eventsListHtml || '<p class="dashboard-loader" style="font-size:0.9rem; padding: 1rem 0;">No hay comisiones para mostrar hoy.</p>'}
+                    <p class="dashboard-loader" style="font-size:0.9rem; padding: 1rem 0;">Cargando comisiones de hoy...</p>
                 </div>
 
                 ${filtersHtml} 
 
                 <div class="commission-payment-history" id="history-${vendorName.replace(/\s+/g, '')}"></div>
-            </div>
-        `;
+            </div>`;
     }
     s.commissionsResultsContainer.innerHTML = html;
 
-    // Se añaden listeners a los nuevos botones de "Filtrar"
     document.querySelectorAll('.btn-filter-commission').forEach(button => {
         button.addEventListener('click', (e) => {
             filterVendorHistory(e.currentTarget);
