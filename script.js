@@ -655,7 +655,6 @@ function moveNavSlider(activeTab) {
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 async function updateReports() {
-    // Definimos todos los elementos que vamos a actualizar
     const kpiElements = {
         stockValue: document.getElementById('kpi-stock-value'),
         stockCount: document.getElementById('kpi-stock-count'),
@@ -680,7 +679,6 @@ async function updateReports() {
         expensesMonthTransferUsd: document.getElementById('kpi-expenses-month-transfer-usd')
     };
     
-    // Ponemos '...' en todos los elementos que existan
     Object.values(kpiElements).forEach(el => { if (el) el.textContent = '...'; });
 
     try {
@@ -727,14 +725,12 @@ async function updateReports() {
             let totalOperationalExpenses = { usd: 0, cash: 0, transfer: 0, transfer_usd: 0 };
             let totalProfit = 0;
         
-            // Profit de Ventas Minoristas
             if (!salesSnapshot.empty) {
                 const costPromises = salesSnapshot.docs.map(saleDoc => db.collection("stock_individual").doc(saleDoc.data().imei_vendido).get());
                 const costDocs = await Promise.all(costPromises);
                 const costMap = new Map(costDocs.map(doc => [doc.id, doc.data()?.precio_costo_usd || 0]));
                 salesSnapshot.forEach(doc => {
                     const venta = doc.data();
-                    // IMPORTANTE: Solo procesamos ventas que NO son parte de una venta mayorista
                     if (!venta.venta_mayorista_ref) {
                         const cost = venta.imei_vendido ? (costMap.get(venta.imei_vendido) || 0) : 0;
                         const comisionTotalVenta = venta.comision_total_usd || venta.comision_vendedor_usd || 0;
@@ -747,8 +743,6 @@ async function updateReports() {
                 });
             }
 
-            // ===================== INICIO DE LA LÓGICA DE PROFIT MAYORISTA =====================
-            // Profit de Ventas Mayoristas
             if (!wholesaleSalesSnapshot.empty) {
                 for (const wsDoc of wholesaleSalesSnapshot.docs) {
                     const wholesaleSale = wsDoc.data();
@@ -758,7 +752,6 @@ async function updateReports() {
                     totalIncomes.transfer += payment.ars_transferencia || 0;
                     totalIncomes.transfer_usd += payment.usd_transferencia || 0;
 
-                    // Ahora calculamos el profit de esta venta mayorista
                     const individualSales = await db.collection('ventas').where('venta_mayorista_ref', '==', wsDoc.id).get();
                     let totalCostWholesale = 0;
                     if (!individualSales.empty) {
@@ -772,7 +765,6 @@ async function updateReports() {
                     totalProfit += (wholesaleSale.total_venta_usd || 0) - totalCostWholesale - comisionTotalWholesale;
                 }
             }
-            // ===================== FIN DE LA LÓGICA DE PROFIT MAYORISTA =====================
             
             miscIncomesSnap.forEach(doc => {
                 const ingreso = doc.data();
@@ -788,12 +780,26 @@ async function updateReports() {
                 if (gasto.metodo_pago === 'Pesos (Efectivo)') totalExpenses.cash += gasto.monto || 0;
                 if (gasto.metodo_pago === 'Pesos (Transferencia)') totalExpenses.transfer += gasto.monto || 0;
                 if (gasto.metodo_pago === 'Dólares (Transferencia)') totalExpenses.transfer_usd += gasto.monto || 0;
-                if (gasto.categoria !== 'Pago a Proveedor' && gasto.categoria !== 'Comisiones' && gasto.categoria !== 'Retiro de Socio') {
+
+                // ===== INICIO DE LA MODIFICACIÓN =====
+                // Se añaden las categorías de movimientos internos a la lista de exclusión.
+                // Ahora, solo los gastos "reales" se sumarán a totalOperationalExpenses.
+                const isNotOperational = [
+                    'Pago a Proveedor', 
+                    'Comisiones', 
+                    'Retiro de Socio',
+                    'Movimiento Interno',
+                    'Cambio y Depósito',
+                    'Cambio de Moneda'
+                ].includes(gasto.categoria);
+
+                if (!isNotOperational) {
                     if (gasto.metodo_pago === 'Dólares') totalOperationalExpenses.usd += gasto.monto || 0;
                     if (gasto.metodo_pago === 'Pesos (Efectivo)') totalOperationalExpenses.cash += gasto.monto || 0;
                     if (gasto.metodo_pago === 'Pesos (Transferencia)') totalOperationalExpenses.transfer += gasto.monto || 0;
                     if (gasto.metodo_pago === 'Dólares (Transferencia)') totalOperationalExpenses.transfer_usd += gasto.monto || 0;
                 }
+                // ===== FIN DE LA MODIFICACIÓN =====
             });
             
             internalMovesSnap.forEach(doc => {
@@ -841,6 +847,7 @@ async function updateReports() {
         Object.values(kpiElements).forEach(el => { if (el) el.textContent = 'Error'; });
     }
 }
+
 
 async function handleAuthStateChange(user) {
     const userGreetingEl = document.getElementById('user-greeting');
@@ -4056,20 +4063,20 @@ async function loadGastos() {
         let query = db.collection('gastos').orderBy('fecha', 'desc').where('fecha', '>=', inicioDelRango).where('fecha', '<=', finDelRango);
         const snapshot = await query.get();
         
-        // ===== INICIO DE LA MODIFICACIÓN =====
-        // Obtenemos TODOS los gastos del período desde la base de datos.
         const gastosBrutos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-        // Filtramos en el código para excluir las categorías que no queremos mostrar AQUÍ.
-        // AÑADIMOS 'Retiro de Socio' a la lista de exclusión.
+        // ===== INICIO DE LA MODIFICACIÓN =====
+        // Se añaden las nuevas categorías a la lista de exclusión para que no se muestren como gastos.
         const gastosFiltrados = gastosBrutos.filter(gasto => 
             gasto.categoria !== 'Pago a Proveedor' && 
             gasto.categoria !== 'Comisiones' &&
-            gasto.categoria !== 'Retiro de Socio'
+            gasto.categoria !== 'Retiro de Socio' &&
+            gasto.categoria !== 'Movimiento Interno' &&
+            gasto.categoria !== 'Cambio y Depósito' &&
+            gasto.categoria !== 'Cambio de Moneda'
         );
         // ===== FIN DE LA MODIFICACIÓN =====
 
-        // A partir de ahora, usamos la lista ya filtrada (gastosFiltrados)
         const gastosPorCategoria = gastosFiltrados.reduce((acc, gasto) => {
             let montoArs = 0;
             if (gasto.metodo_pago.startsWith('Pesos')) {
@@ -4125,7 +4132,7 @@ function renderGastosChart(gastos, gastosPorCategoria) {
                 legend: { 
                     position: 'bottom', 
                     labels: { 
-                        color: 'var(--text-light)', 
+                        color: '#ffffff', 
                         boxWidth: 15, 
                         padding: 20, 
                     } 
