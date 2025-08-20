@@ -1463,7 +1463,6 @@ function renderWholesaleLoader() {
     s.productForm.classList.remove('hidden');
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 async function finalizeWholesaleSale(form) {
     const btn = form.querySelector('button[type="submit"]');
     toggleSpinner(btn, true);
@@ -1471,7 +1470,6 @@ async function finalizeWholesaleSale(form) {
     const formData = new FormData(form);
     const saleId = formData.get('sale_id').trim();
     
-    // --- LECTURA DE DATOS DE COMISIÓN ---
     const comisionFilas = form.querySelectorAll('.comision-fila');
     const comisionesArray = [];
     let totalComision = 0;
@@ -1479,13 +1477,16 @@ async function finalizeWholesaleSale(form) {
     comisionFilas.forEach(fila => {
         const vendedor = fila.querySelector('[name="vendedor_comision"]').value;
         const monto = parseFloat(fila.querySelector('[name="monto_comision_usd"]').value) || 0;
+        
+        // ===== MODIFICACIÓN AQUÍ: Misma lógica que en la venta común =====
         if (vendedor && monto > 0) {
             comisionesArray.push({ vendedor: vendedor, monto: monto });
             vendedoresImplicados.add(vendedor);
             totalComision += monto;
+        } else if (vendedor) {
+            vendedoresImplicados.add(vendedor);
         }
     });
-    // --- FIN DE LECTURA ---
 
     const metodosSeleccionados = formData.getAll('metodo_pago_check');
     const montoUsdEfectivo = metodosSeleccionados.includes('Dólares') ? parseFloat(formData.get('monto_dolares')) || 0 : 0;
@@ -1524,7 +1525,6 @@ async function finalizeWholesaleSale(form) {
             const totalPagadoUSD = montoUsdEfectivo + montoUsdTransferencia + (totalPagadoPesos > 0 ? (totalPagadoPesos / cotizacion) : 0);
             const deudaGenerada = totalSaleValue - totalPagadoUSD - creditoAplicado;
             
-            // --- NUEVOS DATOS GUARDADOS EN EL DOCUMENTO ---
             const masterSaleData = {
                 clienteId: clientId, clienteNombre: clientName, venta_id_manual: saleId, fecha_venta: saleDate,
                 total_venta_usd: totalSaleValue,
@@ -1539,7 +1539,6 @@ async function finalizeWholesaleSale(form) {
                 comision_total_usd: totalComision,
                 vendedores_implicados: Array.from(vendedoresImplicados)
             };
-            // --- FIN DE NUEVOS DATOS ---
 
             if (montoArsTransferencia > 0) {
                 const [cuentaId, cuentaNombre] = cuentaDestinoArsValue.split('|');
@@ -1577,14 +1576,12 @@ async function finalizeWholesaleSale(form) {
                 fecha_ultima_compra: saleDate
             });
 
-            // --- ACTUALIZAR SALDO DE COMISIONISTAS ---
             if (comisionesArray.length > 0) {
                 for (const comision of comisionesArray) {
                     const vendorRef = db.collection("vendedores").doc(comision.vendedor);
                     t.update(vendorRef, { comision_pendiente_usd: firebase.firestore.FieldValue.increment(comision.monto) });
                 }
             }
-            // --- FIN DE ACTUALIZACIÓN ---
         });
 
         showGlobalFeedback(`¡Venta mayorista ${saleId} registrada con éxito!`, 'success', 5000);
@@ -3235,7 +3232,6 @@ async function showKpiDetail(kpiType, period) {
     }
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 async function showProfitDetail(period) {
     const now = new Date();
     let startDate, endDate, title;
@@ -3254,12 +3250,21 @@ async function showProfitDetail(period) {
     const detailContent = document.getElementById('kpi-profit-detail-content');
 
     try {
+        // ===== INICIO DE LA MODIFICACIÓN =====
+        // 1. Obtenemos TODAS las ventas individuales y TODAS las ventas mayoristas del período.
         const salesQuery = db.collection('ventas').where('fecha_venta', '>=', startDate).where('fecha_venta', '<=', endDate);
-        const salesSnapshot = await salesQuery.get();
+        const wholesaleSalesQuery = db.collection('ventas_mayoristas').where('fecha_venta', '>=', startDate).where('fecha_venta', '<=', endDate);
+        
+        const [salesSnapshot, wholesaleSalesSnapshot] = await Promise.all([salesQuery.get(), wholesaleSalesQuery.get()]);
+
         if (salesSnapshot.empty) {
             detailContent.innerHTML = `<p class="dashboard-loader">No hay ventas con ganancias en este período.</p>`;
             return;
         }
+
+        // 2. Guardamos las ventas mayoristas en un "mapa" para un acceso rápido y eficiente.
+        const wholesaleSalesMap = new Map(wholesaleSalesSnapshot.docs.map(doc => [doc.id, doc.data()]));
+        // ===== FIN DE LA MODIFICACIÓN =====
 
         const costPromises = salesSnapshot.docs.map(saleDoc => db.collection("stock_individual").doc(saleDoc.data().imei_vendido).get());
         const costDocs = await Promise.all(costPromises);
@@ -3271,10 +3276,18 @@ async function showProfitDetail(period) {
             const precioVenta = venta.precio_venta_usd || 0;
             const costoProducto = costMap.get(venta.imei_vendido) || 0;
             
-            // ===================== INICIO DE LA CORRECCIÓN CLAVE =====================
-            // Leemos del campo nuevo `comision_total_usd` y si no existe (venta vieja), usamos el anterior.
-            const comision = venta.comision_total_usd || venta.comision_vendedor_usd || 0;
-            // ====================== FIN DE LA CORRECCIÓN CLAVE =======================
+            // ===== INICIO DE LA MODIFICACIÓN =====
+            // 3. Determinamos la comisión correcta para cada fila.
+            let comision = 0;
+            if (venta.venta_mayorista_ref) {
+                // Si es parte de una venta mayorista, buscamos la comisión total en el mapa.
+                const masterSale = wholesaleSalesMap.get(venta.venta_mayorista_ref);
+                comision = masterSale ? masterSale.comision_total_usd || 0 : 0;
+            } else {
+                // Si es una venta normal, usamos la lógica anterior.
+                comision = venta.comision_total_usd || venta.comision_vendedor_usd || 0;
+            }
+            // ===== FIN DE LA MODIFICACIÓN =====
             
             const ganancia = precioVenta - costoProducto - comision;
 
@@ -4434,70 +4447,6 @@ async function exportToExcel(type) {
     }
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
-
-async function loadSales(direction = 'first') {
-    const type = 'sales';
-
-    const newFiltersJSON = JSON.stringify([s.filterSalesVendedor.value, s.filterSalesStartDate.value, s.filterSalesEndDate.value]);
-    if (!paginationState[type] || paginationState[type].lastFilters !== newFiltersJSON) {
-        direction = 'first';
-    }
-    
-    if (direction === 'first') {
-        paginationState[type] = {
-            lastFilters: newFiltersJSON,
-            currentPage: 1,
-            lastVisible: null,
-            pageHistory: [null]
-        };
-    }
-    
-    const filters = [];
-    if (s.filterSalesStartDate.value) filters.push(['fecha_venta', '>=', new Date(s.filterSalesStartDate.value + 'T00:00:00')]);
-    if (s.filterSalesEndDate.value) filters.push(['fecha_venta', '<=', new Date(s.filterSalesEndDate.value + 'T23:59:59')]);
-    if (s.filterSalesVendedor.value) filters.push(['vendedor', '==', s.filterSalesVendedor.value]);
-
-    await loadPaginatedData({
-        type: type,
-        collectionName: 'ventas',
-        filters: filters,
-        orderByField: 'fecha_venta',
-        orderByDirection: 'desc',
-        direction: direction,
-        renderFunction: (doc) => {
-            const venta = doc.data();
-            const fechaObj = venta.fecha_venta ? venta.fecha_venta.toDate() : new Date();
-            let fechaFormateada = `${String(fechaObj.getDate()).padStart(2, '0')}/${String(fechaObj.getMonth() + 1).padStart(2, '0')}/${fechaObj.getFullYear()}<br><small class="time-muted">${String(fechaObj.getHours()).padStart(2, '0')}:${String(fechaObj.getMinutes()).padStart(2, '0')} hs</small>`;
-            const hoy = new Date();
-            const diffDias = Math.floor((hoy.getTime() - fechaObj.getTime()) / (1000 * 3600 * 24));
-            const diasRestantes = 30 - diffDias;
-
-            let garantiaHtml = '';
-            if (diasRestantes > 0) {
-                garantiaHtml = `<div class="garantia-icon" data-tooltip="Quedan ${diasRestantes} día${diasRestantes > 1 ? 's' : ''} de garantía"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2ecc71" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><polyline points="9 12 12 15 15 9"></polyline></svg></div>`;
-            } else {
-                // --- INICIO DE LA CORRECCIÓN DEL SVG ---
-                // Se corrigió el viewBox="0 0 24" 24" a viewBox="0 0 24 24"
-                garantiaHtml = `<div class="garantia-icon" data-tooltip="Garantía vencida"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#e74c3c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg></div>`;
-                // --- FIN DE LA CORRECCIÓN DEL SVG ---
-            }
-            const ventaJSON = JSON.stringify(venta).replace(/'/g, "\\'");
-            return `<tr data-sale-id="${doc.id}" data-sale-item='${ventaJSON}'><td>${fechaFormateada}</td><td>${venta.producto.modelo || ''} ${venta.producto.color || ''}</td><td>${venta.nombre_cliente || '-'}</td><td>${venta.vendedor}</td><td>${formatearUSD(venta.precio_venta_usd)}</td><td>${venta.metodo_pago}</td><td class="garantia-cell">${garantiaHtml}</td><td class="actions-cell"><button class="edit-btn btn-edit-sale" title="Editar Venta"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button><button class="delete-btn btn-delete-sale" title="Revertir Venta"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button></td></tr>`;
-        },
-        setupEventListeners: () => {
-             document.querySelectorAll('.garantia-icon').forEach(icon => { let tooltip = null; icon.addEventListener('mouseenter', (e) => { const text = e.currentTarget.dataset.tooltip; tooltip = document.createElement('div'); tooltip.className = 'garantia-tooltip'; tooltip.textContent = text; e.currentTarget.appendChild(tooltip); setTimeout(() => { tooltip.classList.add('visible'); }, 10); }); icon.addEventListener('mouseleave', () => { if (tooltip) { tooltip.classList.remove('visible'); tooltip.addEventListener('transitionend', () => tooltip.remove()); } }); });
-            document.querySelectorAll('.btn-edit-sale').forEach(button => button.addEventListener('click', e => { const row = e.currentTarget.closest('tr'); const saleItem = JSON.parse(row.dataset.saleItem.replace(/\\'/g, "'")); promptToEditSale(saleItem, row.dataset.saleId); }));
-            
-            document.querySelectorAll('.btn-delete-sale').forEach(button => button.addEventListener('click', e => { 
-                const row = e.currentTarget.closest('tr');
-                const saleId = row.dataset.saleId;
-                const saleItem = JSON.parse(row.dataset.saleItem.replace(/\\'/g, "'"));
-                handleSaleDeletion(saleId, saleItem);
-            }));
-        }
-    });
-}
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA
 function promptToEditSale(sale, saleId) {
@@ -4710,7 +4659,6 @@ async function handleSaleDeletion(saleId, saleItem) {
     }
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 async function loadSales(direction = 'first') {
     const type = 'sales';
 
@@ -4736,7 +4684,13 @@ async function loadSales(direction = 'first') {
     } else {
         if (s.filterSalesStartDate.value) filters.push(['fecha_venta', '>=', new Date(s.filterSalesStartDate.value + 'T00:00:00')]);
         if (s.filterSalesEndDate.value) filters.push(['fecha_venta', '<=', new Date(s.filterSalesEndDate.value + 'T23:59:59')]);
-        if (s.filterSalesVendedor.value) filters.push(['vendedor', '==', s.filterSalesVendedor.value]);
+        
+        // ===== MODIFICACIÓN CLAVE AQUÍ =====
+        // Ahora, al filtrar por vendedor, busca en el nuevo campo de array.
+        // Esto hará que el filtro del historial de ventas funcione para las nuevas ventas.
+        if (s.filterSalesVendedor.value) {
+            filters.push(['vendedores_implicados', 'array-contains', s.filterSalesVendedor.value]);
+        }
     }
 
     await loadPaginatedData({
@@ -4768,14 +4722,14 @@ async function loadSales(direction = 'first') {
                 <small class="time-muted">IMEI: ${venta.imei_vendido || 'N/A'}</small>
             `;
 
-            // ===================== INICIO DE LA MODIFICACIÓN =====================
-            // Se añade la clase 'client-cell' y el atributo 'title' a la celda del cliente.
             const clienteInfo = venta.nombre_cliente || '-';
+            const vendedorInfo = venta.vendedor_display || venta.vendedor || 'N/A';
+
             return `<tr data-sale-id="${doc.id}" data-sale-item='${ventaJSON}'>
                         <td>${fechaFormateada}</td>
                         <td>${productoConImeiHtml}</td>
                         <td class="client-cell" title="${clienteInfo}">${clienteInfo}</td>
-                        <td>${venta.vendedor}</td>
+                        <td>${vendedorInfo}</td>
                         <td>${formatearUSD(venta.precio_venta_usd)}</td>
                         <td>${venta.metodo_pago}</td>
                         <td class="garantia-cell">${garantiaHtml}</td>
@@ -4784,7 +4738,6 @@ async function loadSales(direction = 'first') {
                             <button class="delete-btn btn-delete-sale" title="Revertir Venta"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button>
                         </td>
                     </tr>`;
-            // ====================== FIN DE LA MODIFICACIÓN =======================
         },
         setupEventListeners: () => {
              document.querySelectorAll('.garantia-icon').forEach(icon => { let tooltip = null; icon.addEventListener('mouseenter', (e) => { const text = e.currentTarget.dataset.tooltip; tooltip = document.createElement('div'); tooltip.className = 'garantia-tooltip'; tooltip.textContent = text; e.currentTarget.appendChild(tooltip); setTimeout(() => { tooltip.classList.add('visible'); }, 10); }); icon.addEventListener('mouseleave', () => { if (tooltip) { tooltip.classList.remove('visible'); tooltip.addEventListener('transitionend', () => tooltip.remove()); } }); });
@@ -5156,11 +5109,10 @@ async function registerSale(imei, productDetails, btn) {
     const form = btn.form;
     const formData = new FormData(form);
 
-    // --- INICIO DE LA NUEVA LÓGICA PARA LEER COMISIONES ---
     const comisionFilas = form.querySelectorAll('.comision-fila');
     const comisionesArray = [];
     let totalComision = 0;
-    const vendedoresImplicados = new Set(); // Usamos un Set para evitar duplicados
+    const vendedoresImplicados = new Set(); 
 
     comisionFilas.forEach(fila => {
         const vendedor = fila.querySelector('[name="vendedor_comision"]').value;
@@ -5170,15 +5122,15 @@ async function registerSale(imei, productDetails, btn) {
             comisionesArray.push({ vendedor: vendedor, monto: monto });
             vendedoresImplicados.add(vendedor);
             totalComision += monto;
+        } else if (vendedor) {
+            // Esta línea asegura que si seleccionas un vendedor con comisión 0,
+            // igual quede registrado como participante en la venta.
+            vendedoresImplicados.add(vendedor);
         }
     });
 
-    if (comisionFilas.length > 0 && comisionesArray.length === 0) {
-        showGlobalFeedback("Debes seleccionar un vendedor y un monto de comisión válido.", "error");
-        toggleSpinner(btn, false);
-        return;
-    }
-    // --- FIN DE LA NUEVA LÓGICA ---
+    // ===== MODIFICACIÓN AQUÍ: El bloque de validación que estaba aquí ha sido eliminado. =====
+    // Ya no es necesario comprobar si hay comisiones mayores a cero para guardar.
 
     const ventaTotalUSD = parseFloat(formData.get('precioVenta')) || 0;
     const valorCanjeUSD = formData.get('acepta-canje') === 'on' ? (parseFloat(formData.get('canje-valor')) || 0) : 0;
@@ -5218,14 +5170,10 @@ async function registerSale(imei, productDetails, btn) {
         precio_venta_usd: ventaTotalUSD,
         nombre_cliente: formData.get('nombre_cliente').trim() || null,
         metodo_pago: pagosRecibidos.join(' + '),
-        
-        // --- NUEVA ESTRUCTURA DE DATOS PARA COMISIONES ---
-        vendedor_display: Array.from(vendedoresImplicados).join(', '), // Un texto para mostrar rápido
-        vendedores_implicados: Array.from(vendedoresImplicados), // Un array para poder buscar
-        comisiones: comisionesArray, // El array con el detalle de las comisiones
-        comision_total_usd: totalComision, // La suma de todas las comisiones
-        // --- FIN DE LA NUEVA ESTRUCTURA ---
-
+        vendedor_display: Array.from(vendedoresImplicados).join(', '),
+        vendedores_implicados: Array.from(vendedoresImplicados),
+        comisiones: comisionesArray,
+        comision_total_usd: totalComision,
         fecha_venta: firebase.firestore.FieldValue.serverTimestamp(),
         hubo_canje: valorCanjeUSD > 0,
         valor_toma_canje_usd: valorCanjeUSD,
@@ -5244,7 +5192,7 @@ async function registerSale(imei, productDetails, btn) {
     if (montoTransferenciaUsd > 0 && cuentaDestinoUsdValue) {
         const [id, nombre] = cuentaDestinoUsdValue.split('|');
         saleData.cuenta_destino_usd_id = id;
-        saleData.cuenta_destino_usd_nombre = nombre;
+        saleData.cuenta_destino_nombre = nombre;
     }
 
     try {
@@ -5262,7 +5210,6 @@ async function registerSale(imei, productDetails, btn) {
                 t.update(cuentaRef, { saldo_actual_usd: firebase.firestore.FieldValue.increment(saleData.monto_transferencia_usd) });
             }
 
-            // --- LÓGICA CLAVE: ACTUALIZAR EL SALDO DE CADA VENDEDOR ---
             if (comisionesArray.length > 0) {
                 for (const comision of comisionesArray) {
                     const vendorRef = db.collection("vendedores").doc(comision.vendedor);
@@ -5271,10 +5218,8 @@ async function registerSale(imei, productDetails, btn) {
                     });
                 }
             }
-            // --- FIN DE LA LÓGICA CLAVE ---
 
             if (saleData.hubo_canje) {
-                // ... (El resto de la lógica del canje no cambia)
                 const canjeParaReparar = formData.get('canje-para-reparar') === 'on';
 
                 if (canjeParaReparar) {
@@ -8217,7 +8162,6 @@ async function saveAddedCommissionBalance(btn) {
     }
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 async function filterVendorHistory(filterButton) {
     const vendorName = filterButton.dataset.vendor;
     const card = filterButton.closest('.commission-vendor-card');
@@ -8236,36 +8180,72 @@ async function filterVendorHistory(filterButton) {
         const start = new Date(startDate + 'T00:00:00');
         const end = new Date(endDate + 'T23:59:59');
 
-        // ===================== INICIO DE LA CORRECCIÓN CLAVE =====================
-        // Se elimina el ".where('comision_vendedor_usd', '>', 0)" de la consulta
-        // para evitar el error de Firebase.
-        let salesQuery = db.collection("ventas")
+        const salesQueryNew = db.collection("ventas")
+            .where("vendedores_implicados", "array-contains", vendorName)
+            .where('fecha_venta', '>=', start)
+            .where('fecha_venta', '<=', end)
+            .orderBy('fecha_venta', 'desc');
+        
+        const salesQueryOld = db.collection("ventas")
             .where("vendedor", "==", vendorName)
             .where('fecha_venta', '>=', start)
-            .where('fecha_venta', '<=', end);
-        // ====================== FIN DE LA CORRECCIÓN CLAVE =======================
-            
-        let adjustmentsQuery = db.collection("ajustes_comisiones").where("vendedor", "==", vendorName).where('fecha', '>=', start).where('fecha', '<=', end);
+            .where('fecha_venta', '<=', end)
+            .orderBy('fecha_venta', 'desc');
 
-        const [salesSnapshot, adjustmentsSnapshot] = await Promise.all([salesQuery.get(), adjustmentsQuery.get()]);
+        const wholesaleSalesQuery = db.collection("ventas_mayoristas")
+            .where("vendedores_implicados", "array-contains", vendorName)
+            .where('fecha_venta', '>=', start)
+            .where('fecha_venta', '<=', end)
+            .orderBy('fecha_venta', 'desc');
+            
+        const adjustmentsQuery = db.collection("ajustes_comisiones")
+            .where("vendedor", "==", vendorName)
+            .where('fecha', '>=', start)
+            .where('fecha', '<=', end)
+            .orderBy('fecha', 'desc');
+
+        // ===== CORRECCIÓN CLAVE AQUÍ =====
+        // Se corrigió el error de tipeo: wholesaleSalesSnapshot.get() -> wholesaleSalesQuery.get()
+        const [salesSnapshotNew, salesSnapshotOld, wholesaleSalesSnapshot, adjustmentsSnapshot] = await Promise.all([
+            salesQueryNew.get(), 
+            salesQueryOld.get(),
+            wholesaleSalesQuery.get(), 
+            adjustmentsQuery.get()
+        ]);
 
         let commissionEvents = [];
 
-        // ===================== INICIO DE LA CORRECCIÓN CLAVE =====================
-        // El filtro para comisiones mayores a cero se aplica ahora aquí, en el código.
-        salesSnapshot.docs.forEach(doc => {
+        salesSnapshotNew.forEach(doc => {
+            const sale = doc.data();
+            const commissionInfo = (sale.comisiones || []).find(c => c.vendedor === vendorName);
+            if (commissionInfo && commissionInfo.monto > 0) {
+                commissionEvents.push({ type: 'venta', date: sale.fecha_venta.toDate(), description: `${sale.producto.modelo || 'Producto'} ${sale.producto.color || ''}`, amount: commissionInfo.monto });
+            }
+        });
+
+        salesSnapshotOld.forEach(doc => {
             const sale = doc.data();
             if ((sale.comision_vendedor_usd || 0) > 0) {
                 commissionEvents.push({ type: 'venta', date: sale.fecha_venta.toDate(), description: `${sale.producto.modelo || 'Producto'} ${sale.producto.color || ''}`, amount: sale.comision_vendedor_usd });
             }
         });
-        // ====================== FIN DE LA CORRECCIÓN CLAVE =======================
+
+        for (const doc of wholesaleSalesSnapshot.docs) {
+            const sale = doc.data();
+            const commissionInfo = (sale.comisiones || []).find(c => c.vendedor === vendorName);
+             if (commissionInfo && commissionInfo.monto > 0) {
+                const individualItemsSnapshot = await db.collection('ventas').where('venta_mayorista_ref', '==', doc.id).get();
+                const productModels = individualItemsSnapshot.docs.map(itemDoc => itemDoc.data().producto.modelo).join(', ');
+                
+                commissionEvents.push({ type: 'venta_mayorista', date: sale.fecha_venta.toDate(), description: `Vta. Mayorista: ${productModels || 'Equipos Varios'}`, amount: commissionInfo.monto });
+            }
+        }
 
         adjustmentsSnapshot.docs.forEach(doc => {
             const adjustment = doc.data();
             commissionEvents.push({ type: 'ajuste', date: adjustment.fecha.toDate(), description: adjustment.motivo || 'Ajuste manual', amount: adjustment.monto_usd });
         });
-
+        
         if (commissionEvents.length === 0) {
             detailsListContainer.innerHTML = `<p class="dashboard-loader" style="font-size:0.9rem; padding: 1rem 0;">No se encontraron comisiones en este período.</p>`;
             return;
@@ -8274,17 +8254,39 @@ async function filterVendorHistory(filterButton) {
         commissionEvents.sort((a, b) => b.date - a.date);
 
         const eventsListHtml = commissionEvents.map(event => {
+            const dateString = event.date.toLocaleString('es-AR', {day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'});
+            
             if (event.type === 'ajuste') {
-                return `<div class="commission-sale-item" style="border-left: 4px solid var(--info-bg);"><div class="commission-sale-main"><span class="commission-sale-product" style="font-style: italic;">Ajuste Manual: ${event.description}</span><span class="commission-sale-amount" style="color: var(--info-bg);">${formatearUSD(event.amount)}</span></div><span class="commission-sale-date">${event.date.toLocaleString('es-AR', {day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'})} hs</span></div>`;
+                return `<div class="commission-sale-item" style="border-left: 4px solid var(--info-bg);">
+                            <div class="commission-sale-main">
+                                <span class="commission-sale-product" style="font-style: italic;">Ajuste Manual: ${event.description}</span>
+                                <span class="commission-sale-amount" style="color: var(--info-bg);">${formatearUSD(event.amount)}</span>
+                            </div>
+                            <span class="commission-sale-date">${dateString} hs</span>
+                        </div>`;
             }
-            return `<div class="commission-sale-item"><div class="commission-sale-main"><span class="commission-sale-product">${event.description}</span><span class="commission-sale-amount">${formatearUSD(event.amount)}</span></div><span class="commission-sale-date">${event.date.toLocaleString('es-AR', {day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'})} hs</span></div>`;
+            
+            return `<div class="commission-sale-item">
+                        <div class="commission-sale-main">
+                            <span class="commission-sale-product">${event.description}</span>
+                            <span class="commission-sale-amount">${formatearUSD(event.amount)}</span>
+                        </div>
+                        <span class="commission-sale-date">${dateString} hs</span>
+                    </div>`;
         }).join('');
 
         detailsListContainer.innerHTML = eventsListHtml;
 
     } catch (error) {
         console.error("Error filtrando historial del vendedor:", error);
-        detailsListContainer.innerHTML = `<p class="dashboard-loader" style="color:var(--error-bg);">Error al cargar el historial.</p>`;
+        let errorMessage = `<p class="dashboard-loader" style="color: var(--error-bg);">Error al cargar el historial.`;
+        if (error.code === 'failed-precondition') {
+            const linkRegex = /(https?:\/\/[^\s]+)/;
+            const linkMatch = error.message.match(linkRegex);
+            errorMessage += `<br><br><strong style="color: #fff;">ACCIÓN URGENTE REQUERIDA:</strong><br>La base de datos necesita un nuevo índice para esta consulta. Por favor, abre la consola de desarrollador (F12), busca el error y haz clic en el siguiente enlace para crearlo:<br><br><a href="${linkMatch ? linkMatch[0] : '#'}" target="_blank" style="color: var(--brand-yellow); word-break: break-all;">Crear Índice en Firebase</a><br><br>Después de crear el índice (tarda unos minutos), refresca la página y el filtro funcionará.`;
+        }
+        errorMessage += `</p>`;
+        detailsListContainer.innerHTML = errorMessage;
     }
 }
 
@@ -8514,7 +8516,8 @@ function agregarFilaComision() {
             </select>
         </div>
         <div class="form-group" style="flex: 1;">
-            <input type="number" name="monto_comision_usd" placeholder="Comisión USD" step="0.01" required min="0">
+            <!-- ===== MODIFICACIÓN AQUÍ: Se eliminó el atributo "required" del input ===== -->
+            <input type="number" name="monto_comision_usd" placeholder="Comisión USD" step="0.01" min="0">
         </div>
         <button type="button" class="delete-btn btn-remove-comision" title="Quitar comisionista">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
