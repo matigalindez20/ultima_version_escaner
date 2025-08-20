@@ -4659,98 +4659,101 @@ async function handleSaleDeletion(saleId, saleItem) {
     }
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA
 async function loadSales(direction = 'first') {
     const type = 'sales';
+    const s_tableContainer = s.salesTableContainer;
+    const s_pagination = s.salesPaginationControls;
+    const s_filterBtn = s.btnApplySalesFilters;
+    const selectedVendor = s.filterSalesVendedor.value;
 
-    const imeiFilterValue = s.filterSalesImei.value.trim();
-    const newFiltersJSON = JSON.stringify([s.filterSalesVendedor.value, s.filterSalesStartDate.value, s.filterSalesEndDate.value, imeiFilterValue]);
-
-    if (!paginationState[type] || paginationState[type].lastFilters !== newFiltersJSON) {
-        direction = 'first';
-    }
-    
-    if (direction === 'first') {
-        paginationState[type] = {
-            lastFilters: newFiltersJSON,
-            currentPage: 1,
-            lastVisible: null,
-            pageHistory: [null]
-        };
-    }
-    
-    const filters = [];
-    if (imeiFilterValue) {
-        filters.push(['imei_last_4', '==', imeiFilterValue]);
-    } else {
-        if (s.filterSalesStartDate.value) filters.push(['fecha_venta', '>=', new Date(s.filterSalesStartDate.value + 'T00:00:00')]);
-        if (s.filterSalesEndDate.value) filters.push(['fecha_venta', '<=', new Date(s.filterSalesEndDate.value + 'T23:59:59')]);
+    // --- CASO 1: Se seleccionó "Todos" o no hay vendedor -> Usar paginación ---
+    if (!selectedVendor) {
+        s_pagination.classList.remove('hidden');
+        const imeiFilterValue = s.filterSalesImei.value.trim();
+        const newFiltersJSON = JSON.stringify([selectedVendor, s.filterSalesStartDate.value, s.filterSalesEndDate.value, imeiFilterValue]);
         
-        // ===== MODIFICACIÓN CLAVE AQUÍ =====
-        // Ahora, al filtrar por vendedor, busca en el nuevo campo de array.
-        // Esto hará que el filtro del historial de ventas funcione para las nuevas ventas.
-        if (s.filterSalesVendedor.value) {
-            filters.push(['vendedores_implicados', 'array-contains', s.filterSalesVendedor.value]);
+        if (!paginationState[type] || paginationState[type].lastFilters !== newFiltersJSON) {
+            direction = 'first';
         }
+        if (direction === 'first') {
+            paginationState[type] = { lastFilters: newFiltersJSON, currentPage: 1, lastVisible: null, pageHistory: [null] };
+        }
+        
+        const filters = [];
+        if (imeiFilterValue) {
+            filters.push(['imei_last_4', '==', imeiFilterValue]);
+        } else {
+            if (s.filterSalesStartDate.value) filters.push(['fecha_venta', '>=', new Date(s.filterSalesStartDate.value + 'T00:00:00')]);
+            if (s.filterSalesEndDate.value) filters.push(['fecha_venta', '<=', new Date(s.filterSalesEndDate.value + 'T23:59:59')]);
+        }
+
+        await loadPaginatedData({
+            type: 'sales',
+            collectionName: 'ventas',
+            filters: filters,
+            orderByField: 'fecha_venta',
+            orderByDirection: 'desc',
+            direction: direction,
+            renderFunction: (doc) => renderFunctionForSales(doc.id, doc.data()),
+            setupEventListeners: setupEventListenersForSales
+        });
+        return;
     }
 
-    await loadPaginatedData({
-        type: type,
-        collectionName: 'ventas',
-        filters: filters,
-        orderByField: 'fecha_venta',
-        orderByDirection: 'desc',
-        direction: direction,
-        renderFunction: (doc) => {
-            const venta = doc.data();
-            const fechaObj = venta.fecha_venta ? venta.fecha_venta.toDate() : new Date();
-            let fechaFormateada = `${String(fechaObj.getDate()).padStart(2, '0')}/${String(fechaObj.getMonth() + 1).padStart(2, '0')}/${fechaObj.getFullYear()}<br><small class="time-muted">${String(fechaObj.getHours()).padStart(2, '0')}:${String(fechaObj.getMinutes()).padStart(2, '0')} hs</small>`;
-            const hoy = new Date();
-            const diffDias = Math.floor((hoy.getTime() - fechaObj.getTime()) / (1000 * 3600 * 24));
-            const diasRestantes = 30 - diffDias;
+    // --- CASO 2: Se seleccionó un vendedor específico -> Mostrar todo, sin paginación ---
+    s_tableContainer.innerHTML = `<p class="dashboard-loader">Buscando todas las ventas de ${selectedVendor}...</p>`;
+    s_pagination.classList.add('hidden');
+    toggleSpinner(s_filterBtn, true);
 
-            let garantiaHtml = '';
-            if (diasRestantes > 0) {
-                garantiaHtml = `<div class="garantia-icon" data-tooltip="Quedan ${diasRestantes} día${diasRestantes > 1 ? 's' : ''} de garantía"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2ecc71" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><polyline points="9 12 12 15 15 9"></polyline></svg></div>`;
-            } else {
-                garantiaHtml = `<div class="garantia-icon" data-tooltip="Garantía vencida"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#e74c3c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg></div>`;
-            }
-            const ventaJSON = JSON.stringify(venta).replace(/'/g, "\\'");
-            
-            const productoConImeiHtml = `
-                ${venta.producto.modelo || ''} ${venta.producto.color || ''}
-                <br>
-                <small class="time-muted">IMEI: ${venta.imei_vendido || 'N/A'}</small>
-            `;
+    try {
+        // Se preparan DOS consultas: una para el campo nuevo y otra para el antiguo.
+        let queryNew = db.collection('ventas').where('vendedores_implicados', 'array-contains', selectedVendor);
+        let queryOld = db.collection('ventas').where('vendedor', '==', selectedVendor);
 
-            const clienteInfo = venta.nombre_cliente || '-';
-            const vendedorInfo = venta.vendedor_display || venta.vendedor || 'N/A';
-
-            return `<tr data-sale-id="${doc.id}" data-sale-item='${ventaJSON}'>
-                        <td>${fechaFormateada}</td>
-                        <td>${productoConImeiHtml}</td>
-                        <td class="client-cell" title="${clienteInfo}">${clienteInfo}</td>
-                        <td>${vendedorInfo}</td>
-                        <td>${formatearUSD(venta.precio_venta_usd)}</td>
-                        <td>${venta.metodo_pago}</td>
-                        <td class="garantia-cell">${garantiaHtml}</td>
-                        <td class="actions-cell">
-                            <button class="edit-btn btn-edit-sale" title="Editar Venta"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
-                            <button class="delete-btn btn-delete-sale" title="Revertir Venta"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button>
-                        </td>
-                    </tr>`;
-        },
-        setupEventListeners: () => {
-             document.querySelectorAll('.garantia-icon').forEach(icon => { let tooltip = null; icon.addEventListener('mouseenter', (e) => { const text = e.currentTarget.dataset.tooltip; tooltip = document.createElement('div'); tooltip.className = 'garantia-tooltip'; tooltip.textContent = text; e.currentTarget.appendChild(tooltip); setTimeout(() => { tooltip.classList.add('visible'); }, 10); }); icon.addEventListener('mouseleave', () => { if (tooltip) { tooltip.classList.remove('visible'); tooltip.addEventListener('transitionend', () => tooltip.remove()); } }); });
-            document.querySelectorAll('.btn-edit-sale').forEach(button => button.addEventListener('click', e => { const row = e.currentTarget.closest('tr'); const saleItem = JSON.parse(row.dataset.saleItem.replace(/\\'/g, "'")); promptToEditSale(saleItem, row.dataset.saleId); }));
-            
-            document.querySelectorAll('.btn-delete-sale').forEach(button => button.addEventListener('click', e => { 
-                const row = e.currentTarget.closest('tr');
-                const saleId = row.dataset.saleId;
-                const saleItem = JSON.parse(row.dataset.saleItem.replace(/\\'/g, "'"));
-                handleSaleDeletion(saleId, saleItem);
-            }));
+        // Se aplican los filtros de fecha a AMBAS consultas
+        if (s.filterSalesStartDate.value) {
+            const startDate = new Date(s.filterSalesStartDate.value + 'T00:00:00');
+            queryNew = queryNew.where('fecha_venta', '>=', startDate);
+            queryOld = queryOld.where('fecha_venta', '>=', startDate);
         }
-    });
+        if (s.filterSalesEndDate.value) {
+            const endDate = new Date(s.filterSalesEndDate.value + 'T23:59:59');
+            queryNew = queryNew.where('fecha_venta', '<=', endDate);
+            queryOld = queryOld.where('fecha_venta', '<=', endDate);
+        }
+
+        // Se ejecutan ambas consultas en paralelo
+        const [snapshotNew, snapshotOld] = await Promise.all([queryNew.get(), queryOld.get()]);
+        
+        // Se usa un Map para combinar los resultados y eliminar duplicados automáticamente
+        const salesMap = new Map();
+        snapshotNew.forEach(doc => salesMap.set(doc.id, { id: doc.id, data: doc.data() }));
+        snapshotOld.forEach(doc => salesMap.set(doc.id, { id: doc.id, data: doc.data() }));
+
+        if (salesMap.size === 0) {
+            s_tableContainer.innerHTML = `<p class="dashboard-loader">No se encontraron resultados para "${selectedVendor}" con los filtros aplicados.</p>`;
+            return;
+        }
+
+        // Se convierte el mapa a un array y se ordena por fecha
+        const allSales = Array.from(salesMap.values()).sort((a, b) => b.data.fecha_venta.toDate() - a.data.fecha_venta.toDate());
+
+        let tableHeader = '<tr><th>Fecha</th><th>Producto</th><th>Cliente</th><th>Vendedor</th><th>Precio (USD)</th><th>Pago</th><th>Garantía</th><th>Acciones</th></tr>';
+        let tableHTML = `<table><thead>${tableHeader}</thead><tbody>`;
+        
+        allSales.forEach(sale => {
+            tableHTML += renderFunctionForSales(sale.id, sale.data);
+        });
+
+        s_tableContainer.innerHTML = tableHTML + `</tbody></table>`;
+        setupEventListenersForSales();
+
+    } catch (error) {
+        handleDBError(error, s_tableContainer, 'ventas');
+    } finally {
+        toggleSpinner(s_filterBtn, false);
+    }
 }
 
 async function loadCanjes() {
@@ -8524,4 +8527,36 @@ function agregarFilaComision() {
         </button>
     `;
     container.appendChild(nuevaFila);
+}
+
+
+
+
+// AÑADE ESTA FUNCIÓN AL FINAL DE TU SCRIPT.JS
+function renderFunctionForSales(docId, venta) {
+    const fechaObj = venta.fecha_venta ? venta.fecha_venta.toDate() : new Date();
+    let fechaFormateada = `${String(fechaObj.getDate()).padStart(2, '0')}/${String(fechaObj.getMonth() + 1).padStart(2, '0')}/${fechaObj.getFullYear()}<br><small class="time-muted">${String(fechaObj.getHours()).padStart(2, '0')}:${String(fechaObj.getMinutes()).padStart(2, '0')} hs</small>`;
+    const hoy = new Date();
+    const diffDias = Math.floor((hoy.getTime() - fechaObj.getTime()) / (1000 * 3600 * 24));
+    const diasRestantes = 30 - diffDias;
+
+    let garantiaHtml = '';
+    if (diasRestantes > 0) {
+        garantiaHtml = `<div class="garantia-icon" data-tooltip="Quedan ${diasRestantes} día${diasRestantes > 1 ? 's' : ''} de garantía"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2ecc71" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><polyline points="9 12 12 15 15 9"></polyline></svg></div>`;
+    } else {
+        garantiaHtml = `<div class="garantia-icon" data-tooltip="Garantía vencida"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#e74c3c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg></div>`;
+    }
+    const ventaJSON = JSON.stringify(venta).replace(/'/g, "\\'");
+    const productoConImeiHtml = `${venta.producto.modelo || ''} ${venta.producto.color || ''}<br><small class="time-muted">IMEI: ${venta.imei_vendido || 'N/A'}</small>`;
+    const clienteInfo = venta.nombre_cliente || '-';
+    const vendedorInfo = venta.vendedor_display || venta.vendedor || 'N/A';
+
+    return `<tr data-sale-id="${docId}" data-sale-item='${ventaJSON}'><td>${fechaFormateada}</td><td>${productoConImeiHtml}</td><td class="client-cell" title="${clienteInfo}">${clienteInfo}</td><td>${vendedorInfo}</td><td>${formatearUSD(venta.precio_venta_usd)}</td><td>${venta.metodo_pago}</td><td class="garantia-cell">${garantiaHtml}</td><td class="actions-cell"><button class="edit-btn btn-edit-sale" title="Editar Venta"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button><button class="delete-btn btn-delete-sale" title="Revertir Venta"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button></td></tr>`;
+}
+
+// AÑADE ESTA OTRA FUNCIÓN AL FINAL DE TU SCRIPT.JS
+function setupEventListenersForSales() {
+    document.querySelectorAll('.garantia-icon').forEach(icon => { let tooltip = null; icon.addEventListener('mouseenter', (e) => { const text = e.currentTarget.dataset.tooltip; tooltip = document.createElement('div'); tooltip.className = 'garantia-tooltip'; tooltip.textContent = text; e.currentTarget.appendChild(tooltip); setTimeout(() => { tooltip.classList.add('visible'); }, 10); }); icon.addEventListener('mouseleave', () => { if (tooltip) { tooltip.classList.remove('visible'); tooltip.addEventListener('transitionend', () => tooltip.remove()); } }); });
+    document.querySelectorAll('.btn-edit-sale').forEach(button => button.addEventListener('click', e => { const row = e.currentTarget.closest('tr'); const saleItem = JSON.parse(row.dataset.saleItem.replace(/\\'/g, "'")); promptToEditSale(saleItem, row.dataset.saleId); }));
+    document.querySelectorAll('.btn-delete-sale').forEach(button => button.addEventListener('click', e => { const row = e.currentTarget.closest('tr'); const saleId = row.dataset.saleId; const saleItem = JSON.parse(row.dataset.saleItem.replace(/\\'/g, "'")); handleSaleDeletion(saleId, saleItem); }));
 }
