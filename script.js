@@ -1561,7 +1561,7 @@ function promptToAddCanjeItemWholesale() {
 }
 
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA
+// REEMPLAZA ESTA FUNCIÓN COMPLETA POR ESTA VERSIÓN CON LA CORRECCIÓN DEL CANJE
 async function finalizeWholesaleSale(form) {
     const btn = form.querySelector('button[type="submit"]');
     toggleSpinner(btn, true);
@@ -1603,12 +1603,9 @@ async function finalizeWholesaleSale(form) {
         const { clientId, clientName, items, totalSaleValue, itemsCanje = [], totalCanjeValue = 0 } = wholesaleSaleContext;
         const usarSaldo = formData.get('usar_saldo_cliente') === 'on';
         
-        // ===== INICIO DE LA MODIFICACIÓN CLAVE =====
-        // Si no hay vendedores comisionando, el "vendedor" es el propio cliente mayorista.
         if (vendedoresImplicados.size === 0) {
             vendedoresImplicados.add(`Mayorista: ${clientName}`);
         }
-        // ===== FIN DE LA MODIFICACIÓN CLAVE =====
 
         await db.runTransaction(async (t) => {
             const saleDate = firebase.firestore.FieldValue.serverTimestamp();
@@ -1645,7 +1642,6 @@ async function finalizeWholesaleSale(form) {
                 comisiones: comisionesArray,
                 comision_total_usd: totalComision,
                 vendedores_implicados: Array.from(vendedoresImplicados),
-                // Se añade el campo `vendedor_display` para consistencia.
                 vendedor_display: Array.from(vendedoresImplicados).join(', ')
             };
 
@@ -1653,35 +1649,25 @@ async function finalizeWholesaleSale(form) {
                 const [cuentaId, cuentaNombre] = cuentaDestinoArsValue.split('|');
                 masterSaleData.pago_recibido.cuenta_destino_id = cuentaId;
                 masterSaleData.pago_recibido.cuenta_destino_nombre = cuentaNombre;
-                const cuentaRef = db.collection('cuentas_financieras').doc(cuentaId);
-                t.update(cuentaRef, { saldo_actual_ars: firebase.firestore.FieldValue.increment(montoArsTransferencia) });
+                t.update(db.collection('cuentas_financieras').doc(cuentaId), { saldo_actual_ars: firebase.firestore.FieldValue.increment(montoArsTransferencia) });
             }
             
             if (montoUsdTransferencia > 0) {
                 const [cuentaId, cuentaNombre] = cuentaDestinoUsdValue.split('|');
                 masterSaleData.pago_recibido.cuenta_destino_usd_id = cuentaId;
                 masterSaleData.pago_recibido.cuenta_destino_usd_nombre = cuentaNombre;
-                const cuentaRef = db.collection('cuentas_financieras').doc(cuentaId);
-                t.update(cuentaRef, { saldo_actual_usd: firebase.firestore.FieldValue.increment(montoUsdTransferencia) });
+                t.update(db.collection('cuentas_financieras').doc(cuentaId), { saldo_actual_usd: firebase.firestore.FieldValue.increment(montoUsdTransferencia) });
             }
 
-            t.set(wholesaleSaleRef, masterSaleData);
-
             for (const item of items) {
-                const ventaIndividualRef = db.collection('ventas').doc();
-                t.set(ventaIndividualRef, {
-                    imei_vendido: item.imei,
-                    imei_last_4: item.imei.slice(-4),
-                    producto: item.details,
-                    precio_venta_usd: item.precio_venta_usd,
-                    metodo_pago: 'Venta Mayorista',
-                    vendedor: `Mayorista: ${clientName}`, // Esto se mantiene por retrocompatibilidad
-                    vendedores_implicados: [`Mayorista: ${clientName}`], // El "vendedor" del item es el cliente
-                    fecha_venta: saleDate,
-                    venta_mayorista_ref: wholesaleSaleRef.id,
+                t.set(db.collection('ventas').doc(), {
+                    imei_vendido: item.imei, imei_last_4: item.imei.slice(-4),
+                    producto: item.details, precio_venta_usd: item.precio_venta_usd,
+                    metodo_pago: 'Venta Mayorista', vendedor: `Mayorista: ${clientName}`,
+                    vendedores_implicados: [`Mayorista: ${clientName}`],
+                    fecha_venta: saleDate, venta_mayorista_ref: wholesaleSaleRef.id,
                 });
-                const stockRef = db.collection('stock_individual').doc(item.imei);
-                t.update(stockRef, { estado: 'vendido' });
+                t.update(db.collection('stock_individual').doc(item.imei), { estado: 'vendido' });
             }
 
             const cambioNetoEnDeuda = totalSaleValue - totalCanjeValue - totalPagadoUSD;
@@ -1693,26 +1679,48 @@ async function finalizeWholesaleSale(form) {
 
             if (comisionesArray.length > 0) {
                 for (const comision of comisionesArray) {
-                    const vendorRef = db.collection("vendedores").doc(comision.vendedor);
-                    t.update(vendorRef, { comision_pendiente_usd: firebase.firestore.FieldValue.increment(comision.monto) });
+                    t.update(db.collection("vendedores").doc(comision.vendedor), { comision_pendiente_usd: firebase.firestore.FieldValue.increment(comision.monto) });
                 }
             }
             
+            // ===== INICIO DE LA CORRECCIÓN CLAVE =====
+            // Ahora guardamos los IDs de los canjes generados DENTRO del documento de la venta mayorista.
             if (totalCanjeValue > 0) {
                 const productosVendidosStr = items.map(item => item.details.modelo).join(', ');
+                const canjeIds = [];
+                const reparacionIds = [];
+
                 for (const canjeItem of itemsCanje) {
-                    const canjeRef = db.collection("plan_canje_pendientes").doc();
-                    t.set(canjeRef, { 
-                        modelo_recibido: canjeItem.modelo,
-                        valor_toma_usd: canjeItem.valor_toma_usd, 
-                        observaciones_canje: `A cambio de ${productosVendidosStr}. ${canjeItem.notas || ''}`,
-                        producto_vendido: `Venta Mayorista #${saleId}`, 
-                        venta_asociada_id: wholesaleSaleRef.id,
-                        fecha_canje: saleDate, 
-                        estado: 'pendiente_de_carga' 
-                    });
+                    const esParaReparar = canjeItem.para_reparar; // Asumimos que este dato viene del contexto
+
+                    if (esParaReparar) {
+                        const reparacionRef = db.collection("reparaciones").doc();
+                        t.set(reparacionRef, { 
+                            modelo: canjeItem.modelo, precio_costo_usd: canjeItem.valor_toma_usd,
+                            defecto: canjeItem.defecto, repuesto_necesario: canjeItem.repuesto,
+                            observaciones_canje: `A cambio de ${productosVendidosStr}. ${canjeItem.notas || ''}`,
+                            venta_asociada_id: wholesaleSaleRef.id, fechaDeCarga: saleDate, 
+                            proveedor: `Canje de ${clientName}`, estado_reparacion: 'pendiente_asignar_imei'
+                        });
+                        reparacionIds.push(reparacionRef.id);
+                    } else {
+                        const canjeRef = db.collection("plan_canje_pendientes").doc();
+                        t.set(canjeRef, { 
+                            modelo_recibido: canjeItem.modelo, valor_toma_usd: canjeItem.valor_toma_usd, 
+                            observaciones_canje: `A cambio de ${productosVendidosStr}. ${canjeItem.notas || ''}`, 
+                            producto_vendido: `Venta Mayorista #${saleId}`, 
+                            venta_asociada_id: wholesaleSaleRef.id,
+                            fecha_canje: saleDate, estado: 'pendiente_de_carga' 
+                        });
+                        canjeIds.push(canjeRef.id);
+                    }
                 }
+                if (canjeIds.length > 0) masterSaleData.ids_canjes_pendientes = canjeIds;
+                if (reparacionIds.length > 0) masterSaleData.ids_reparaciones_pendientes = reparacionIds;
             }
+            // ===== FIN DE LA CORRECCIÓN CLAVE =====
+
+            t.set(wholesaleSaleRef, masterSaleData);
         });
 
         showGlobalFeedback(`¡Venta mayorista ${saleId} registrada con éxito!`, 'success', 5000);
@@ -5079,14 +5087,31 @@ async function onScanSuccess(imei) {
     }
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 function promptForManualImeiInput(e) {
     if(e) e.preventDefault();
     let promptTitle = 'Ingresar IMEI Manualmente';
     if (canjeContext) promptTitle = `Ingresar IMEI para ${canjeContext.modelo}`;
-    else if (batchLoadContext) promptTitle = `Ingresar IMEI para ${batchLoadContext.model}`;
+    else if (batchLoadContext) promptTitle = `Ingresar IMEI para ${batchLoadContext.currentModel}`;
     else if (wholesaleSaleContext) promptTitle = `Ingresar IMEI para venta a ${wholesaleSaleContext.clientName}`;
 
-    s.promptContainer.innerHTML = `<div class="container container-sm"><div class="prompt-box"><h3>${promptTitle}</h3><p style="color: var(--text-muted); margin-bottom: 1.5rem; text-align: center;">Escribe el IMEI para buscarlo o agregarlo.</p><div class="form-group"><label for="manual-imei-input">IMEI</label><input type="text" id="manual-imei-input" placeholder="Ingresa el IMEI aquí..."></div><div class="prompt-buttons"><button id="btn-search-manual-imei" class="prompt-button confirm">Buscar / Continuar</button><button class="prompt-button cancel">Cancelar</button></div></div></div>`;
+    // ===== INICIO DE LA MODIFICACIÓN: NUEVO HTML PARA EL MODAL =====
+    s.promptContainer.innerHTML = `
+    <div class="financiera-modal-box imei-modal-box">
+        <h3>${promptTitle}</h3>
+        <p>Escribe el IMEI para buscarlo o agregarlo.</p>
+        
+        <div class="form-group" style="margin-top: 2.5rem;">
+            <input type="text" id="manual-imei-input" placeholder=" ">
+            <label for="manual-imei-input">IMEI</label>
+        </div>
+
+        <div class="prompt-buttons" style="flex-direction: column; gap: 0.75rem; margin-top: 2rem;">
+            <button id="btn-search-manual-imei" class="prompt-button confirm">Buscar / Continuar</button>
+            <button class="prompt-button cancel">Cancelar</button>
+        </div>
+    </div>`;
+    // ===== FIN DE LA MODIFICACIÓN =====
     
     const imeiInput = document.getElementById('manual-imei-input');
     imeiInput.focus();
@@ -5110,23 +5135,29 @@ function promptForManualImeiInput(e) {
 }
 
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU ARCHIVO SCRIPT.JS
-
 function showAddProductForm(e, imei = '', modelo = '', canjeId = null, valorToma = null) {
     if(e) e.preventDefault();
     
-    // ===== INICIO DE LA CORRECCIÓN CLAVE =====
-    // Verificamos si estamos en un contexto de canje ANTES de resetear la vista.
     const isCanjeActive = !!canjeId;
-    // Llamamos a la función de reseteo, pero ahora le pasamos el "aviso"
-    // para que no borre el canjeContext si está activo.
     resetManagementView(batchLoadContext ? true : false, isCanjeActive); 
-    // ===== FIN DE LA CORRECCIÓN CLAVE =====
     
     s.scanOptions.classList.add('hidden');
     s.scannerContainer.classList.add('hidden');
     s.imeiInput.readOnly = !!imei;
     s.imeiInput.value = imei;
+
+    // ================== INICIO DE LA CORRECCIÓN CLAVE ==================
+    // 1. Eliminamos cualquier menú desplegable personalizado que exista de una carga anterior.
+    const customSelectWrappers = s.productForm.querySelectorAll('.custom-select-wrapper');
+    customSelectWrappers.forEach(wrapper => wrapper.remove());
+
+    // 2. Nos aseguramos de que los <select> originales estén visibles antes de volver a procesarlos.
+    s.modeloFormSelect.style.display = '';
+    s.colorFormSelect.style.display = '';
+    s.almacenamientoFormSelect.style.display = '';
+    s.detallesFormSelect.style.display = '';
+    s.proveedorFormSelect.style.display = '';
+    // =================== FIN DE LA CORRECCIÓN CLAVE ====================
 
     populateSelect(s.modeloFormSelect, modelos, "Selecciona...");
 
@@ -5172,6 +5203,12 @@ function showAddProductForm(e, imei = '', modelo = '', canjeId = null, valorToma
     } else {
         document.getElementById('bateria').focus();
     }
+
+    createCustomSelect(s.modeloFormSelect);
+    createCustomSelect(s.colorFormSelect);
+    createCustomSelect(s.almacenamientoFormSelect);
+    createCustomSelect(s.detallesFormSelect);
+    createCustomSelect(s.proveedorFormSelect);
 }
 
 async function promptToSell(imei, details) {
@@ -5245,6 +5282,7 @@ async function promptToSell(imei, details) {
     form.addEventListener('submit', (e) => { e.preventDefault(); registerSale(imei, details, e.target.querySelector('button[type="submit"]')); });
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 async function registerSale(imei, productDetails, btn) {
     toggleSpinner(btn, true);
     const form = btn.form;
@@ -5264,14 +5302,9 @@ async function registerSale(imei, productDetails, btn) {
             vendedoresImplicados.add(vendedor);
             totalComision += monto;
         } else if (vendedor) {
-            // Esta línea asegura que si seleccionas un vendedor con comisión 0,
-            // igual quede registrado como participante en la venta.
             vendedoresImplicados.add(vendedor);
         }
     });
-
-    // ===== MODIFICACIÓN AQUÍ: El bloque de validación que estaba aquí ha sido eliminado. =====
-    // Ya no es necesario comprobar si hay comisiones mayores a cero para guardar.
 
     const ventaTotalUSD = parseFloat(formData.get('precioVenta')) || 0;
     const valorCanjeUSD = formData.get('acepta-canje') === 'on' ? (parseFloat(formData.get('canje-valor')) || 0) : 0;
@@ -5285,8 +5318,8 @@ async function registerSale(imei, productDetails, btn) {
     const cuentaDestinoArsValue = formData.get('cuenta_destino_ars');
     const cuentaDestinoUsdValue = formData.get('cuenta_destino_usd');
 
-    if (montoDolares === 0 && montoEfectivo === 0 && montoTransferencia === 0 && montoTransferenciaUsd === 0) {
-        showGlobalFeedback("Debes ingresar un monto para al menos un método de pago.", "error");
+    if (montoDolares === 0 && montoEfectivo === 0 && montoTransferencia === 0 && montoTransferenciaUsd === 0 && valorCanjeUSD === 0) {
+        showGlobalFeedback("Debes ingresar un monto para al menos un método de pago o canje.", "error");
         toggleSpinner(btn, false); return;
     }
     if (montoTransferencia > 0 && !cuentaDestinoArsValue) {
@@ -5299,6 +5332,7 @@ async function registerSale(imei, productDetails, btn) {
     }
 
     const pagosRecibidos = [];
+    if (valorCanjeUSD > 0) pagosRecibidos.push(`Canje (${formData.get('canje-modelo')})`);
     if (montoDolares > 0) pagosRecibidos.push('Dólares (Efectivo)');
     if (montoEfectivo > 0) pagosRecibidos.push('Pesos (Efectivo)');
     if (montoTransferencia > 0) pagosRecibidos.push('Pesos (Transferencia)');
@@ -5324,6 +5358,13 @@ async function registerSale(imei, productDetails, btn) {
         monto_transferencia: montoTransferencia,
         monto_transferencia_usd: montoTransferenciaUsd,
     };
+    
+    // ===== INICIO DE LA MODIFICACIÓN CLAVE =====
+    // Si hubo canje, guardamos el modelo del equipo recibido directamente en la venta.
+    if (saleData.hubo_canje) {
+        saleData.canje_modelo_recibido = formData.get('canje-modelo');
+    }
+    // ===== FIN DE LA MODIFICACIÓN CLAVE =====
     
     if (montoTransferencia > 0 && cuentaDestinoArsValue) {
         const [id, nombre] = cuentaDestinoArsValue.split('|');
@@ -5441,9 +5482,7 @@ async function handleProductFormSubmit(e) {
             const newImei = imei;
             const paraReparar = formData.get('para-reparar') === 'on';
 
-            // ===== INICIO DE LA MODIFICACIÓN CLAVE =====
             if (paraReparar) {
-                // CASO 1: El usuario activó el interruptor para enviar a reparación.
                 if (newImei !== originalImei) {
                     throw new Error("No se puede cambiar el IMEI y enviar a reparación al mismo tiempo. Guarda un cambio a la vez.");
                 }
@@ -5461,11 +5500,11 @@ async function handleProductFormSubmit(e) {
                         estado_reparacion: 'en_proceso',
                         defecto: formData.get('defecto'),
                         repuesto_necesario: formData.get('repuesto'),
-                        fechaDeCarga: stockData.fechaDeCarga // Mantiene la fecha de carga original
+                        fechaDeCarga: stockData.fechaDeCarga
                     };
                     
-                    t.set(reparacionRef, reparacionData); // Crea el registro en reparaciones
-                    t.delete(stockRef); // Elimina el registro del stock
+                    t.set(reparacionRef, reparacionData);
+                    t.delete(stockRef);
                 });
 
                 showGlobalFeedback("Producto enviado a reparación con éxito.", "success");
@@ -5478,7 +5517,6 @@ async function handleProductFormSubmit(e) {
                 }, 1500);
 
             } else {
-                // CASO 2: Es una actualización normal, sin enviar a reparación.
                 const unitData = {
                     precio_costo_usd: parseFloat(formData.get('precio_costo_usd')) || 0,
                     modelo: formData.get('modelo'),
@@ -5521,9 +5559,8 @@ async function handleProductFormSubmit(e) {
                     updateReports();
                 }, 1500);
             }
-            // ===== FIN DE LA MODIFICACIÓN CLAVE =====
 
-        } else { // MODO CREAR (sin cambios)
+        } else { // MODO CREAR
             const paraReparar = formData.get('para-reparar') === 'on';
             const costoIndividual = parseFloat(formData.get('precio_costo_usd')) || 0;
             const commonData = {
@@ -5581,7 +5618,13 @@ async function handleProductFormSubmit(e) {
                 }
                 showFeedback(message, "success");
                 
-                setTimeout(() => { resetManagementView(true); }, 1500);
+                // ================== INICIO DE LA CORRECCIÓN ==================
+                // Después de guardar, mostramos el nuevo modal de confirmación en lugar de solo resetear la vista.
+                setTimeout(() => {
+                    s.managementView.classList.add('hidden'); // Ocultamos la vista del formulario
+                    promptForNextBatchAction(); // Mostramos el nuevo modal
+                }, 1000);
+                // =================== FIN DE LA CORRECCIÓN ====================
 
             } else {
                 let message = `¡Éxito! ${commonData.modelo} añadido.`;
@@ -5617,6 +5660,46 @@ async function handleProductFormSubmit(e) {
     } finally {
         toggleSpinner(btn, false);
     }
+}
+
+// AÑADE ESTA FUNCIÓN NUEVA A TU SCRIPT.JS
+function promptForNextBatchAction() {
+    const modeloActual = batchLoadContext.currentModel;
+
+    s.promptContainer.innerHTML = `
+        <div class="container container-sm" style="margin: auto;">
+            <div class="prompt-box">
+                <h3>${modeloActual} Cargado</h3>
+                <p style="color: var(--text-muted); margin-bottom: 1.5rem; text-align: center;">¿Qué deseas hacer ahora?</p>
+                <div class="prompt-buttons" style="flex-direction: column; gap: 0.75rem;">
+                    <button id="btn-batch-load-another" class="prompt-button confirm">Cargar otro ${modeloActual}</button>
+                    <button id="btn-batch-finish-model" class="prompt-button confirm" style="background-color: #555;">Finalizar y Elegir otro Modelo</button>
+                </div>
+                <div class="prompt-buttons" style="margin-top: 2rem;">
+                    <button id="btn-batch-cancel-all" class="prompt-button cancel">Cancelar Carga de Lote</button>
+                </div>
+            </div>
+        </div>`;
+
+    document.getElementById('btn-batch-load-another').onclick = () => {
+        s.promptContainer.innerHTML = '';
+        // Simplemente volvemos a la vista de gestión, que ya está configurada para el lote actual.
+        switchView('management', s.tabManagement);
+    };
+
+    document.getElementById('btn-batch-finish-model').onclick = () => {
+        s.promptContainer.innerHTML = '';
+        // Volvemos a la pantalla de selección de modelos.
+        showModelSelectionStep();
+    };
+
+    document.getElementById('btn-batch-cancel-all').onclick = () => {
+        showConfirmationModal('¿Cancelar Lote?', 'Se perderán todos los equipos cargados en este lote. ¿Estás seguro?', () => {
+            batchLoadContext = null;
+            s.promptContainer.innerHTML = '';
+            switchView('providers', s.tabProviders);
+        });
+    };
 }
 
 
@@ -5952,19 +6035,22 @@ async function showWholesaleSaleDetail(masterSaleId, masterSaleData) {
     }
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA POR ESTA VERSIÓN FINAL Y CORREGIDA
 function revertWholesaleSale(masterSaleId, masterSaleData, callback) {
-    const message = `¿Estás seguro de que quieres revertir la venta <strong>${masterSaleData.venta_id_manual}</strong> por un total de <strong>${formatearUSD(masterSaleData.total_venta_usd)}</strong>?
+    // 1. Mensaje de confirmación mejorado para ser más claro
+    const message = `¿Estás seguro de que quieres revertir la venta <strong>${masterSaleData.venta_id_manual}</strong>?
     <br><br>
     <strong style="color:var(--error-bg);">¡ATENCIÓN!</strong> Esta acción es irreversible y hará lo siguiente:
     <ul>
-        <li>Los <strong>${masterSaleData.cantidad_equipos} equipos</strong> de esta venta volverán al stock.</li>
-        <li>Se eliminarán todos los registros de venta asociados.</li>
-        <li>El total comprado y la deuda del cliente <strong>${masterSaleData.clienteNombre}</strong> se reajustarán.</li>
+        <li>Los <strong>${masterSaleData.cantidad_equipos} equipos</strong> volverán al stock.</li>
+        <li>Cualquier <strong>equipo de canje</strong> asociado será eliminado de "Pendientes de Carga".</li>
+        <li>Las <strong>comisiones generadas</strong> para los vendedores serán descontadas de sus saldos.</li>
+        <li>La deuda del cliente <strong>${masterSaleData.clienteNombre}</strong> se reajustará.</li>
     </ul>`;
 
-    showConfirmationModal('Confirmar Reversión de Venta Mayorista', message, async () => {
+    showConfirmationModal('Confirmar Reversión Completa', message, async () => {
         try {
-            showGlobalFeedback('Revirtiendo venta mayorista...', 'loading', 5000);
+            showGlobalFeedback('Revirtiendo venta y todos sus efectos...', 'loading', 10000);
 
             const individualSalesQuery = db.collection('ventas').where('venta_mayorista_ref', '==', masterSaleId);
             const individualSalesSnapshot = await individualSalesQuery.get();
@@ -5973,49 +6059,74 @@ function revertWholesaleSale(masterSaleId, masterSaleData, callback) {
                 const masterSaleRef = db.collection('ventas_mayoristas').doc(masterSaleId);
                 const clientRef = db.collection('clientes_mayoristas').doc(masterSaleData.clienteId);
 
+                // --- INICIO DE LA LÓGICA CORREGIDA Y AÑADIDA ---
+
+                // 2. REVERTIR COMISIONES
+                const comisiones = masterSaleData.comisiones || [];
+                if (comisiones.length > 0) {
+                    for (const comision of comisiones) {
+                        const vendorRef = db.collection('vendedores').doc(comision.vendedor);
+                        t.update(vendorRef, { 
+                            comision_pendiente_usd: firebase.firestore.FieldValue.increment(-comision.monto) 
+                        });
+                    }
+                }
+
+                // 3. ELIMINAR REGISTROS DE CANJE O REPARACIÓN PENDIENTES
+                if (masterSaleData.hubo_canje) {
+                    // Buscamos si el canje generó un item en reparación
+                    if (masterSaleData.id_reparacion_pendiente) {
+                        const reparacionRef = db.collection("reparaciones").doc(masterSaleData.id_reparacion_pendiente);
+                        t.delete(reparacionRef);
+                    } 
+                    // O si generó un item en canjes pendientes
+                    else if (masterSaleData.id_canje_pendiente) {
+                        const canjeRef = db.collection("plan_canje_pendientes").doc(masterSaleData.id_canje_pendiente);
+                        t.delete(canjeRef);
+                    }
+                }
+                
+                // --- FIN DE LA LÓGICA CORREGIDA Y AÑADIDA ---
+
+                // Lógica existente para devolver equipos al stock
                 if (!individualSalesSnapshot.empty) {
                     for (const doc of individualSalesSnapshot.docs) {
-                        const ventaIndividual = doc.data();
-                        const imei = ventaIndividual.imei_vendido;
+                        const imei = doc.data().imei_vendido;
                         if (imei) {
-                            const stockRef = db.collection('stock_individual').doc(imei);
-                            t.update(stockRef, { estado: 'en_stock' });
+                            t.update(db.collection('stock_individual').doc(imei), { estado: 'en_stock' });
                         }
                         t.delete(doc.ref);
                     }
-                } else {
-                    console.warn(`No se encontraron registros de venta individuales para la venta maestra ${masterSaleId}. Se procederá a eliminar solo el registro maestro.`);
                 }
-
+                
+                // Lógica existente para reajustar deuda del cliente
                 const clientDoc = await t.get(clientRef).catch(() => null);
                 if (clientDoc && clientDoc.exists) {
+                    const pagoRecibido = (masterSaleData.pago_recibido || {}).total_pagado_usd || 0;
+                    const canjeRecibido = masterSaleData.total_canje_usd || 0;
+                    const cambioNetoEnDeuda = masterSaleData.total_venta_usd - pagoRecibido - canjeRecibido;
                     
-                    // ===== INICIO DE LA MODIFICACIÓN CLAVE =====
-                    // 1. Calculamos la deuda neta que generó esta venta.
-                    const pagoRecibido = masterSaleData.pago_recibido.total_pagado_usd || 0;
-                    const cambioNetoEnDeuda = masterSaleData.total_venta_usd - pagoRecibido;
-                    
-                    // 2. Actualizamos tanto el total comprado como la deuda del cliente.
                     t.update(clientRef, {
                         total_comprado_usd: firebase.firestore.FieldValue.increment(-masterSaleData.total_venta_usd),
                         deuda_usd: firebase.firestore.FieldValue.increment(-cambioNetoEnDeuda)
                     });
-                    // ===== FIN DE LA MODIFICACIÓN CLAVE =====
-
-                } else {
-                     console.warn(`El cliente ${masterSaleData.clienteId} no fue encontrado. No se puede actualizar su total de compra.`);
                 }
                 
+                // Eliminar la venta maestra
                 t.delete(masterSaleRef);
             });
 
             showGlobalFeedback(`Venta ${masterSaleData.venta_id_manual} revertida con éxito.`, 'success');
             
+            // 4. Refrescamos todas las vistas afectadas, incluyendo los contadores
             if (callback && typeof callback === 'function') {
                 callback();
             } else {
                 loadWholesaleClients();
                 updateReports();
+                loadCommissions(); 
+                updateCanjeCount(); // Clave para ver el contador de pendientes actualizado
+                updateReparacionCount(); // Por si el canje iba a reparación
             }
 
         } catch (error) {
@@ -8699,13 +8810,8 @@ function renderFunctionForSales(docId, venta, wholesaleMap = new Map()) {
         if (pagos.usd_transferencia > 0) metodos.push('Transf. USD');
         
         metodoPagoDisplay = metodos.join(' + ') || 'Venta Mayorista';
-        
-        // ===== INICIO DE LA MODIFICACIÓN CLAVE =====
-        // El cliente siempre es el mayorista.
         clienteInfo = `Mayorista: ${masterSale.clienteNombre}`;
-        // El vendedor AHORA se lee del campo `vendedor_display` de la venta maestra.
         vendedorInfo = masterSale.vendedor_display || 'N/A';
-        // ===== FIN DE LA MODIFICACIÓN CLAVE =====
     }
     
     const producto = venta.producto || {};
@@ -8713,19 +8819,23 @@ function renderFunctionForSales(docId, venta, wholesaleMap = new Map()) {
     
     const ventaJSON = JSON.stringify(venta).replace(/'/g, "\\'");
 
-    return `<tr data-sale-id="${docId}" data-sale-item='${ventaJSON}'>
+    // ===== INICIO DE LA MODIFICACIÓN =====
+    // Ahora la celda de pago es un DIV con la clase 'payment-cell-clickable'
+    // y tiene el atributo 'data-sale-item' para pasarle los datos a la función del modal.
+    return `<tr data-sale-id="${docId}">
                 <td>${fechaFormateada}</td>
                 <td>${productoConImeiHtml}</td>
                 <td class="client-cell" title="${clienteInfo}">${clienteInfo}</td>
                 <td>${vendedorInfo}</td>
                 <td>${formatearUSD(venta.precio_venta_usd)}</td>
-                <td>${metodoPagoDisplay}</td>
+                <td><div class="payment-cell-clickable" data-sale-item='${ventaJSON}'>${metodoPagoDisplay}</div></td>
                 <td class="garantia-cell">${garantiaHtml}</td>
                 <td class="actions-cell">
                     <button class="edit-btn btn-edit-sale" title="Editar Venta"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
                     <button class="delete-btn btn-delete-sale" title="Revertir Venta"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button>
                 </td>
             </tr>`;
+    // ===== FIN DE LA MODIFICACIÓN =====
 }
 
 // AÑADE ESTA OTRA FUNCIÓN AL FINAL DE TU SCRIPT.JS
@@ -8733,4 +8843,217 @@ function setupEventListenersForSales() {
     document.querySelectorAll('.garantia-icon').forEach(icon => { let tooltip = null; icon.addEventListener('mouseenter', (e) => { const text = e.currentTarget.dataset.tooltip; tooltip = document.createElement('div'); tooltip.className = 'garantia-tooltip'; tooltip.textContent = text; e.currentTarget.appendChild(tooltip); setTimeout(() => { tooltip.classList.add('visible'); }, 10); }); icon.addEventListener('mouseleave', () => { if (tooltip) { tooltip.classList.remove('visible'); tooltip.addEventListener('transitionend', () => tooltip.remove()); } }); });
     document.querySelectorAll('.btn-edit-sale').forEach(button => button.addEventListener('click', e => { const row = e.currentTarget.closest('tr'); const saleItem = JSON.parse(row.dataset.saleItem.replace(/\\'/g, "'")); promptToEditSale(saleItem, row.dataset.saleId); }));
     document.querySelectorAll('.btn-delete-sale').forEach(button => button.addEventListener('click', e => { const row = e.currentTarget.closest('tr'); const saleId = row.dataset.saleId; const saleItem = JSON.parse(row.dataset.saleItem.replace(/\\'/g, "'")); handleSaleDeletion(saleId, saleItem); }));
+}
+
+// AÑADE ESTA OTRA FUNCIÓN AL FINAL DE TU SCRIPT.JS
+function setupEventListenersForSales() {
+    // --- Lógica existente ---
+    document.querySelectorAll('.garantia-icon').forEach(icon => { let tooltip = null; icon.addEventListener('mouseenter', (e) => { const text = e.currentTarget.dataset.tooltip; tooltip = document.createElement('div'); tooltip.className = 'garantia-tooltip'; tooltip.textContent = text; e.currentTarget.appendChild(tooltip); setTimeout(() => { tooltip.classList.add('visible'); }, 10); }); icon.addEventListener('mouseleave', () => { if (tooltip) { tooltip.classList.remove('visible'); tooltip.addEventListener('transitionend', () => tooltip.remove()); } }); });
+    document.querySelectorAll('.btn-edit-sale').forEach(button => button.addEventListener('click', e => { const row = e.currentTarget.closest('tr'); const saleItem = JSON.parse(row.closest('tr').querySelector('.payment-cell-clickable').dataset.saleItem.replace(/\\'/g, "'")); promptToEditSale(saleItem, row.dataset.saleId); }));
+    document.querySelectorAll('.btn-delete-sale').forEach(button => button.addEventListener('click', e => { const row = e.currentTarget.closest('tr'); const saleId = row.dataset.saleId; const saleItem = JSON.parse(row.querySelector('.payment-cell-clickable').dataset.saleItem.replace(/\\'/g, "'")); handleSaleDeletion(saleId, saleItem); }));
+
+    // ===== INICIO DE LA MODIFICACIÓN =====
+    // Añadimos un listener para todas las celdas de pago clickeables.
+    document.querySelectorAll('.payment-cell-clickable').forEach(cell => {
+        cell.addEventListener('click', (e) => {
+            const saleItem = JSON.parse(e.currentTarget.dataset.saleItem.replace(/\\'/g, "'"));
+            showPaymentDetailModal(saleItem);
+        });
+    });
+    // ===== FIN DE LA MODIFICACIÓN =====
+}
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA POR ESTA VERSIÓN CON LA CORRECCIÓN DEL DOBLE CLIC
+async function showPaymentDetailModal(saleData) {
+    // 1. Creamos el esqueleto del modal.
+    const modalHtmlShell = `
+    <div class="payment-modal-overlay">
+        <div class="payment-detail-modal">
+            <div class="payment-modal-header">
+                <h3>Detalle del Pago</h3>
+                <button class="payment-modal-close-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <div class="payment-breakdown">
+                <p class="dashboard-loader" style="padding: 1rem 0;">Calculando detalles financieros...</p>
+            </div>
+        </div>
+    </div>`;
+
+    const modalContainer = document.createElement('div');
+    modalContainer.innerHTML = modalHtmlShell;
+    document.body.appendChild(modalContainer);
+    
+    // ===== INICIO DE LA CORRECCIÓN CLAVE =====
+    // 2. Definimos y activamos los botones de cierre INMEDIATAMENTE.
+    const overlay = modalContainer.querySelector('.payment-modal-overlay');
+    const closeBtn = modalContainer.querySelector('.payment-modal-close-btn');
+    
+    const closeModal = () => {
+        overlay.style.animation = 'fadeOut 0.3s ease-out forwards';
+        overlay.querySelector('.payment-detail-modal').style.animation = 'slideOutDown 0.4s cubic-bezier(0.5, 0, 0.75, 0) forwards';
+        setTimeout(() => {
+            modalContainer.remove();
+        }, 400);
+    };
+
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) closeModal();
+    });
+    closeBtn.addEventListener('click', closeModal);
+    // ===== FIN DE LA CORRECCIÓN CLAVE =====
+
+    const breakdownContainer = modalContainer.querySelector('.payment-breakdown');
+    let finalSaleData = saleData;
+    let totalEquivUSD = saleData.precio_venta_usd;
+
+    try {
+        // 3. AHORA sí, hacemos todo el trabajo pesado de buscar datos.
+        let costoProducto = 0;
+        
+        if (saleData.imei_vendido) {
+            const stockDoc = await db.collection('stock_individual').doc(saleData.imei_vendido).get();
+            if (stockDoc.exists) {
+                costoProducto = stockDoc.data().precio_costo_usd || 0;
+            }
+        }
+
+        if (saleData.venta_mayorista_ref) {
+            const masterSaleDoc = await db.collection('ventas_mayoristas').doc(saleData.venta_mayorista_ref).get();
+            if (masterSaleDoc.exists) {
+                finalSaleData = masterSaleDoc.data();
+                totalEquivUSD = finalSaleData.total_venta_usd;
+            }
+        }
+
+        const breakdownItems = [];
+        const pago = finalSaleData.pago_recibido || { /* ... */ };
+        const canjeData = finalSaleData.items_canje || (finalSaleData.hubo_canje ? [{ modelo: finalSaleData.canje_modelo_recibido, valor_toma_usd: finalSaleData.valor_toma_canje_usd }] : []);
+        
+        // ... (Todo el resto de la lógica para construir el desglose queda exactamente igual)
+        if (canjeData.length > 0 && canjeData[0] && canjeData[0].valor_toma_usd > 0) {
+            canjeData.forEach(item => {
+                breakdownItems.push(`
+                <div class="breakdown-item">
+                    <span class="label">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#e67e22"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
+                        Canje (${item.modelo || 'Equipo'})
+                    </span>
+                    <span class="value">${formatearUSD(item.valor_toma_usd)}</span>
+                </div>`);
+            });
+        }
+        
+        if (pago.usd > 0) { breakdownItems.push(`<div class="breakdown-item"><span class="label"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#2ecc71"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>Dólares (Efectivo)</span><span class="value">${formatearUSD(pago.usd)}</span></div>`); }
+        if (pago.usd_transferencia > 0) { breakdownItems.push(`<div class="breakdown-item"><span class="label"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#27ae60"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>Dólares (Transferencia)</span><span class="value">${formatearUSD(pago.usd_transferencia)}</span></div>`); }
+        if (pago.ars_efectivo > 0) { breakdownItems.push(`<div class="breakdown-item"><span class="label"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#bdc3c7"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>Pesos (Efectivo)</span><span class="value">${formatearARS(pago.ars_efectivo)}</span></div>`); }
+        if (pago.ars_transferencia > 0) { breakdownItems.push(`<div class="breakdown-item"><span class="label"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#3498db"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>Pesos (Transferencia)</span><span class="value">${formatearARS(pago.ars_transferencia)}</span></div>`); }
+
+        if (breakdownItems.length === 0) {
+             const diferenciaUSD = finalSaleData.precio_venta_usd - (finalSaleData.valor_toma_canje_usd || 0);
+             if(diferenciaUSD > 0.01) {
+                 breakdownItems.push(`<div class="breakdown-item"><span class="label"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#2ecc71"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>Diferencia (USD)</span><span class="value">${formatearUSD(diferenciaUSD)}</span></div>`);
+             } else {
+               breakdownItems.push(`<div class="breakdown-item" style="flex-direction: column; align-items: flex-start; gap: 0.5rem;"><span class="label" style="color: var(--text-light);">Registro de pago antiguo:</span><span class="value" style="font-size: 1.1rem; color: var(--brand-accent);">${finalSaleData.metodo_pago}</span></div>`);
+             }
+        }
+        
+        const profitItems = [];
+        const comisiones = finalSaleData.comisiones || [];
+        let totalComision = 0;
+        
+        if (comisiones.length > 0) {
+            comisiones.forEach(com => {
+                totalComision += com.monto;
+                profitItems.push(`<div class="breakdown-item"><span class="label" style="color: var(--text-muted); padding-left: 1.5rem;">↳ Comisión ${com.vendedor}</span><span class="value" style="color: var(--error-bg);">- ${formatearUSD(com.monto)}</span></div>`);
+            });
+        }
+        
+        const precioVentaItem = saleData.precio_venta_usd || 0;
+        const gananciaNeta = precioVentaItem - costoProducto - totalComision;
+        profitItems.push(`<div class="breakdown-item" style="margin-top: 0.5rem;"><span class="label" style="font-weight: bold;">Ganancia Neta (Profit)</span><span class="value" style="color: var(--brand-yellow); font-weight: bold;">${formatearUSD(gananciaNeta)}</span></div>`);
+        
+        breakdownContainer.innerHTML = `
+            ${breakdownItems.join('')}
+            ${breakdownItems.length > 0 ? '<hr style="border-color: var(--border-dark); margin: 1rem 0;">' : ''}
+            <div class="breakdown-item"><span class="label">Precio Venta Item</span><span class="value">${formatearUSD(precioVentaItem)}</span></div>
+            <div class="breakdown-item"><span class="label">Costo Item</span><span class="value" style="color: var(--error-bg);">- ${formatearUSD(costoProducto)}</span></div>
+            ${profitItems.join('')}
+            <div class="breakdown-item breakdown-total"><span class="label">Total Venta</span><span class="value">${formatearUSD(totalEquivUSD)}</span></div>
+        `;
+
+    } catch (error) {
+        console.error("Error al mostrar detalle de pago:", error);
+        breakdownContainer.innerHTML = `<p class="dashboard-loader" style="color:var(--error-bg); padding: 1rem;">${error.message}</p>`;
+    }
+}
+
+// AÑADE ESTA NUEVA FUNCIÓN A TU SCRIPT.JS
+function createCustomSelect(selectElement) {
+    const originalSelect = selectElement;
+    const selectId = originalSelect.id;
+
+    // Evita duplicar el custom select si ya existe
+    if (document.getElementById(`${selectId}-wrapper`)) {
+        return;
+    }
+
+    originalSelect.style.display = 'none';
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'custom-select-wrapper';
+    wrapper.id = `${selectId}-wrapper`;
+
+    const trigger = document.createElement('div');
+    trigger.className = 'custom-select-trigger';
+    
+    const selectedDisplay = document.createElement('span');
+    selectedDisplay.textContent = originalSelect.options[originalSelect.selectedIndex].textContent;
+    
+    const arrow = document.createElement('div');
+    arrow.className = 'arrow';
+
+    trigger.appendChild(selectedDisplay);
+    trigger.appendChild(arrow);
+    
+    const optionsContainer = document.createElement('div');
+    optionsContainer.className = 'custom-options';
+
+    Array.from(originalSelect.options).forEach(option => {
+        const customOption = document.createElement('div');
+        customOption.className = 'custom-option';
+        customOption.textContent = option.textContent;
+        customOption.dataset.value = option.value;
+        
+        if(option.selected) customOption.classList.add('selected');
+        if(option.disabled) customOption.style.display = 'none';
+
+        customOption.addEventListener('click', () => {
+            optionsContainer.querySelectorAll('.custom-option').forEach(opt => opt.classList.remove('selected'));
+            customOption.classList.add('selected');
+            selectedDisplay.textContent = customOption.textContent;
+            originalSelect.value = customOption.dataset.value;
+            // Disparamos un evento 'change' en el select original por si hay otra lógica escuchándolo
+            originalSelect.dispatchEvent(new Event('change'));
+            wrapper.classList.remove('open');
+        });
+        optionsContainer.appendChild(customOption);
+    });
+
+    trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        wrapper.classList.toggle('open');
+    });
+
+    wrapper.appendChild(trigger);
+    wrapper.appendChild(optionsContainer);
+    originalSelect.parentNode.insertBefore(wrapper, originalSelect.nextSibling);
+
+    // Listener para cerrar el dropdown si se hace clic afuera
+    document.addEventListener('click', (e) => {
+        if (!wrapper.contains(e.target)) {
+            wrapper.classList.remove('open');
+        }
+    });
 }
