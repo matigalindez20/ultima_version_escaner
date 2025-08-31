@@ -3262,7 +3262,7 @@ function deleteBatch(batchId, batchNumber, providerId, providerName, batchCost) 
     });
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 async function showKpiDetail(kpiType, period) {
     const now = new Date();
     let startDate, endDate, title = '';
@@ -3299,16 +3299,21 @@ async function showKpiDetail(kpiType, period) {
         const wholesaleProductDetailsMap = new Map();
         if (!wholesaleSalesSnap.empty) {
             const saleIds = wholesaleSalesSnap.docs.map(doc => doc.id);
-            if (saleIds.length > 0) {
-                const individualItemsSnap = await db.collection('ventas').where('venta_mayorista_ref', 'in', saleIds).get();
-                individualItemsSnap.forEach(doc => {
-                    const item = doc.data();
-                    const masterId = item.venta_mayorista_ref;
-                    if (!wholesaleProductDetailsMap.has(masterId)) {
-                        wholesaleProductDetailsMap.set(masterId, []);
-                    }
-                    wholesaleProductDetailsMap.get(masterId).push(item.producto.modelo);
-                });
+            const chunk = (arr, size) => Array.from({ length: Math.ceil(arr.length / size) }, (v, i) => arr.slice(i * size, i * size + size));
+            const idChunks = chunk(saleIds, 10);
+            
+            for (const chunk of idChunks) {
+                if (chunk.length > 0) {
+                    const individualItemsSnap = await db.collection('ventas').where('venta_mayorista_ref', 'in', chunk).get();
+                    individualItemsSnap.forEach(doc => {
+                        const item = doc.data();
+                        const masterId = item.venta_mayorista_ref;
+                        if (!wholesaleProductDetailsMap.has(masterId)) {
+                            wholesaleProductDetailsMap.set(masterId, []);
+                        }
+                        wholesaleProductDetailsMap.get(masterId).push(item.producto.modelo);
+                    });
+                }
             }
         }
 
@@ -3356,11 +3361,21 @@ async function showKpiDetail(kpiType, period) {
         const tableHTML = `
             <div class="table-container"><table><thead><tr><th>Fecha</th><th>Tipo</th><th>Concepto</th><th>Monto</th><th>Acciones</th></tr></thead>
             <tbody>${transactions.map(t => {
+                // ===================== INICIO DE LA MODIFICACIÓN VISUAL =====================
+                const MAX_LENGTH = 60;
+                const truncatedConcepto = t.concepto.length > MAX_LENGTH ? t.concepto.substring(0, MAX_LENGTH - 3) + '...' : t.concepto;
+                // ====================== FIN DE LA MODIFICACIÓN VISUAL =======================
+
                 const deleteButtonHtml = t.collection !== 'movimientos_internos' ? `<button class="delete-btn btn-delete-kpi-item" title="Eliminar/Revertir"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button>` : '';
+                
                 return `<tr data-id="${t.id}" data-type="${t.tipo}" data-collection="${t.collection}" data-item='${JSON.stringify(t.data).replace(/'/g, "\\'")}'>
                     <td data-label="Fecha">${t.fecha.toLocaleString('es-AR')}</td>
                     <td data-label="Tipo">${t.tipo}</td>
-                    <td data-label="Concepto">${t.concepto}</td>
+                    
+                    <!-- ===================== INICIO DE LA MODIFICACIÓN VISUAL ===================== -->
+                    <td data-label="Concepto" title="${t.concepto}">${truncatedConcepto}</td>
+                    <!-- ====================== FIN DE LA MODIFICACIÓN VISUAL ======================= -->
+                    
                     <td data-label="Monto" class="${t.tipo === 'Ingreso' ? 'income' : 'outcome'}">${t.tipo === 'Egreso' ? '-' : ''}${t.moneda === 'USD' ? formatearUSD(t.monto) : formatearARS(t.monto)}</td>
                     <td data-label="Acciones" class="actions-cell">${deleteButtonHtml}</td></tr>`;
             }).join('')}</tbody></table></div>`;
