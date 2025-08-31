@@ -8878,9 +8878,8 @@ function setupEventListenersForSales() {
     // ===== FIN DE LA MODIFICACIÓN =====
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA POR ESTA VERSIÓN CON LA CORRECCIÓN DEL DOBLE CLIC
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 async function showPaymentDetailModal(saleData) {
-    // 1. Creamos el esqueleto del modal.
     const modalHtmlShell = `
     <div class="payment-modal-overlay">
         <div class="payment-detail-modal">
@@ -8900,38 +8899,28 @@ async function showPaymentDetailModal(saleData) {
     modalContainer.innerHTML = modalHtmlShell;
     document.body.appendChild(modalContainer);
     
-    // ===== INICIO DE LA CORRECCIÓN CLAVE =====
-    // 2. Definimos y activamos los botones de cierre INMEDIATAMENTE.
     const overlay = modalContainer.querySelector('.payment-modal-overlay');
     const closeBtn = modalContainer.querySelector('.payment-modal-close-btn');
     
     const closeModal = () => {
         overlay.style.animation = 'fadeOut 0.3s ease-out forwards';
         overlay.querySelector('.payment-detail-modal').style.animation = 'slideOutDown 0.4s cubic-bezier(0.5, 0, 0.75, 0) forwards';
-        setTimeout(() => {
-            modalContainer.remove();
-        }, 400);
+        setTimeout(() => { modalContainer.remove(); }, 400);
     };
 
-    overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) closeModal();
-    });
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
     closeBtn.addEventListener('click', closeModal);
-    // ===== FIN DE LA CORRECCIÓN CLAVE =====
 
     const breakdownContainer = modalContainer.querySelector('.payment-breakdown');
     let finalSaleData = saleData;
     let totalEquivUSD = saleData.precio_venta_usd;
 
     try {
-        // 3. AHORA sí, hacemos todo el trabajo pesado de buscar datos.
         let costoProducto = 0;
         
         if (saleData.imei_vendido) {
             const stockDoc = await db.collection('stock_individual').doc(saleData.imei_vendido).get();
-            if (stockDoc.exists) {
-                costoProducto = stockDoc.data().precio_costo_usd || 0;
-            }
+            if (stockDoc.exists) { costoProducto = stockDoc.data().precio_costo_usd || 0; }
         }
 
         if (saleData.venta_mayorista_ref) {
@@ -8942,11 +8931,21 @@ async function showPaymentDetailModal(saleData) {
             }
         }
 
+        let pago = {};
+        if (finalSaleData.pago_recibido) {
+            pago = finalSaleData.pago_recibido;
+        } else {
+            pago = {
+                usd: finalSaleData.monto_dolares || 0,
+                ars_efectivo: finalSaleData.monto_efectivo || 0,
+                ars_transferencia: finalSaleData.monto_transferencia || 0,
+                usd_transferencia: finalSaleData.monto_transferencia_usd || 0
+            };
+        }
+
         const breakdownItems = [];
-        const pago = finalSaleData.pago_recibido || { /* ... */ };
         const canjeData = finalSaleData.items_canje || (finalSaleData.hubo_canje ? [{ modelo: finalSaleData.canje_modelo_recibido, valor_toma_usd: finalSaleData.valor_toma_canje_usd }] : []);
         
-        // ... (Todo el resto de la lógica para construir el desglose queda exactamente igual)
         if (canjeData.length > 0 && canjeData[0] && canjeData[0].valor_toma_usd > 0) {
             canjeData.forEach(item => {
                 breakdownItems.push(`
@@ -8970,7 +8969,11 @@ async function showPaymentDetailModal(saleData) {
              if(diferenciaUSD > 0.01) {
                  breakdownItems.push(`<div class="breakdown-item"><span class="label"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#2ecc71"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>Diferencia (USD)</span><span class="value">${formatearUSD(diferenciaUSD)}</span></div>`);
              } else {
-               breakdownItems.push(`<div class="breakdown-item" style="flex-direction: column; align-items: flex-start; gap: 0.5rem;"><span class="label" style="color: var(--text-light);">Registro de pago antiguo:</span><span class="value" style="font-size: 1.1rem; color: var(--brand-accent);">${finalSaleData.metodo_pago}</span></div>`);
+                // ===================== INICIO DE LA CORRECCIÓN =====================
+                // Usamos el `saleData.metodo_pago` original como fallback, que es "Venta Mayorista".
+                const fallbackText = saleData.metodo_pago || 'Detalle no disponible';
+                breakdownItems.push(`<div class="breakdown-item" style="flex-direction: column; align-items: flex-start; gap: 0.5rem;"><span class="label" style="color: var(--text-light);">Registro de pago antiguo:</span><span class="value" style="font-size: 1.1rem; color: var(--brand-accent);">${fallbackText}</span></div>`);
+                // ====================== FIN DE LA CORRECCIÓN =======================
              }
         }
         
