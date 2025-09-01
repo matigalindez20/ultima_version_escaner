@@ -6877,7 +6877,8 @@ async function saveFinalizedReparacion(form) {
     }
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 async function loadPaginatedData(config) {
     const { type, collectionName, filters, orderByField, orderByDirection = 'asc', direction, renderFunction, setupEventListeners } = config;
     
@@ -6939,11 +6940,36 @@ async function loadPaginatedData(config) {
                 const ref = doc.data().venta_mayorista_ref;
                 if (ref) wholesaleRefs.push(ref);
             });
+
+            // ===== INICIO DE LA MODIFICACIÓN CLAVE =====
+            // Esta sección ahora divide la consulta en trozos de 10 para evitar el error.
             if (wholesaleRefs.length > 0) {
                 const uniqueRefs = [...new Set(wholesaleRefs)];
-                const wholesaleSnapshot = await db.collection('ventas_mayoristas').where(firebase.firestore.FieldPath.documentId(), 'in', uniqueRefs).get();
-                wholesaleSnapshot.forEach(doc => wholesaleMap.set(doc.id, doc.data()));
+                const queryPromises = [];
+                
+                // 1. Dividimos la lista de IDs en trozos de 10
+                for (let i = 0; i < uniqueRefs.length; i += 10) {
+                    const chunk = uniqueRefs.slice(i, i + 10);
+                    // 2. Creamos una promesa de consulta para cada trozo
+                    if (chunk.length > 0) {
+                        const chunkQuery = db.collection('ventas_mayoristas')
+                            .where(firebase.firestore.FieldPath.documentId(), 'in', chunk)
+                            .get();
+                        queryPromises.push(chunkQuery);
+                    }
+                }
+                
+                // 3. Ejecutamos todas las consultas en paralelo
+                const snapshots = await Promise.all(queryPromises);
+
+                // 4. Juntamos los resultados de todas las consultas
+                snapshots.forEach(snapshot => {
+                    snapshot.forEach(doc => {
+                        wholesaleMap.set(doc.id, doc.data());
+                    });
+                });
             }
+            // ===== FIN DE LA MODIFICACIÓN CLAVE =====
         }
 
         let tableHeader = type === 'stock' 
@@ -6952,7 +6978,6 @@ async function loadPaginatedData(config) {
 
         let tableHTML = `<table><thead>${tableHeader}</thead><tbody>`;
         querySnapshot.forEach(doc => {
-            // Se pasa el ID y la data por separado para mantener la consistencia.
             tableHTML += renderFunction(doc.id, doc.data(), wholesaleMap);
         });
         s_tableContainer.innerHTML = tableHTML + `</tbody></table>`;
