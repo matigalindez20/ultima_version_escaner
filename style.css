@@ -4793,3 +4793,42 @@ td.actions-cell {
     color: var(--brand-accent);
     font-weight: 700;
 }
+
+
+/* ======================================================= cambios del 31 */
+
+/* AÑADE ESTO AL FINAL DE TU ARCHIVO style.css */
+
+/* Contenedor específico para los filtros del resumen */
+#summary-filters-container {
+    flex-grow: 1;
+    justify-content: flex-end;
+}
+
+/* Ajustes para que los grupos de filtros no ocupen tanto espacio */
+#summary-filters-container .filter-group {
+    min-width: 100px;
+    flex-grow: 0;
+}
+
+#summary-filters-container button {
+    padding: 0.8rem 1.5rem;
+}
+
+/* Media Query para que en móvil los filtros se apilen debajo del título */
+@media (max-width: 992px) {
+    .kpi-group-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 1.5rem;
+    }
+
+    #summary-filters-container {
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    #summary-filters-container .filter-group {
+        width: 100%;
+    }
+}

@@ -253,6 +253,60 @@ function initApp() {
     auth.onAuthStateChanged(handleAuthStateChange);
 }
 
+// AÑADE ESTAS DOS NUEVAS FUNCIONES A TU SCRIPT.JS
+
+function populateSummaryFilters() {
+    const monthSelect = document.getElementById('filter-summary-month');
+    const yearSelect = document.getElementById('filter-summary-year');
+    
+    if (!monthSelect || !yearSelect) return;
+
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    // Poblar meses
+    const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+    monthSelect.innerHTML = meses.map((mes, index) => `<option value="${index}">${mes}</option>`).join('');
+    monthSelect.value = currentMonth;
+
+    // Poblar años (desde 2023 hasta el año actual)
+    let yearOptions = '';
+    for (let y = 2023; y <= currentYear; y++) {
+        yearOptions += `<option value="${y}">${y}</option>`;
+    }
+    yearSelect.innerHTML = yearOptions;
+    yearSelect.value = currentYear;
+}
+
+async function handleApplySummaryFilter() {
+    const btn = document.getElementById('btn-apply-summary-filter');
+    toggleSpinner(btn, true);
+
+    const month = document.getElementById('filter-summary-month').value;
+    const year = document.getElementById('filter-summary-year').value;
+
+    if (month === "" || year === "") {
+        showGlobalFeedback("Debes seleccionar un mes y un año.", "error");
+        toggleSpinner(btn, false);
+        return;
+    }
+    
+    // El mes en JS es 0-indexado, por eso el parseInt es directo.
+    const startDate = new Date(year, parseInt(month), 1);
+    // El truco para obtener el último día del mes es pedir el día 0 del mes siguiente.
+    const endDate = new Date(year, parseInt(month) + 1, 0, 23, 59, 59);
+
+    try {
+        await calculateMonthlySummary(startDate, endDate);
+    } catch (error) {
+        console.error("Error al filtrar resumen mensual:", error);
+        showGlobalFeedback("Error al aplicar el filtro.", "error");
+    } finally {
+        toggleSpinner(btn, false);
+    }
+}
+
 // REEMPLAZA ESTA FUNCIÓN COMPLETA
 async function loadAndPopulateSelects() {
     try {
@@ -305,7 +359,7 @@ function populateAllSelects() {
     populateSelect(s.proveedorFormSelect, proveedoresConCanje, "Selecciona..."); 
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU ARCHIVO script.js
 function addEventListeners() {
     s.logoutButton.addEventListener('click', () => auth.signOut());
     
@@ -403,13 +457,10 @@ function addEventListeners() {
         btnResyncCommissions.addEventListener('click', resincronizarSaldosDeVendedores);
     }
     
-    // ===================== INICIO DE LA MODIFICACIÓN =====================
-    // Se cambia el ID al que escucha el evento por el del nuevo botón de icono.
     const btnCurrencyExchange = document.getElementById('btn-currency-exchange-icon');
     if (btnCurrencyExchange) {
         btnCurrencyExchange.addEventListener('click', promptForCurrencyExchange);
     }
-    // ====================== FIN DE LA MODIFICACIÓN =======================
 
     s.btnApplyStockFilters.addEventListener('click', () => loadStock('first'));
     s.btnApplySalesFilters.addEventListener('click', () => loadSales('first'));
@@ -637,6 +688,10 @@ function addEventListeners() {
             }
         }
     });
+
+    // ===== INICIO DE LA LÍNEA AÑADIDA =====
+    document.getElementById('btn-apply-summary-filter').addEventListener('click', handleApplySummaryFilter);
+    // ===== FIN DE LA LÍNEA AÑADIDA =====
 }
 
 function moveDashboardSlider(activeButton) {
@@ -653,12 +708,39 @@ function moveNavSlider(activeTab) {
     s.navSlider.style.width = `${offsetWidth}px`;
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+// REEMPLAZA LAS FUNCIONES updateReports Y calculateMonthlySummary CON ESTE BLOQUE COMPLETO
+
 async function updateReports() {
+    // Esta función ahora se encarga de los KPIs que NO dependen del filtro de mes/año.
+    // (Resumen del Día, Stock, etc.)
+    try {
+        const stockSnap = await db.collection('stock_individual').where('estado', '==', 'en_stock').get();
+        const reparacionesSnap = await db.collection('reparaciones').get();
+        let totalStockValue = 0;
+        stockSnap.forEach(doc => { totalStockValue += doc.data().precio_costo_usd || 0; });
+        
+        if (s.kpiStockValue) s.kpiStockValue.textContent = formatearUSD(totalStockValue);
+        if (s.kpiStockCount) s.kpiStockCount.textContent = stockSnap.size;
+        if (s.kpiReparacionCount) s.kpiReparacionCount.textContent = reparacionesSnap.size;
+
+        // Calculamos el resumen del día como siempre
+        const now = new Date();
+        const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+        const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+        await calculateDailySummary(startOfDay, endOfDay);
+        
+        // Y por defecto, calculamos el resumen del MES ACTUAL al cargar la página.
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+        await calculateMonthlySummary(startOfMonth, endOfMonth);
+    } catch (error) {
+        console.error("Error crítico en updateReports:", error);
+    }
+}
+
+async function calculateDailySummary(startDate, endDate) {
+    // ESTA ES LA FUNCIÓN QUE FALTABA
     const kpiElements = {
-        stockValue: document.getElementById('kpi-stock-value'),
-        stockCount: document.getElementById('kpi-stock-count'),
-        reparacionCount: document.getElementById('kpi-reparacion-count'),
         dollarsDay: document.getElementById('kpi-dollars-day'),
         cashDay: document.getElementById('kpi-cash-day'),
         transferDay: document.getElementById('kpi-transfer-day'),
@@ -668,57 +750,25 @@ async function updateReports() {
         expensesDayCash: document.getElementById('kpi-expenses-day-cash'),
         expensesDayTransfer: document.getElementById('kpi-expenses-day-transfer'),
         expensesDayTransferUsd: document.getElementById('kpi-expenses-day-transfer-usd'),
-        dollarsMonth: document.getElementById('kpi-dollars-month'),
-        cashMonth: document.getElementById('kpi-cash-month'),
-        transferMonth: document.getElementById('kpi-transfer-month'),
-        transferUsdMonth: document.getElementById('kpi-transfer-usd-month'),
-        profitMonth: document.getElementById('kpi-profit-month'),
-        expensesMonthUsd: document.getElementById('kpi-expenses-month-usd'),
-        expensesMonthCash: document.getElementById('kpi-expenses-month-cash'),
-        expensesMonthTransfer: document.getElementById('kpi-expenses-month-transfer'),
-        expensesMonthTransferUsd: document.getElementById('kpi-expenses-month-transfer-usd')
     };
-    
+
     Object.values(kpiElements).forEach(el => { if (el) el.textContent = '...'; });
 
     try {
-        const now = new Date();
-        const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-        const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-
-        const fetchData = (collection, dateField, start, end) => {
-            return db.collection(collection).where(dateField, '>=', start).where(dateField, '<=', end).get();
-        };
-
+        const fetchData = (collection, dateField, start, end) => db.collection(collection).where(dateField, '>=', start).where(dateField, '<=', end).get();
+        
         const [
-            stockSnap, reparacionesSnap, salesDaySnap, salesMonthSnap, expensesDaySnap, expensesMonthSnap,
-            miscIncomesDaySnap, miscIncomesMonthSnap, wholesaleSalesDaySnap, wholesaleSalesMonthSnap,
-            internalMovesDaySnap, internalMovesMonthSnap
+            salesDaySnap, expensesDaySnap, miscIncomesDaySnap, 
+            wholesaleSalesDaySnap, internalMovesDaySnap
         ] = await Promise.all([
-            db.collection('stock_individual').where('estado', '==', 'en_stock').get(),
-            db.collection('reparaciones').get(),
-            fetchData('ventas', 'fecha_venta', startOfDay, endOfDay),
-            fetchData('ventas', 'fecha_venta', startOfMonth, endOfMonth),
-            fetchData('gastos', 'fecha', startOfDay, endOfDay),
-            fetchData('gastos', 'fecha', startOfMonth, endOfMonth),
-            fetchData('ingresos_caja', 'fecha', startOfDay, endOfDay),
-            fetchData('ingresos_caja', 'fecha', startOfMonth, endOfMonth),
-            fetchData('ventas_mayoristas', 'fecha_venta', startOfDay, endOfDay),
-            fetchData('ventas_mayoristas', 'fecha_venta', startOfMonth, endOfMonth),
-            fetchData('movimientos_internos', 'fecha', startOfDay, endOfDay),
-            fetchData('movimientos_internos', 'fecha', startOfMonth, endOfMonth)
+            fetchData('ventas', 'fecha_venta', startDate, endDate),
+            fetchData('gastos', 'fecha', startDate, endDate),
+            fetchData('ingresos_caja', 'fecha', startDate, endDate),
+            fetchData('ventas_mayoristas', 'fecha_venta', startDate, endDate),
+            fetchData('movimientos_internos', 'fecha', startDate, endDate)
         ]);
         
-        let totalStockValue = 0, totalReparacionValue = 0;
-        stockSnap.forEach(doc => { totalStockValue += doc.data().precio_costo_usd || 0; });
-        reparacionesSnap.forEach(doc => { totalReparacionValue += doc.data().precio_costo_usd || 0; });
-
-        if (kpiElements.stockValue) kpiElements.stockValue.textContent = formatearUSD(totalStockValue + totalReparacionValue);
-        if (kpiElements.stockCount) kpiElements.stockCount.textContent = stockSnap.size;
-        if (kpiElements.reparacionCount) kpiElements.reparacionCount.textContent = reparacionesSnap.size;
-
+        // La lógica de cálculo es la misma que ya tenías, ahora encapsulada aquí.
         const processEntries = async (salesSnapshot, miscIncomesSnap, expensesSnap, wholesaleSalesSnapshot, internalMovesSnap) => {
             let totalIncomes = { usd: 0, cash: 0, transfer: 0, transfer_usd: 0 };
             let totalExpenses = { usd: 0, cash: 0, transfer: 0, transfer_usd: 0 };
@@ -781,17 +831,7 @@ async function updateReports() {
                 if (gasto.metodo_pago === 'Pesos (Transferencia)') totalExpenses.transfer += gasto.monto || 0;
                 if (gasto.metodo_pago === 'Dólares (Transferencia)') totalExpenses.transfer_usd += gasto.monto || 0;
 
-                // ===== INICIO DE LA MODIFICACIÓN =====
-                // Se añaden las categorías de movimientos internos a la lista de exclusión.
-                // Ahora, solo los gastos "reales" se sumarán a totalOperationalExpenses.
-                const isNotOperational = [
-                    'Pago a Proveedor', 
-                    'Comisiones', 
-                    'Retiro de Socio',
-                    'Movimiento Interno',
-                    'Cambio y Depósito',
-                    'Cambio de Moneda'
-                ].includes(gasto.categoria);
+                const isNotOperational = ['Pago a Proveedor', 'Comisiones', 'Retiro de Socio', 'Movimiento Interno', 'Cambio y Depósito', 'Cambio de Moneda'].includes(gasto.categoria);
 
                 if (!isNotOperational) {
                     if (gasto.metodo_pago === 'Dólares') totalOperationalExpenses.usd += gasto.monto || 0;
@@ -799,7 +839,6 @@ async function updateReports() {
                     if (gasto.metodo_pago === 'Pesos (Transferencia)') totalOperationalExpenses.transfer += gasto.monto || 0;
                     if (gasto.metodo_pago === 'Dólares (Transferencia)') totalOperationalExpenses.transfer_usd += gasto.monto || 0;
                 }
-                // ===== FIN DE LA MODIFICACIÓN =====
             });
             
             internalMovesSnap.forEach(doc => {
@@ -822,6 +861,7 @@ async function updateReports() {
         };
 
         const daily = await processEntries(salesDaySnap, miscIncomesDaySnap, expensesDaySnap, wholesaleSalesDaySnap, internalMovesDaySnap);
+        
         if (kpiElements.dollarsDay) kpiElements.dollarsDay.textContent = formatearUSD(daily.netIncomes.usd);
         if (kpiElements.cashDay) kpiElements.cashDay.textContent = formatearARS(daily.netIncomes.cash);
         if (kpiElements.transferDay) kpiElements.transferDay.textContent = formatearARS(daily.netIncomes.transfer);
@@ -832,6 +872,131 @@ async function updateReports() {
         if (kpiElements.expensesDayTransfer) kpiElements.expensesDayTransfer.textContent = formatearARS(daily.expenses.transfer);
         if (kpiElements.expensesDayTransferUsd) kpiElements.expensesDayTransferUsd.textContent = formatearUSD(daily.expenses.transfer_usd);
 
+    } catch (error) {
+        console.error("Error al calcular el resumen diario:", error);
+        Object.values(kpiElements).forEach(el => { if (el) el.textContent = 'Error'; });
+    }
+}
+
+async function calculateMonthlySummary(startDate, endDate) {
+    const kpiElements = {
+        dollarsMonth: document.getElementById('kpi-dollars-month'),
+        cashMonth: document.getElementById('kpi-cash-month'),
+        transferMonth: document.getElementById('kpi-transfer-month'),
+        transferUsdMonth: document.getElementById('kpi-transfer-usd-month'),
+        profitMonth: document.getElementById('kpi-profit-month'),
+        expensesMonthUsd: document.getElementById('kpi-expenses-month-usd'),
+        expensesMonthCash: document.getElementById('kpi-expenses-month-cash'),
+        expensesMonthTransfer: document.getElementById('kpi-expenses-month-transfer'),
+        expensesMonthTransferUsd: document.getElementById('kpi-expenses-month-transfer-usd')
+    };
+    
+    Object.values(kpiElements).forEach(el => { if (el) el.textContent = '...'; });
+    
+    try {
+        const fetchData = (collection, dateField, start, end) => db.collection(collection).where(dateField, '>=', start).where(dateField, '<=', end).get();
+        
+        const [
+            salesMonthSnap, expensesMonthSnap, miscIncomesMonthSnap, 
+            wholesaleSalesMonthSnap, internalMovesMonthSnap
+        ] = await Promise.all([
+            fetchData('ventas', 'fecha_venta', startDate, endDate),
+            fetchData('gastos', 'fecha', startDate, endDate),
+            fetchData('ingresos_caja', 'fecha', startDate, endDate),
+            fetchData('ventas_mayoristas', 'fecha_venta', startDate, endDate),
+            fetchData('movimientos_internos', 'fecha', startDate, endDate)
+        ]);
+
+        const processEntries = async (salesSnapshot, miscIncomesSnap, expensesSnap, wholesaleSalesSnapshot, internalMovesSnap) => {
+            let totalIncomes = { usd: 0, cash: 0, transfer: 0, transfer_usd: 0 };
+            let totalExpenses = { usd: 0, cash: 0, transfer: 0, transfer_usd: 0 };
+            let totalOperationalExpenses = { usd: 0, cash: 0, transfer: 0, transfer_usd: 0 };
+            let totalProfit = 0;
+        
+            if (!salesSnapshot.empty) {
+                const costPromises = salesSnapshot.docs.map(saleDoc => db.collection("stock_individual").doc(saleDoc.data().imei_vendido).get());
+                const costDocs = await Promise.all(costPromises);
+                const costMap = new Map(costDocs.map(doc => [doc.id, doc.data()?.precio_costo_usd || 0]));
+                salesSnapshot.forEach(doc => {
+                    const venta = doc.data();
+                    if (!venta.venta_mayorista_ref) {
+                        const cost = venta.imei_vendido ? (costMap.get(venta.imei_vendido) || 0) : 0;
+                        const comisionTotalVenta = venta.comision_total_usd || venta.comision_vendedor_usd || 0;
+                        totalProfit += (venta.precio_venta_usd || 0) - cost - comisionTotalVenta;
+                    }
+                    totalIncomes.usd += venta.monto_dolares || 0;
+                    totalIncomes.cash += venta.monto_efectivo || 0;
+                    totalIncomes.transfer += venta.monto_transferencia || 0;
+                    totalIncomes.transfer_usd += venta.monto_transferencia_usd || 0;
+                });
+            }
+
+            if (!wholesaleSalesSnapshot.empty) {
+                for (const wsDoc of wholesaleSalesSnapshot.docs) {
+                    const wholesaleSale = wsDoc.data();
+                    const payment = wholesaleSale.pago_recibido || {};
+                    totalIncomes.usd += payment.usd || 0;
+                    totalIncomes.cash += payment.ars_efectivo || 0;
+                    totalIncomes.transfer += payment.ars_transferencia || 0;
+                    totalIncomes.transfer_usd += payment.usd_transferencia || 0;
+
+                    const individualSales = await db.collection('ventas').where('venta_mayorista_ref', '==', wsDoc.id).get();
+                    let totalCostWholesale = 0;
+                    if (!individualSales.empty) {
+                        const costPromises = individualSales.docs.map(doc => db.collection("stock_individual").doc(doc.data().imei_vendido).get());
+                        const costDocs = await Promise.all(costPromises);
+                        costDocs.forEach(costDoc => {
+                            if (costDoc.exists) totalCostWholesale += costDoc.data().precio_costo_usd || 0;
+                        });
+                    }
+                    const comisionTotalWholesale = wholesaleSale.comision_total_usd || 0;
+                    totalProfit += (wholesaleSale.total_venta_usd || 0) - totalCostWholesale - comisionTotalWholesale;
+                }
+            }
+            
+            miscIncomesSnap.forEach(doc => {
+                const ingreso = doc.data();
+                if (ingreso.metodo === 'Dólares') totalIncomes.usd += ingreso.monto || 0;
+                if (ingreso.metodo === 'Pesos (Efectivo)') totalIncomes.cash += ingreso.monto;
+                if (ingreso.metodo === 'Pesos (Transferencia)') totalIncomes.transfer += ingreso.monto;
+                if (ingreso.metodo === 'Dólares (Transferencia)') totalIncomes.transfer_usd += ingreso.monto || 0;
+            });
+            
+            expensesSnap.forEach(doc => {
+                const gasto = doc.data();
+                if (gasto.metodo_pago === 'Dólares') totalExpenses.usd += gasto.monto || 0;
+                if (gasto.metodo_pago === 'Pesos (Efectivo)') totalExpenses.cash += gasto.monto || 0;
+                if (gasto.metodo_pago === 'Pesos (Transferencia)') totalExpenses.transfer += gasto.monto || 0;
+                if (gasto.metodo_pago === 'Dólares (Transferencia)') totalExpenses.transfer_usd += gasto.monto || 0;
+                
+                const isNotOperational = ['Pago a Proveedor', 'Comisiones', 'Retiro de Socio', 'Movimiento Interno', 'Cambio y Depósito', 'Cambio de Moneda'].includes(gasto.categoria);
+                if (!isNotOperational) {
+                    if (gasto.metodo_pago === 'Dólares') totalOperationalExpenses.usd += gasto.monto || 0;
+                    if (gasto.metodo_pago === 'Pesos (Efectivo)') totalOperationalExpenses.cash += gasto.monto || 0;
+                    if (gasto.metodo_pago === 'Pesos (Transferencia)') totalOperationalExpenses.transfer += gasto.monto || 0;
+                    if (gasto.metodo_pago === 'Dólares (Transferencia)') totalOperationalExpenses.transfer_usd += gasto.monto || 0;
+                }
+            });
+            
+            internalMovesSnap.forEach(doc => {
+                const move = doc.data();
+                if (move.tipo === 'Retiro a Caja') {
+                    totalIncomes.transfer -= move.monto_ars;
+                    totalIncomes.cash += move.monto_ars; 
+                } else if (move.tipo === 'Retiro a Caja (USD)') {
+                    totalIncomes.transfer -= move.monto_ars;
+                }
+            });
+            
+            const netIncomes = {
+                usd: totalIncomes.usd - totalExpenses.usd,
+                cash: totalIncomes.cash - totalExpenses.cash,
+                transfer: totalIncomes.transfer - totalExpenses.transfer,
+                transfer_usd: totalIncomes.transfer_usd - totalExpenses.transfer_usd
+            };
+            return { netIncomes, expenses: totalOperationalExpenses, profit: totalProfit };
+        };
+        
         const monthly = await processEntries(salesMonthSnap, miscIncomesMonthSnap, expensesMonthSnap, wholesaleSalesMonthSnap, internalMovesMonthSnap);
         if (kpiElements.dollarsMonth) kpiElements.dollarsMonth.textContent = formatearUSD(monthly.netIncomes.usd);
         if (kpiElements.cashMonth) kpiElements.cashMonth.textContent = formatearARS(monthly.netIncomes.cash);
@@ -842,12 +1007,12 @@ async function updateReports() {
         if (kpiElements.expensesMonthCash) kpiElements.expensesMonthCash.textContent = formatearARS(monthly.expenses.cash);
         if (kpiElements.expensesMonthTransfer) kpiElements.expensesMonthTransfer.textContent = formatearARS(monthly.expenses.transfer);
         if (kpiElements.expensesMonthTransferUsd) kpiElements.expensesMonthTransferUsd.textContent = formatearUSD(monthly.expenses.transfer_usd);
+
     } catch (error) {
-        console.error("Error al actualizar los informes:", error);
+        console.error("Error al calcular el resumen mensual:", error);
         Object.values(kpiElements).forEach(el => { if (el) el.textContent = 'Error'; });
     }
 }
-
 
 async function handleAuthStateChange(user) {
     const userGreetingEl = document.getElementById('user-greeting');
@@ -874,6 +1039,7 @@ async function handleAuthStateChange(user) {
         // ===== FIN DE LA MODIFICACIÓN =====
         
         await loadAndPopulateSelects();
+        populateSummaryFilters();
         switchView('dashboard', s.tabDashboard);
         updateCanjeCount();
         updateReparacionCount();
@@ -3263,18 +3429,29 @@ function deleteBatch(batchId, batchNumber, providerId, providerName, batchCost) 
 }
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 async function showKpiDetail(kpiType, period) {
-    const now = new Date();
     let startDate, endDate, title = '';
 
     if (period === 'dia') {
+        const now = new Date();
         startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
         endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
         title = `Detalle de Caja del Día - ${kpiType.replace(/_/g, ' ').toUpperCase()}`;
-    } else {
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-        title = `Detalle de Caja del Mes - ${kpiType.replace(/_/g, ' ').toUpperCase()}`;
+    } else { // 'mes'
+        // ===== INICIO DE LA MODIFICACIÓN CLAVE =====
+        // En lugar de usar 'new Date()', ahora usamos el rango de fechas de los filtros
+        // que guardamos en la variable global.
+        const monthFilter = document.getElementById('filter-summary-month').value;
+        const yearFilter = document.getElementById('filter-summary-year').value;
+        startDate = new Date(yearFilter, monthFilter, 1);
+        endDate = new Date(yearFilter, parseInt(monthFilter) + 1, 0, 23, 59, 59);
+        
+        // También mejoramos el título para que muestre el mes filtrado
+        const monthName = startDate.toLocaleString('es-AR', { month: 'long' });
+        const year = startDate.getFullYear();
+        title = `Detalle Caja de ${monthName.charAt(0).toUpperCase() + monthName.slice(1)} ${year} - ${kpiType.replace(/_/g, ' ').toUpperCase()}`;
+        // ===== FIN DE LA MODIFICACIÓN CLAVE =====
     }
 
     s.promptContainer.innerHTML = `<div class="container kpi-detail-modal"><h3>${title}</h3><div id="kpi-detail-content"><p class="dashboard-loader">Cargando transacciones...</p></div><div class="prompt-buttons" style="justify-content: center;"><button class="prompt-button cancel">Cerrar</button></div></div>`;
@@ -3361,21 +3538,14 @@ async function showKpiDetail(kpiType, period) {
         const tableHTML = `
             <div class="table-container"><table><thead><tr><th>Fecha</th><th>Tipo</th><th>Concepto</th><th>Monto</th><th>Acciones</th></tr></thead>
             <tbody>${transactions.map(t => {
-                // ===================== INICIO DE LA MODIFICACIÓN VISUAL =====================
                 const MAX_LENGTH = 60;
                 const truncatedConcepto = t.concepto.length > MAX_LENGTH ? t.concepto.substring(0, MAX_LENGTH - 3) + '...' : t.concepto;
-                // ====================== FIN DE LA MODIFICACIÓN VISUAL =======================
-
                 const deleteButtonHtml = t.collection !== 'movimientos_internos' ? `<button class="delete-btn btn-delete-kpi-item" title="Eliminar/Revertir"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button>` : '';
                 
                 return `<tr data-id="${t.id}" data-type="${t.tipo}" data-collection="${t.collection}" data-item='${JSON.stringify(t.data).replace(/'/g, "\\'")}'>
                     <td data-label="Fecha">${t.fecha.toLocaleString('es-AR')}</td>
                     <td data-label="Tipo">${t.tipo}</td>
-                    
-                    <!-- ===================== INICIO DE LA MODIFICACIÓN VISUAL ===================== -->
                     <td data-label="Concepto" title="${t.concepto}">${truncatedConcepto}</td>
-                    <!-- ====================== FIN DE LA MODIFICACIÓN VISUAL ======================= -->
-                    
                     <td data-label="Monto" class="${t.tipo === 'Ingreso' ? 'income' : 'outcome'}">${t.tipo === 'Egreso' ? '-' : ''}${t.moneda === 'USD' ? formatearUSD(t.monto) : formatearARS(t.monto)}</td>
                     <td data-label="Acciones" class="actions-cell">${deleteButtonHtml}</td></tr>`;
             }).join('')}</tbody></table></div>`;
@@ -3403,26 +3573,33 @@ async function showKpiDetail(kpiType, period) {
     }
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 async function showProfitDetail(period) {
-    const now = new Date();
     let startDate, endDate, title;
 
     if (period === 'dia') {
+        const now = new Date();
         startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
         endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
         title = 'Detalle de Ganancias del Día';
     } else {
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-        title = 'Detalle de Ganancias del Mes';
+        // ===== INICIO DE LA MODIFICACIÓN CLAVE =====
+        const monthFilter = document.getElementById('filter-summary-month').value;
+        const yearFilter = document.getElementById('filter-summary-year').value;
+        startDate = new Date(yearFilter, monthFilter, 1);
+        endDate = new Date(yearFilter, parseInt(monthFilter) + 1, 0, 23, 59, 59);
+        
+        const monthName = startDate.toLocaleString('es-AR', { month: 'long' });
+        const year = startDate.getFullYear();
+        title = `Detalle Ganancias de ${monthName.charAt(0).toUpperCase() + monthName.slice(1)} ${year}`;
+        // ===== FIN DE LA MODIFICACIÓN CLAVE =====
     }
 
     s.promptContainer.innerHTML = `<div class="container kpi-detail-modal"><h3>${title}</h3><div id="kpi-profit-detail-content" class="table-container"><p class="dashboard-loader">Cargando detalle de ganancias...</p></div><div class="prompt-buttons" style="justify-content: center;"><button class="prompt-button cancel">Cerrar</button></div></div>`;
     const detailContent = document.getElementById('kpi-profit-detail-content');
 
     try {
-        // ===== INICIO DE LA MODIFICACIÓN =====
-        // 1. Obtenemos TODAS las ventas individuales y TODAS las ventas mayoristas del período.
         const salesQuery = db.collection('ventas').where('fecha_venta', '>=', startDate).where('fecha_venta', '<=', endDate);
         const wholesaleSalesQuery = db.collection('ventas_mayoristas').where('fecha_venta', '>=', startDate).where('fecha_venta', '<=', endDate);
         
@@ -3433,9 +3610,7 @@ async function showProfitDetail(period) {
             return;
         }
 
-        // 2. Guardamos las ventas mayoristas en un "mapa" para un acceso rápido y eficiente.
         const wholesaleSalesMap = new Map(wholesaleSalesSnapshot.docs.map(doc => [doc.id, doc.data()]));
-        // ===== FIN DE LA MODIFICACIÓN =====
 
         const costPromises = salesSnapshot.docs.map(saleDoc => db.collection("stock_individual").doc(saleDoc.data().imei_vendido).get());
         const costDocs = await Promise.all(costPromises);
@@ -3447,18 +3622,13 @@ async function showProfitDetail(period) {
             const precioVenta = venta.precio_venta_usd || 0;
             const costoProducto = costMap.get(venta.imei_vendido) || 0;
             
-            // ===== INICIO DE LA MODIFICACIÓN =====
-            // 3. Determinamos la comisión correcta para cada fila.
             let comision = 0;
             if (venta.venta_mayorista_ref) {
-                // Si es parte de una venta mayorista, buscamos la comisión total en el mapa.
                 const masterSale = wholesaleSalesMap.get(venta.venta_mayorista_ref);
                 comision = masterSale ? masterSale.comision_total_usd || 0 : 0;
             } else {
-                // Si es una venta normal, usamos la lógica anterior.
                 comision = venta.comision_total_usd || venta.comision_vendedor_usd || 0;
             }
-            // ===== FIN DE LA MODIFICACIÓN =====
             
             const ganancia = precioVenta - costoProducto - comision;
 
