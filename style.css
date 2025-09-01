@@ -4832,3 +4832,67 @@ td.actions-cell {
         width: 100%;
     }
 }
+
+/* AÑADE ESTO AL FINAL DE TU ARCHIVO style.css */
+
+/* ======================================================= */
+/* ====== ESTILOS PERSONALIZADOS PARA CALENDARIO (Flatpickr) ====== */
+/* ======================================================= */
+
+.flatpickr-calendar {
+    background-color: var(--container-dark);
+    border: 1px solid var(--border-dark);
+    box-shadow: var(--box-shadow);
+    width: 320px; /* Un poco más ancho */
+}
+
+/* Día seleccionado y día actual */
+.flatpickr-day.selected,
+.flatpickr-day.startRange,
+.flatpickr-day.endRange {
+    background: var(--brand-yellow);
+    border-color: var(--brand-yellow);
+    color: #000; /* Texto negro para que contraste con el fondo amarillo */
+}
+
+/* El día de hoy (tendrá un borde amarillo) */
+.flatpickr-day.today {
+    border-color: var(--brand-yellow);
+}
+.flatpickr-day.today:hover {
+    background: rgba(253, 209, 0, 0.1); /* Brillo amarillo sutil al pasar el mouse */
+    color: var(--text-light);
+}
+
+/* Hover sobre cualquier día */
+.flatpickr-day:hover {
+    background: #333;
+}
+
+/* Color de los nombres de los días (LU, MA, MI...) */
+.flatpickr-weekday {
+    color: var(--brand-yellow);
+    font-weight: 600;
+}
+
+/* Flechas de navegación de mes */
+.flatpickr-months .flatpickr-prev-month,
+.flatpickr-months .flatpickr-next-month {
+    color: var(--text-light);
+    fill: var(--text-light);
+}
+.flatpickr-months .flatpickr-prev-month:hover,
+.flatpickr-months .flatpickr-next-month:hover {
+    color: var(--brand-yellow);
+    fill: var(--brand-yellow);
+}
+
+/* El input de fecha ya no se verá feo */
+input[type="date"] {
+    background-color: var(--container-dark) !important;
+    border: 1px solid var(--border-dark) !important;
+    color: var(--text-light) !important;
+    padding: 0.8rem 1rem !important;
+    border-radius: 8px !important;
+    font-size: 1rem !important;
+}

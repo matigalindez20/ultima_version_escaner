@@ -1727,12 +1727,25 @@ function promptToAddCanjeItemWholesale() {
 }
 
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA POR ESTA VERSIÓN CON LA CORRECCIÓN DEL CANJE
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 async function finalizeWholesaleSale(form) {
     const btn = form.querySelector('button[type="submit"]');
     toggleSpinner(btn, true);
 
     const formData = new FormData(form);
+
+    // ===== INICIO DE LA MODIFICACIÓN (1/2) =====
+    // Leemos la fecha del nuevo input del formulario.
+    const fechaManualStr = formData.get('fecha_venta_manual');
+    if (!fechaManualStr) {
+        showGlobalFeedback("Debes seleccionar una fecha para la venta.", "error");
+        toggleSpinner(btn, false);
+        return;
+    }
+    const fechaVentaTimestamp = firebase.firestore.Timestamp.fromDate(new Date(fechaManualStr + 'T00:00:00'));
+    // ===== FIN DE LA MODIFICACIÓN =====
+
     const saleId = formData.get('sale_id').trim();
     
     const comisionFilas = form.querySelectorAll('.comision-fila');
@@ -1774,7 +1787,8 @@ async function finalizeWholesaleSale(form) {
         }
 
         await db.runTransaction(async (t) => {
-            const saleDate = firebase.firestore.FieldValue.serverTimestamp();
+            // ===== INICIO DE LA MODIFICACIÓN (2/2) =====
+            // Se elimina la variable 'saleDate' y se usa 'fechaVentaTimestamp' en todos lados.
             const wholesaleSaleRef = db.collection('ventas_mayoristas').doc();
             
             let creditoAplicado = 0;
@@ -1793,7 +1807,8 @@ async function finalizeWholesaleSale(form) {
             const deudaGenerada = totalSaleValue - totalCanjeValue - totalPagadoUSD - creditoAplicado;
             
             const masterSaleData = {
-                clienteId: clientId, clienteNombre: clientName, venta_id_manual: saleId, fecha_venta: saleDate,
+                clienteId: clientId, clienteNombre: clientName, venta_id_manual: saleId, 
+                fecha_venta: fechaVentaTimestamp, // <--- Usamos la fecha del formulario
                 total_venta_usd: totalSaleValue,
                 pago_recibido: {
                     usd: montoUsdEfectivo, ars_efectivo: montoArsEfectivo, ars_transferencia: montoArsTransferencia,
@@ -1831,7 +1846,8 @@ async function finalizeWholesaleSale(form) {
                     producto: item.details, precio_venta_usd: item.precio_venta_usd,
                     metodo_pago: 'Venta Mayorista', vendedor: `Mayorista: ${clientName}`,
                     vendedores_implicados: [`Mayorista: ${clientName}`],
-                    fecha_venta: saleDate, venta_mayorista_ref: wholesaleSaleRef.id,
+                    fecha_venta: fechaVentaTimestamp, // <--- Usamos la fecha del formulario
+                    venta_mayorista_ref: wholesaleSaleRef.id,
                 });
                 t.update(db.collection('stock_individual').doc(item.imei), { estado: 'vendido' });
             }
@@ -1840,7 +1856,7 @@ async function finalizeWholesaleSale(form) {
             t.update(clientRef, {
                 total_comprado_usd: firebase.firestore.FieldValue.increment(totalSaleValue),
                 deuda_usd: firebase.firestore.FieldValue.increment(cambioNetoEnDeuda),
-                fecha_ultima_compra: saleDate
+                fecha_ultima_compra: fechaVentaTimestamp // <--- Usamos la fecha del formulario
             });
 
             if (comisionesArray.length > 0) {
@@ -1849,15 +1865,13 @@ async function finalizeWholesaleSale(form) {
                 }
             }
             
-            // ===== INICIO DE LA CORRECCIÓN CLAVE =====
-            // Ahora guardamos los IDs de los canjes generados DENTRO del documento de la venta mayorista.
             if (totalCanjeValue > 0) {
                 const productosVendidosStr = items.map(item => item.details.modelo).join(', ');
                 const canjeIds = [];
                 const reparacionIds = [];
 
                 for (const canjeItem of itemsCanje) {
-                    const esParaReparar = canjeItem.para_reparar; // Asumimos que este dato viene del contexto
+                    const esParaReparar = canjeItem.para_reparar; 
 
                     if (esParaReparar) {
                         const reparacionRef = db.collection("reparaciones").doc();
@@ -1865,7 +1879,8 @@ async function finalizeWholesaleSale(form) {
                             modelo: canjeItem.modelo, precio_costo_usd: canjeItem.valor_toma_usd,
                             defecto: canjeItem.defecto, repuesto_necesario: canjeItem.repuesto,
                             observaciones_canje: `A cambio de ${productosVendidosStr}. ${canjeItem.notas || ''}`,
-                            venta_asociada_id: wholesaleSaleRef.id, fechaDeCarga: saleDate, 
+                            venta_asociada_id: wholesaleSaleRef.id, 
+                            fechaDeCarga: fechaVentaTimestamp, // <--- Usamos la fecha del formulario
                             proveedor: `Canje de ${clientName}`, estado_reparacion: 'pendiente_asignar_imei'
                         });
                         reparacionIds.push(reparacionRef.id);
@@ -1876,7 +1891,8 @@ async function finalizeWholesaleSale(form) {
                             observaciones_canje: `A cambio de ${productosVendidosStr}. ${canjeItem.notas || ''}`, 
                             producto_vendido: `Venta Mayorista #${saleId}`, 
                             venta_asociada_id: wholesaleSaleRef.id,
-                            fecha_canje: saleDate, estado: 'pendiente_de_carga' 
+                            fecha_canje: fechaVentaTimestamp, // <--- Usamos la fecha del formulario
+                            estado: 'pendiente_de_carga' 
                         });
                         canjeIds.push(canjeRef.id);
                     }
@@ -1884,8 +1900,7 @@ async function finalizeWholesaleSale(form) {
                 if (canjeIds.length > 0) masterSaleData.ids_canjes_pendientes = canjeIds;
                 if (reparacionIds.length > 0) masterSaleData.ids_reparaciones_pendientes = reparacionIds;
             }
-            // ===== FIN DE LA CORRECCIÓN CLAVE =====
-
+            // ===== FIN DE LA MODIFICACIÓN =====
             t.set(wholesaleSaleRef, masterSaleData);
         });
 
@@ -1904,6 +1919,27 @@ async function finalizeWholesaleSale(form) {
     } finally {
         toggleSpinner(btn, false);
     }
+}
+
+// AÑADE ESTA NUEVA FUNCIÓN A TU SCRIPT.JS
+
+function initDatepicker(selector) {
+    flatpickr(selector, {
+        dateFormat: "Y-m-d", // Formato que entiende la base de datos
+        altInput: true,      // Muestra un input amigable para el usuario
+        altFormat: "d/m/Y",  // Formato que ve el usuario (DD/MM/AAAA)
+        locale: {
+            firstDayOfWeek: 1, // Lunes como primer día
+            weekdays: {
+                shorthand: ["Do", "Lu", "Ma", "Mi", "Ju", "Vi", "Sa"],
+                longhand: ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"],
+            },
+            months: {
+                shorthand: ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"],
+                longhand: ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"],
+            },
+        }
+    });
 }
 
 async function loadIngresos() {
@@ -5396,6 +5432,8 @@ function showAddProductForm(e, imei = '', modelo = '', canjeId = null, valorToma
     createCustomSelect(s.proveedorFormSelect);
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 async function promptToSell(imei, details) {
     if (!financialAccounts || financialAccounts.length === 0) {
         try {
@@ -5412,7 +5450,6 @@ async function promptToSell(imei, details) {
     const accountsArsOptions = financialAccounts.filter(acc => acc.moneda === 'ARS').map(acc => `<option value="${acc.id}|${acc.nombre}">${acc.nombre}</option>`).join('');
     const accountsUsdOptions = financialAccounts.filter(acc => acc.moneda === 'USD').map(acc => `<option value="${acc.id}|${acc.nombre}">${acc.nombre}</option>`).join('');
 
-    // --- INICIO DE LA MODIFICACIÓN CLAVE ---
     const comisionesHtml = `
         <div class="form-group">
             <label>Comisiones</label>
@@ -5422,7 +5459,6 @@ async function promptToSell(imei, details) {
             <button type="button" id="btn-add-comisionista">+ Agregar Comisionista</button>
         </div>
     `;
-    // --- FIN DE LA MODIFICACIÓN CLAVE ---
 
     const metodosDePagoHtml = `
         <div class="form-group">
@@ -5437,22 +5473,25 @@ async function promptToSell(imei, details) {
 
     const canjeHtml = `<hr style="border-color:var(--border-dark);margin:1.5rem 0;"><label class="toggle-switch-group"><input type="checkbox" id="acepta-canje" name="acepta-canje"><span class="toggle-switch-label">Acepta Plan Canje</span><span class="toggle-switch-slider"></span></label><div id="plan-canje-fields" class="hidden"><h4>Detalles del Equipo Recibido</h4><div class="form-group"><label for="sell-canje-modelo">Modelo Recibido</label><select id="sell-canje-modelo" name="canje-modelo">${modelosOptions}</select></div><div class="form-group"><label for="sell-canje-valor">Valor Toma (USD)</label><input type="number" id="sell-canje-valor" name="canje-valor"></div><div class="form-group"><label for="sell-canje-observaciones">Observaciones</label><textarea id="sell-canje-observaciones" name="canje-observaciones" rows="2"></textarea></div><label class="toggle-switch-group"><input type="checkbox" id="canje-para-reparar-check" name="canje-para-reparar"><span class="toggle-switch-label">Equipo de Canje Dañado (Enviar a Reparación)</span><span class="toggle-switch-slider"></span></label><div id="canje-reparacion-fields" class="hidden" style="animation: fadeIn 0.4s;"><div class="form-group"><label for="canje-defecto-form">Defecto del Equipo Recibido</label><input type="text" id="canje-defecto-form" name="canje-defecto" placeholder="Ej: Pantalla rota, no enciende..."></div><div class="form-group"><label for="canje-repuesto-form">Repuesto Necesario</label><input type="text" id="canje-repuesto-form" name="canje-repuesto" placeholder="Ej: Módulo de pantalla iPhone 12 Pro..."></div></div></div>`;
 
-    s.promptContainer.innerHTML = `<div class="container container-sm" style="margin:auto;"><div class="prompt-box"><h3>Registrar Venta</h3><form id="sell-form"><div class="details-box"><div class="detail-item"><span>Vendiendo:</span> <strong>${details.modelo || ''}</strong></div><div class="detail-item"><span>IMEI:</span> <strong>${imei}</strong></div></div><div class="form-group"><label for="sell-nombre-cliente">Nombre del Cliente (Opcional)</label><input type="text" id="sell-nombre-cliente" name="nombre_cliente"></div><div class="form-group"><label for="sell-precio-venta">Precio Venta TOTAL (USD)</label><input type="number" id="sell-precio-venta" name="precioVenta" required></div>${metodosDePagoHtml}<div class="form-group"><label for="sell-cotizacion-dolar">Cotización Dólar (si aplica)</label><input type="number" id="sell-cotizacion-dolar" name="cotizacion_dolar" placeholder="Ej: 1200"></div>${comisionesHtml}${canjeHtml}<div class="prompt-buttons"><button type="submit" class="prompt-button confirm spinner-btn"><span class="btn-text">Registrar Venta</span><div class="spinner"></div></button><button type="button" class="prompt-button cancel">Cancelar</button></div></form></div></div>`;
+    s.promptContainer.innerHTML = `<div class="container container-sm" style="margin:auto;"><div class="prompt-box"><h3>Registrar Venta</h3><form id="sell-form"><div class="details-box"><div class="detail-item"><span>Vendiendo:</span> <strong>${details.modelo || ''}</strong></div><div class="detail-item"><span>IMEI:</span> <strong>${imei}</strong></div></div>
+        
+        <div class="form-group">
+            <label for="sell-fecha-venta">Fecha de la Venta</label>
+            <input type="date" id="sell-fecha-venta" name="fecha_venta_manual" required>
+        </div>
+        
+        <div class="form-group"><label for="sell-nombre-cliente">Nombre del Cliente (Opcional)</label><input type="text" id="sell-nombre-cliente" name="nombre_cliente"></div><div class="form-group"><label for="sell-precio-venta">Precio Venta TOTAL (USD)</label><input type="number" id="sell-precio-venta" name="precioVenta" required></div>${metodosDePagoHtml}<div class="form-group"><label for="sell-cotizacion-dolar">Cotización Dólar (si aplica)</label><input type="number" id="sell-cotizacion-dolar" name="cotizacion_dolar" placeholder="Ej: 1200"></div>${comisionesHtml}${canjeHtml}<div class="prompt-buttons"><button type="submit" class="prompt-button confirm spinner-btn"><span class="btn-text">Registrar Venta</span><div class="spinner"></div></button><button type="button" class="prompt-button cancel">Cancelar</button></div></form></div></div>`;
     
-    // --- INICIO DE LA LÓGICA PARA EL NUEVO FORMULARIO ---
-    // Añadimos la primera fila de comisión por defecto
+    document.getElementById('sell-fecha-venta').value = new Date().toISOString().slice(0, 10);
+    initDatepicker("#sell-fecha-venta"); // <--- LÍNEA AÑADIDA
+    
     agregarFilaComision(); 
-    
-    // Listener para el botón de AÑADIR
     document.getElementById('btn-add-comisionista').addEventListener('click', agregarFilaComision);
-    
-    // Listener para los botones de ELIMINAR (usando delegación de eventos)
     document.getElementById('comisiones-container').addEventListener('click', function(e) {
         if (e.target && e.target.closest('.btn-remove-comision')) {
             e.target.closest('.comision-fila').remove();
         }
     });
-    // --- FIN DE LA LÓGICA ---
     
     const form = document.getElementById('sell-form');
     form.addEventListener('change', (e) => {
@@ -5468,10 +5507,23 @@ async function promptToSell(imei, details) {
 }
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 async function registerSale(imei, productDetails, btn) {
     toggleSpinner(btn, true);
     const form = btn.form;
     const formData = new FormData(form);
+
+    // ===== INICIO DE LA MODIFICACIÓN (1/2) =====
+    // Leemos la fecha del nuevo input del formulario.
+    const fechaManualStr = formData.get('fecha_venta_manual');
+    if (!fechaManualStr) {
+        showGlobalFeedback("Debes seleccionar una fecha para la venta.", "error");
+        toggleSpinner(btn, false);
+        return;
+    }
+    // Convertimos la fecha (string) a un Timestamp de Firebase, respetando la zona horaria.
+    const fechaVentaTimestamp = firebase.firestore.Timestamp.fromDate(new Date(fechaManualStr + 'T00:00:00'));
+    // ===== FIN DE LA MODIFICACIÓN =====
 
     const comisionFilas = form.querySelectorAll('.comision-fila');
     const comisionesArray = [];
@@ -5534,7 +5586,10 @@ async function registerSale(imei, productDetails, btn) {
         vendedores_implicados: Array.from(vendedoresImplicados),
         comisiones: comisionesArray,
         comision_total_usd: totalComision,
-        fecha_venta: firebase.firestore.FieldValue.serverTimestamp(),
+        // ===== INICIO DE LA MODIFICACIÓN (2/2) =====
+        // Usamos la fecha seleccionada por el usuario en lugar de la del servidor.
+        fecha_venta: fechaVentaTimestamp,
+        // ===== FIN DE LA MODIFICACIÓN =====
         hubo_canje: valorCanjeUSD > 0,
         valor_toma_canje_usd: valorCanjeUSD,
         cotizacion_dolar: cotizacion,
@@ -5544,12 +5599,9 @@ async function registerSale(imei, productDetails, btn) {
         monto_transferencia_usd: montoTransferenciaUsd,
     };
     
-    // ===== INICIO DE LA MODIFICACIÓN CLAVE =====
-    // Si hubo canje, guardamos el modelo del equipo recibido directamente en la venta.
     if (saleData.hubo_canje) {
         saleData.canje_modelo_recibido = formData.get('canje-modelo');
     }
-    // ===== FIN DE LA MODIFICACIÓN CLAVE =====
     
     if (montoTransferencia > 0 && cuentaDestinoArsValue) {
         const [id, nombre] = cuentaDestinoArsValue.split('|');
@@ -5595,7 +5647,8 @@ async function registerSale(imei, productDetails, btn) {
                         estado_reparacion: 'pendiente_asignar_imei', modelo: formData.get('canje-modelo'),
                         precio_costo_usd: saleData.valor_toma_canje_usd, defecto: formData.get('canje-defecto'),
                         repuesto_necesario: formData.get('canje-repuesto'), observaciones_canje: formData.get('canje-observaciones'),
-                        venta_asociada_id: saleRef.id, fechaDeCarga: saleData.fecha_venta,
+                        venta_asociada_id: saleRef.id, 
+                        fechaDeCarga: fechaVentaTimestamp, // Usamos la fecha de la venta
                         proveedor: "Usado (Plan Canje)"
                     });
                     saleData.id_reparacion_pendiente = reparacionRef.id;
@@ -5605,7 +5658,8 @@ async function registerSale(imei, productDetails, btn) {
                     t.set(canjeRef, { 
                         modelo_recibido: formData.get('canje-modelo'), valor_toma_usd: saleData.valor_toma_canje_usd, 
                         observaciones_canje: formData.get('canje-observaciones'), producto_vendido: `${productDetails.modelo} ${productDetails.color}`, 
-                        venta_asociada_id: saleRef.id, fecha_canje: saleData.fecha_venta, 
+                        venta_asociada_id: saleRef.id, 
+                        fecha_canje: fechaVentaTimestamp, // Usamos la fecha de la venta
                         estado: 'pendiente_de_carga' 
                     });
                     saleData.id_canje_pendiente = canjeRef.id;
@@ -5962,6 +6016,7 @@ function resetManagementView(isBatchLoad = false, isCanje = false, isWholesaleSa
 }
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 async function promptToFinalizeWholesaleSale() {
     if (!wholesaleSaleContext || wholesaleSaleContext.items.length === 0) {
         showGlobalFeedback("No has agregado ningún equipo a la venta.", "error");
@@ -6034,6 +6089,11 @@ async function promptToFinalizeWholesaleSale() {
 
             ${saldoHtml}
             
+            <div class="form-group">
+                <label for="ws-fecha-venta">Fecha de la Venta</label>
+                <input type="date" id="ws-fecha-venta" name="fecha_venta_manual" required>
+            </div>
+            
             <div class="form-group"><label>ID de la Venta (Ej: VTA-050)</label><input type="text" name="sale_id" required></div>
             ${metodosDePagoHtml}
             <div class="form-group"><label>Cotización del Dólar (si se paga en ARS)</label><input type="number" name="cotizacion_dolar" placeholder="Ej: 1200"></div>
@@ -6044,6 +6104,9 @@ async function promptToFinalizeWholesaleSale() {
             </div>
         </form>
     </div>`;
+    
+    document.getElementById('ws-fecha-venta').value = new Date().toISOString().slice(0, 10);
+    initDatepicker("#ws-fecha-venta"); // <--- LÍNEA AÑADIDA
     
     agregarFilaComision(); 
     document.getElementById('btn-add-comisionista').addEventListener('click', agregarFilaComision);
