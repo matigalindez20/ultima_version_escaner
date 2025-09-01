@@ -359,7 +359,7 @@ function populateAllSelects() {
     populateSelect(s.proveedorFormSelect, proveedoresConCanje, "Selecciona..."); 
 }
 
-// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU ARCHIVO script.js
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU ARCHIVO SCRIPT.JS
 function addEventListeners() {
     s.logoutButton.addEventListener('click', () => auth.signOut());
     
@@ -420,8 +420,19 @@ function addEventListeners() {
             if (form.id === 'payment-form') { saveProviderPayment(form);
             } else if (form.id === 'collect-balance-form') { saveCollectedBalance(form.querySelector('button[type="submit"]'));
             } else if (form.id === 'provider-form') { saveProvider(form.querySelector('button[type="submit"]'));
-            } else if (form.id === 'gasto-form') { saveGasto(form.querySelector('button[type="submit"]'));
-            } else if (form.id === 'ingreso-form') {
+            } 
+            
+            // ===== INICIO DE LA MODIFICACIÓN =====
+            else if (form.id === 'gasto-form') {
+                if (form.dataset.mode === 'edit') {
+                    // La lógica de edición ya está en su propio listener en promptToEditGasto
+                } else {
+                    saveGasto(form.querySelector('button[type="submit"]'));
+                }
+            } 
+            // ===== FIN DE LA MODIFICACIÓN =====
+            
+            else if (form.id === 'ingreso-form') {
                 const mode = form.dataset.mode || 'create';
                 if (mode === 'create') { saveIngreso(form.querySelector('button[type="submit"]'));
                 } else { updateIngreso(form.dataset.ingresoId, form.querySelector('button[type="submit"]')); }
@@ -689,9 +700,7 @@ function addEventListeners() {
         }
     });
 
-    // ===== INICIO DE LA LÍNEA AÑADIDA =====
     document.getElementById('btn-apply-summary-filter').addEventListener('click', handleApplySummaryFilter);
-    // ===== FIN DE LA LÍNEA AÑADIDA =====
 }
 
 function moveDashboardSlider(activeButton) {
@@ -4239,6 +4248,8 @@ function mostrarReporteCaja(fecha, totalVentas, totalCosto, gananciaNeta, errore
     document.getElementById('btn-cerrar-reporte').onclick = () => { s.promptContainer.innerHTML = ''; };
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 async function promptToAddGasto() {
     // Aseguramos tener la lista de cuentas actualizada
     if (!financialAccounts || financialAccounts.length === 0) {
@@ -4249,19 +4260,12 @@ async function promptToAddGasto() {
     }
 
     const categoriaOptions = gastosCategorias.map(c => `<option value="${c}">${c}</option>`).join('');
-    
-    // ===== INICIO DE LA MODIFICACIÓN (1/3) =====
-    // Añadimos el nuevo método de pago a la lista
     const metodoOptions = [...metodosDePago, "Dólares (Transferencia)"].map(m => `<option value="${m}">${m}</option>`).join('');
-    // ===== FIN DE LA MODIFICACIÓN =====
-    
     const accesoriosOptions = accesoriosSubcategorias.map(s => `<option value="${s}">${s}</option>`).join('');
 
-    // Filtramos las cuentas por ARS y USD para sus respectivos selectores
     const accountsArsOptionsHtml = financialAccounts.filter(acc => acc.moneda === 'ARS').map(acc => `<option value="${acc.id}|${acc.nombre}">${acc.nombre} (${formatearARS(acc.saldo_actual_ars)})</option>`).join('');
     const accountsUsdOptionsHtml = financialAccounts.filter(acc => acc.moneda === 'USD').map(acc => `<option value="${acc.id}|${acc.nombre}">${acc.nombre} (${formatearUSD(acc.saldo_actual_usd)})</option>`).join('');
 
-    // Creamos los selectores de cuenta para ambas monedas
     const accountArsSelectHtml = `<div id="gasto-cuenta-ars-group" class="form-group hidden" style="margin-top: 1.5rem;"><select name="cuenta_origen_ars" required><option value="" disabled selected></option>${accountsArsOptionsHtml}</select><label>Pagar desde Cuenta ARS</label></div>`;
     const accountUsdSelectHtml = `<div id="gasto-cuenta-usd-group" class="form-group hidden" style="margin-top: 1.5rem;"><select name="cuenta_origen_usd" required><option value="" disabled selected></option>${accountsUsdOptionsHtml}</select><label>Pagar desde Cuenta USD</label></div>`;
 
@@ -4269,6 +4273,14 @@ async function promptToAddGasto() {
     <div class="ingreso-modal-box">
         <h3>Registrar Nuevo Gasto</h3>
         <form id="gasto-form" novalidate>
+            
+            <!-- ===== INICIO DE LA MODIFICACIÓN ===== -->
+            <div class="form-group">
+                <input type="date" id="gasto-fecha" name="fecha_manual" required>
+                <label for="gasto-fecha" style="top: -20px; font-size: 0.8rem; color: var(--brand-yellow);">Fecha del Gasto</label>
+            </div>
+            <!-- ===== FIN DE LA MODIFICACIÓN ===== -->
+
             <div class="form-group">
                 <select id="gasto-categoria" name="categoria" required>
                     <option value="" disabled selected></option>
@@ -4287,15 +4299,20 @@ async function promptToAddGasto() {
                 <label for="gasto-metodo">Pagado con</label>
             </div>
             
-            <!-- ===== INICIO DE LA MODIFICACIÓN (2/3) - Insertamos ambos selectores ===== -->
             ${accountArsSelectHtml}
             ${accountUsdSelectHtml}
-            <!-- ===== FIN DE LA MODIFICACIÓN ===== -->
 
             <div class="form-group"><textarea id="gasto-descripcion" name="descripcion" rows="1" placeholder=" "></textarea><label for="gasto-descripcion">Descripción (opcional)</label></div>
             <div class="prompt-buttons"><button type="submit" class="prompt-button confirm spinner-btn"><span class="btn-text">Guardar Gasto</span><div class="spinner"></div></button><button type="button" class="prompt-button cancel">Cancelar</button></div>
         </form>
     </div>`;
+
+    // ===== INICIO DE LA MODIFICACIÓN (LÓGICA) =====
+    // Inicializamos el nuevo campo de fecha con el calendario personalizado
+    initDatepicker("#gasto-fecha");
+    // Por defecto, le asignamos la fecha de hoy
+    document.getElementById('gasto-fecha')._flatpickr.setDate(new Date());
+    // ===== FIN DE LA MODIFICACIÓN (LÓGICA) =====
 
     const categoriaSelect = document.getElementById('gasto-categoria');
     const accesoriosGroup = document.getElementById('accesorios-subcategoria-group');
@@ -4310,7 +4327,6 @@ async function promptToAddGasto() {
         otroGroup.classList.toggle('hidden', selectedCategory !== 'Otro' && selectedCategory !== 'Repuestos');
     });
 
-    // ===== INICIO DE LA MODIFICACIÓN (3/3) - Lógica para mostrar el selector correcto ===== -->
     metodoSelect.addEventListener('change', () => {
         const selectedMethod = metodoSelect.value;
         const isTransferenciaArs = selectedMethod === 'Pesos (Transferencia)';
@@ -4322,7 +4338,6 @@ async function promptToAddGasto() {
         cuentaUsdGroup.classList.toggle('hidden', !isTransferenciaUsd);
         cuentaUsdGroup.querySelector('select').required = isTransferenciaUsd;
     });
-    // ===== FIN DE LA MODIFICACIÓN =====
 
     const textarea = document.getElementById('gasto-descripcion');
     if (textarea) {
@@ -4333,17 +4348,30 @@ async function promptToAddGasto() {
     }
 }
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 async function saveGasto(btn) {
     toggleSpinner(btn, true);
     const form = btn.form;
     const formData = new FormData(form);
     
+    // ===== INICIO DE LA MODIFICACIÓN =====
+    // Leemos la fecha del nuevo input y la convertimos a Timestamp
+    const fechaManualStr = formData.get('fecha_manual');
+    if (!fechaManualStr) {
+        showGlobalFeedback("Debes seleccionar una fecha para el gasto.", "error");
+        toggleSpinner(btn, false);
+        return;
+    }
+    const fechaGastoTimestamp = firebase.firestore.Timestamp.fromDate(new Date(fechaManualStr + 'T12:00:00')); // Usamos T12:00:00 para evitar problemas de zona horaria
+    // ===== FIN DE LA MODIFICACIÓN =====
+
     const gastoData = {
         categoria: formData.get('categoria'),
         monto: parseFloat(formData.get('monto')),
         metodo_pago: formData.get('metodo_pago'),
         descripcion: formData.get('descripcion'),
-        fecha: firebase.firestore.FieldValue.serverTimestamp()
+        fecha: fechaGastoTimestamp // Usamos la fecha del formulario
     };
     
     if (gastoData.categoria === 'Accesorios') gastoData.subcategoria = formData.get('subcategoria');
@@ -4355,7 +4383,6 @@ async function saveGasto(btn) {
         return;
     }
     
-    // ===== INICIO DE LA MODIFICACIÓN - Lógica para ambos tipos de transferencia =====
     const cuentaOrigenArsValue = formData.get('cuenta_origen_ars');
     const cuentaOrigenUsdValue = formData.get('cuenta_origen_usd');
 
@@ -4378,14 +4405,12 @@ async function saveGasto(btn) {
         gastoData.cuenta_origen_id = id;
         gastoData.cuenta_origen_nombre = nombre;
     }
-    // ===== FIN DE LA MODIFICACIÓN =====
 
     try {
         await db.runTransaction(async t => {
             const gastoRef = db.collection('gastos').doc();
             t.set(gastoRef, gastoData);
 
-            // ===== INICIO DE LA MODIFICACIÓN - Descontar de la cuenta correcta =====
             if (gastoData.cuenta_origen_id) {
                 const cuentaRef = db.collection('cuentas_financieras').doc(gastoData.cuenta_origen_id);
                 if (gastoData.metodo_pago === 'Pesos (Transferencia)') {
@@ -4394,7 +4419,6 @@ async function saveGasto(btn) {
                     t.update(cuentaRef, { saldo_actual_usd: firebase.firestore.FieldValue.increment(-gastoData.monto) });
                 }
             }
-            // ===== FIN DE LA MODIFICACIÓN =====
         });
 
         showGlobalFeedback('Gasto registrado con éxito', 'success');
@@ -4515,6 +4539,7 @@ function renderGastosChart(gastos, gastosPorCategoria) {
 }
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 function renderGastosList(gastos) {
     if (gastos.length === 0) {
         s.gastosList.innerHTML = `<p class="dashboard-loader">No hay gastos para mostrar en este período.</p>`;
@@ -4523,7 +4548,8 @@ function renderGastosList(gastos) {
     s.gastosList.innerHTML = gastos.map(gasto => {
         let desc = gasto.descripcion || 'Sin detalles';
         let montoFormateado;
-        let deleteButton;
+        let actionButtons;
+        const gastoJSON = JSON.stringify(gasto).replace(/'/g, "\\'");
         
         let metodoPagoBadge = '';
         if (gasto.metodo_pago) {
@@ -4532,27 +4558,30 @@ function renderGastosList(gastos) {
                 case 'Pesos (Efectivo)': badgeClass = 'efectivo'; badgeText = 'Efectivo'; break;
                 case 'Pesos (Transferencia)': badgeClass = 'transferencia'; badgeText = 'Transferencia'; break;
                 case 'Dólares': badgeClass = 'dolares'; badgeText = 'Dólares'; break;
+                case 'Dólares (Transferencia)': badgeClass = 'dolares'; badgeText = 'Transf. USD'; break;
             }
             if (badgeText) { metodoPagoBadge = `<span class="payment-badge payment-badge--${badgeClass}">${badgeText}</span>`; }
         }
 
-        if (gasto.categoria === 'Comisiones') {
-            desc = `Pago a ${gasto.vendedor}. ${gasto.descripcion || ''}`;
+        if (gasto.categoria === 'Comisiones' || gasto.categoria === 'Pago a Proveedor' || gasto.categoria === 'Retiro de Socio') {
+            desc = gasto.descripcion || `Movimiento automático de ${gasto.categoria}`;
             if (gasto.metodo_pago.startsWith('Pesos')) {
-                montoFormateado = `${formatearARS(gasto.monto)} <small>(${formatearUSD(gasto.monto_usd_original)})</small>`;
+                montoFormateado = `${formatearARS(gasto.monto)} <small>(${formatearUSD(gasto.monto_usd_original || 0)})</small>`;
             } else {
                 montoFormateado = formatearUSD(gasto.monto);
             }
-            deleteButton = `<button class="delete-btn" title="Revertir desde la pestaña Comisiones" disabled><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>`;
+            // Los gastos automáticos no se pueden editar ni eliminar desde aquí
+            actionButtons = `<button class="edit-btn" title="No se puede editar un gasto automático" disabled style="opacity: 0.3;"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                           <button class="delete-btn" title="Revertir desde su sección correspondiente" disabled style="opacity: 0.3;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>`;
         } else {
             if (gasto.categoria === 'Accesorios' && gasto.subcategoria) desc = `${gasto.subcategoria}${gasto.detalle_otro ? `: ${gasto.detalle_otro}` : ''} - ${desc}`;
             if (gasto.categoria === 'Otro' && gasto.detalle_otro) desc = `${gasto.detalle_otro} - ${desc}`;
-            montoFormateado = gasto.metodo_pago === 'Dólares' ? formatearUSD(gasto.monto) : formatearARS(gasto.monto);
-            deleteButton = `<button class="delete-btn" title="Eliminar Gasto" onclick="deleteGasto('${gasto.id}', '${gasto.categoria}', ${gasto.monto})"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>`;
+            montoFormateado = (gasto.metodo_pago === 'Dólares' || gasto.metodo_pago === 'Dólares (Transferencia)') ? formatearUSD(gasto.monto) : formatearARS(gasto.monto);
+            // Para gastos manuales, sí permitimos editar y eliminar
+            actionButtons = `<button class="edit-btn btn-edit-gasto" title="Editar Gasto" data-gasto-item='${gastoJSON}'><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                           <button class="delete-btn" title="Eliminar Gasto" onclick="deleteGasto('${gasto.id}', '${gasto.categoria}', ${gasto.monto})"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>`;
         }
 
-        // ===================== INICIO DE LA MODIFICACIÓN =====================
-        // Se agrupan 'details' y 'actions' en un nuevo div 'gasto-item-footer'
         return `<div class="gasto-item" style="border-color: ${categoriaColores[gasto.categoria] || '#cccccc'};">
             <div class="gasto-item-info">
                 <div class="gasto-item-header">
@@ -4566,11 +4595,102 @@ function renderGastosList(gastos) {
                     <div class="gasto-item-amount">${montoFormateado}</div>
                     <div class="gasto-item-date">${new Date((gasto.fecha?.seconds || 0) * 1000).toLocaleDateString('es-AR')}</div>
                 </div>
-                <div class="gasto-item-actions">${deleteButton}</div>
+                <div class="gasto-item-actions">${actionButtons}</div>
             </div>
         </div>`;
-        // ====================== FIN DE LA MODIFICACIÓN =======================
     }).join('');
+
+    // Añadimos el listener para los nuevos botones de editar
+    document.querySelectorAll('.btn-edit-gasto').forEach(button => {
+        button.addEventListener('click', (e) => {
+            const gastoItem = JSON.parse(button.dataset.gastoItem.replace(/\\'/g, "'"));
+            promptToEditGasto(gastoItem);
+        });
+    });
+}
+
+// AÑADE ESTAS DOS NUEVAS FUNCIONES A TU SCRIPT.JS
+
+function promptToEditGasto(gastoItem) {
+    const categoriaOptions = gastosCategorias.map(c => `<option value="${c}" ${gastoItem.categoria === c ? 'selected' : ''}>${c}</option>`).join('');
+    const metodoOptions = [...metodosDePago, "Dólares (Transferencia)"].map(m => `<option value="${m}" ${gastoItem.metodo_pago === m ? 'selected' : ''}>${m}</option>`).join('');
+
+    s.promptContainer.innerHTML = `
+    <div class="ingreso-modal-box">
+        <h3>Editar Gasto</h3>
+        <form id="gasto-form" data-mode="edit" data-gasto-id="${gastoItem.id}" novalidate>
+            <div class="form-group">
+                <input type="date" id="gasto-fecha" name="fecha_manual" required>
+                <label for="gasto-fecha" style="top: -20px; font-size: 0.8rem; color: var(--brand-yellow);">Fecha del Gasto</label>
+            </div>
+            <div class="form-group">
+                <select id="gasto-categoria" name="categoria" required>${categoriaOptions}</select>
+                <label for="gasto-categoria">Categoría</label>
+            </div>
+            <div class="form-group"><input type="number" id="gasto-monto" name="monto" required placeholder=" " step="0.01" value="${gastoItem.monto}">
+                <label for="gasto-monto">Monto del Gasto</label>
+            </div>
+            <div class="form-group">
+                <select id="gasto-metodo" name="metodo_pago" required>${metodoOptions}</select>
+                <label for="gasto-metodo">Pagado con</label>
+            </div>
+            <div class="form-group"><textarea id="gasto-descripcion" name="descripcion" rows="1" placeholder=" ">${gastoItem.descripcion || ''}</textarea>
+                <label for="gasto-descripcion">Descripción (opcional)</label>
+            </div>
+            <div class="prompt-buttons">
+                <button type="submit" class="prompt-button confirm spinner-btn"><span class="btn-text">Actualizar Gasto</span><div class="spinner"></div></button>
+                <button type="button" class="prompt-button cancel">Cancelar</button>
+            </div>
+        </form>
+    </div>`;
+
+    // Pre-populamos la fecha y la inicializamos con el calendario
+    const fechaGasto = gastoItem.fecha.toDate();
+    const fechaInput = document.getElementById('gasto-fecha');
+    initDatepicker(fechaInput);
+    fechaInput._flatpickr.setDate(fechaGasto, true);
+
+    // Adjuntamos listener para el submit del formulario de edición
+    document.getElementById('gasto-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        updateGasto(gastoItem, e.target.querySelector('button[type="submit"]'));
+    });
+}
+
+async function updateGasto(oldGastoData, btn) {
+    toggleSpinner(btn, true);
+    const form = btn.form;
+    const gastoId = form.dataset.gastoId;
+    const formData = new FormData(form);
+
+    const fechaManualStr = formData.get('fecha_manual');
+    if (!fechaManualStr) {
+        showGlobalFeedback("La fecha no puede estar vacía.", "error");
+        toggleSpinner(btn, false);
+        return;
+    }
+    const fechaGastoTimestamp = firebase.firestore.Timestamp.fromDate(new Date(fechaManualStr + 'T12:00:00'));
+
+    const updatedGastoData = {
+        fecha: fechaGastoTimestamp,
+        categoria: formData.get('categoria'),
+        monto: parseFloat(formData.get('monto')),
+        metodo_pago: formData.get('metodo_pago'),
+        descripcion: formData.get('descripcion'),
+    };
+    
+    try {
+        await db.collection('gastos').doc(gastoId).update(updatedGastoData);
+        showGlobalFeedback('Gasto actualizado con éxito.', 'success');
+        s.promptContainer.innerHTML = '';
+        loadGastos();
+        updateReports();
+    } catch (error) {
+        console.error("Error al actualizar el gasto:", error);
+        showGlobalFeedback('Error al actualizar el gasto.', 'error');
+    } finally {
+        toggleSpinner(btn, false);
+    }
 }
 
 function deleteGasto(id, categoria, monto) {
