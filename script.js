@@ -5820,9 +5820,11 @@ s.productForm.addEventListener('click', (e) => {
     }
 });
 
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+
 async function handleProductFormSubmit(e) {
     e.preventDefault();
-    const btn = e.target.querySelector('button');
+    const btn = e.target.querySelector('button[type="submit"]');
     const form = e.target;
     const mode = form.dataset.mode || 'create';
     toggleSpinner(btn, true);
@@ -5889,25 +5891,38 @@ async function handleProductFormSubmit(e) {
                 if (newImei === originalImei) {
                     await db.collection("stock_individual").doc(originalImei).update(unitData);
                 } else {
+                    // ===================== INICIO DE LA CORRECCIÓN =====================
+                    // La lógica de validación ahora es más completa y precisa.
                     await db.runTransaction(async (t) => {
                         const oldDocRef = db.collection("stock_individual").doc(originalImei);
                         const newDocRef = db.collection("stock_individual").doc(newImei);
-                        const newDocSnapshot = await t.get(newDocRef);
-                        if (newDocSnapshot.exists) {
-                            throw new Error(`El nuevo IMEI "${newImei}" ya existe en el stock.`);
+                        const reparacionRef = db.collection("reparaciones").doc(newImei);
+
+                        // Verificamos si el nuevo IMEI existe en stock O en reparaciones
+                        const [newStockDoc, newReparacionDoc] = await Promise.all([t.get(newDocRef), t.get(reparacionRef)]);
+
+                        // La condición ahora es igual a la de crear un producto nuevo:
+                        // Falla solo si el IMEI ya está activo o en reparación.
+                        if ((newStockDoc.exists && newStockDoc.data().estado === 'en_stock') || newReparacionDoc.exists) {
+                            throw new Error(`El nuevo IMEI "${newImei}" ya se encuentra activo en el stock o en reparación.`);
                         }
+                        
+                        // El resto de la lógica para mover los datos de un IMEI a otro
                         const oldDoc = await t.get(oldDocRef);
+                        if (!oldDoc.exists) throw new Error("El producto que intentas editar ya no existe.");
+                        
                         const oldData = oldDoc.data();
                         const newUnitData = {
                             ...unitData,
                             imei: newImei,
                             imei_last_4: newImei.slice(-4),
                             estado: 'en_stock',
-                            fechaDeCarga: oldData.fechaDeCarga
+                            fechaDeCarga: oldData.fechaDeCarga // Conservamos la fecha de carga original
                         };
                         t.set(newDocRef, newUnitData);
                         t.delete(oldDocRef);
                     });
+                    // ====================== FIN DE LA CORRECCIÓN =======================
                 }
                 
                 showGlobalFeedback("¡Producto actualizado con éxito!", "success");
@@ -5977,13 +5992,10 @@ async function handleProductFormSubmit(e) {
                 }
                 showFeedback(message, "success");
                 
-                // ================== INICIO DE LA CORRECCIÓN ==================
-                // Después de guardar, mostramos el nuevo modal de confirmación en lugar de solo resetear la vista.
                 setTimeout(() => {
-                    s.managementView.classList.add('hidden'); // Ocultamos la vista del formulario
-                    promptForNextBatchAction(); // Mostramos el nuevo modal
+                    s.managementView.classList.add('hidden');
+                    promptForNextBatchAction();
                 }, 1000);
-                // =================== FIN DE LA CORRECCIÓN ====================
 
             } else {
                 let message = `¡Éxito! ${commonData.modelo} añadido.`;
