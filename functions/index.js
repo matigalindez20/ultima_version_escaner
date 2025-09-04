@@ -1,25 +1,74 @@
-// Importa las funciones necesarias con la nueva sintaxis (v2)
-const {onDocumentWritten} = require("firebase-functions/v2/firestore");
-const {logger} = require("firebase-functions");
-const {google} = require("googleapis");
-const admin = require("firebase-admin"); // Importa el SDK de Admin
+// =======================================================================
+// ===== ARCHIVO index.js DE PRODUCCIÓN (CON AMBAS FUNCIONES) ==========
+// =======================================================================
 
-// --- INICIALIZACIÓN SEGURA ---
-// Inicializa el SDK de Firebase Admin.
-// Al ejecutarse en el entorno de Firebase, encontrará las credenciales automáticamente.
+// --- IMPORTACIONES COMUNES ---
+const { onDocumentCreated, onDocumentWritten } = require("firebase-functions/v2/firestore");
+const { logger } = require("firebase-functions");
+const admin = require("firebase-admin");
+const nodemailer = require("nodemailer");
+const { google } = require("googleapis");
+
+// --- INICIALIZACIÓN ---
 admin.initializeApp();
 
-// --- CONFIGURACIÓN ---
+// =======================================================================
+// ===== FUNCIÓN 1: ENVIAR GARANTÍA POR EMAIL ============================
+// =======================================================================
+
+// Le decimos a la función que necesita acceso al secreto GMAIL_PASSWORD
+exports.enviarGarantia = onDocumentCreated(
+  {
+    document: "mailQueue/{docId}",
+    secrets: ["GMAIL_PASSWORD"],
+  },
+  async (event) => {
+    const snap = event.data;
+    if (!snap) {
+      logger.log("No hay datos asociados al evento de email.");
+      return;
+    }
+    const mailData = snap.data();
+
+    const mailTransport = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        // ¡IMPORTANTE! Reemplaza con el email de tu empresa
+        user: "garantiatwinss@gmail.com", 
+        pass: process.env.GMAIL_PASSWORD,
+      },
+    });
+
+    const mailOptions = {
+      // ¡IMPORTANTE! Reemplaza con el email de tu empresa
+      from: `"iPhone Twins" <garantiatwinss@gmail.com>`,
+      to: mailData.to,
+      subject: mailData.message.subject,
+      html: mailData.message.html,
+    };
+
+    try {
+      await mailTransport.sendMail(mailOptions);
+      logger.log(`Garantía enviada a ${mailData.to} vía Gmail`);
+      return snap.ref.delete();
+    } catch (error) {
+      logger.error("Hubo un error al enviar el email:", error);
+      return null;
+    }
+  }
+);
+
+// =======================================================================
+// ===== FUNCIÓN 2: ACTUALIZAR GOOGLE SHEETS =============================
+// =======================================================================
+
 const SPREADSHEET_ID = "1dfq-38MaoIkt0AdZqrays_3mWXcdc9IoRU0HufevuRg";
 
-// --- FUNCIÓN PRINCIPAL (con sintaxis v2) ---
 exports.updateStockSheet = onDocumentWritten("stock_individual/{imei}", async (event) => {
   let data;
   const imei = event.params.imei;
   let action;
 
-  // Autenticación con Google Sheets.
-  // Ya no se pegan las credenciales. Google las encuentra automáticamente en el entorno.
   const auth = new google.auth.GoogleAuth({
     scopes: "https://www.googleapis.com/auth/spreadsheets",
   });
@@ -30,16 +79,16 @@ exports.updateStockSheet = onDocumentWritten("stock_individual/{imei}", async (e
   } else if (!event.data.before.exists) {
     action = "CREATE";
     data = event.data.after.data();
-    logger.log(`Detectada CREACIÓN para IMEI: ${imei}`, {data});
+    logger.log(`Detectada CREACIÓN para IMEI: ${imei}`, { data });
   } else {
     action = "UPDATE";
     data = event.data.after.data();
-    logger.log(`Detectada ACTUALIZACIÓN para IMEI: ${imei}`, {data});
+    logger.log(`Detectada ACTUALIZACIÓN para IMEI: ${imei}`, { data });
   }
 
   try {
     const client = await auth.getClient();
-    const sheets = google.sheets({version: "v4", auth: client});
+    const sheets = google.sheets({ version: "v4", auth: client });
 
     if (action === "DELETE") {
       await deleteRowByImei(sheets, auth, imei);
@@ -56,16 +105,14 @@ exports.updateStockSheet = onDocumentWritten("stock_individual/{imei}", async (e
   }
 });
 
-
-// --- FUNCIONES AUXILIARES (Modificadas para recibir 'auth') ---
+// --- FUNCIONES AUXILIARES PARA GOOGLE SHEETS ---
 async function updateOrCreateRow(sheets, auth, data, imei) {
   const sheetName = "Hoja 1";
   const range = `${sheetName}!A:A`;
-  const getRows = await sheets.spreadsheets.values.get({auth, spreadsheetId: SPREADSHEET_ID, range});
+  const getRows = await sheets.spreadsheets.values.get({ auth, spreadsheetId: SPREADSHEET_ID, range });
   const imeiList = getRows.data.values ? getRows.data.values.flat() : [];
   const rowIndex = imeiList.indexOf(imei);
-  
-  // Incluir el proveedor en los datos a guardar
+
   const rowData = [
     data.imei || "",
     data.modelo || "",
@@ -73,7 +120,7 @@ async function updateOrCreateRow(sheets, auth, data, imei) {
     data.almacenamiento || "",
     data.bateria ? `${data.bateria}%` : "",
     data.detalles_esteticos || "",
-    data.proveedor || "N/A", // Agregamos el proveedor
+    data.proveedor || "N/A",
     new Date().toLocaleString("es-AR"),
   ];
 
@@ -81,13 +128,13 @@ async function updateOrCreateRow(sheets, auth, data, imei) {
     logger.log(`Actualizando fila ${rowIndex + 1} para IMEI ${imei}`);
     await sheets.spreadsheets.values.update({
       auth, spreadsheetId: SPREADSHEET_ID, range: `${sheetName}!A${rowIndex + 1}`,
-      valueInputOption: "USER_ENTERED", resource: {values: [rowData]},
+      valueInputOption: "USER_ENTERED", resource: { values: [rowData] },
     });
   } else {
     logger.log(`Creando nueva fila para IMEI ${imei}`);
     await sheets.spreadsheets.values.append({
       auth, spreadsheetId: SPREADSHEET_ID, range: `${sheetName}!A1`,
-      valueInputOption: "USER_ENTERED", resource: {values: [rowData]},
+      valueInputOption: "USER_ENTERED", resource: { values: [rowData] },
     });
   }
 }
@@ -95,17 +142,16 @@ async function updateOrCreateRow(sheets, auth, data, imei) {
 async function deleteRowByImei(sheets, auth, imei) {
   const sheetName = "Hoja 1";
   const range = `${sheetName}!A:A`;
-  const getRows = await sheets.spreadsheets.values.get({auth, spreadsheetId: SPREADSHEET_ID, range});
+  const getRows = await sheets.spreadsheets.values.get({ auth, spreadsheetId: SPREADSHEET_ID, range });
   const imeiList = getRows.data.values ? getRows.data.values.flat() : [];
   const rowIndex = imeiList.indexOf(imei);
 
   if (rowIndex > -1) {
-    // Obtener el ID de la hoja de cálculo (sheetId) dinámicamente
-    const spreadsheet = await sheets.spreadsheets.get({auth, spreadsheetId: SPREADSHEET_ID});
+    const spreadsheet = await sheets.spreadsheets.get({ auth, spreadsheetId: SPREADSHEET_ID });
     const sheet = spreadsheet.data.sheets.find(s => s.properties.title === sheetName);
     if (!sheet) {
-        logger.error(`No se encontró la hoja con el nombre: ${sheetName}`);
-        return;
+      logger.error(`No se encontró la hoja con el nombre: ${sheetName}`);
+      return;
     }
     const sheetId = sheet.properties.sheetId;
 

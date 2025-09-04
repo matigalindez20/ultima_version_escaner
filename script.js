@@ -9180,7 +9180,7 @@ function agregarFilaComision() {
 
 
 
-// REEMPLAZA ESTA FUNCIÓN HELPER COMPLETA
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS (VERSIÓN FINAL CON ICONOS)
 function renderFunctionForSales(docId, venta, wholesaleMap = new Map()) {
     const fechaObj = venta.fecha_venta ? venta.fecha_venta.toDate() : new Date();
     let fechaFormateada = `${String(fechaObj.getDate()).padStart(2, '0')}/${String(fechaObj.getMonth() + 1).padStart(2, '0')}/${fechaObj.getFullYear()}<br><small class="time-muted">${String(fechaObj.getHours()).padStart(2, '0')}:${String(fechaObj.getMinutes()).padStart(2, '0')} hs</small>`;
@@ -9203,17 +9203,11 @@ function renderFunctionForSales(docId, venta, wholesaleMap = new Map()) {
         const masterSale = wholesaleMap.get(venta.venta_mayorista_ref);
         const pagos = masterSale.pago_recibido || {};
         const metodos = [];
-        
-        if (masterSale.hubo_canje && masterSale.items_canje && masterSale.items_canje.length > 0) {
-            const canjeModels = masterSale.items_canje.map(item => item.modelo.replace('Iphone ', 'Iph ')).join(', ');
-            metodos.push(`Canje (${canjeModels})`);
-        }
-        
+        if (masterSale.hubo_canje && masterSale.items_canje && masterSale.items_canje.length > 0) { const canjeModels = masterSale.items_canje.map(item => item.modelo.replace('Iphone ', 'Iph ')).join(', '); metodos.push(`Canje (${canjeModels})`); }
         if (pagos.usd > 0) metodos.push('USD');
         if (pagos.ars_efectivo > 0) metodos.push('Efectivo ARS');
         if (pagos.ars_transferencia > 0) metodos.push('Transf. ARS');
         if (pagos.usd_transferencia > 0) metodos.push('Transf. USD');
-        
         metodoPagoDisplay = metodos.join(' + ') || 'Venta Mayorista';
         clienteInfo = `Mayorista: ${masterSale.clienteNombre}`;
         vendedorInfo = masterSale.vendedor_display || 'N/A';
@@ -9224,48 +9218,46 @@ function renderFunctionForSales(docId, venta, wholesaleMap = new Map()) {
     
     const ventaJSON = JSON.stringify(venta).replace(/'/g, "\\'");
 
-    // ===== INICIO DE LA MODIFICACIÓN =====
-    // Ahora la celda de pago es un DIV con la clase 'payment-cell-clickable'
-    // y tiene el atributo 'data-sale-item' para pasarle los datos a la función del modal.
     return `<tr data-sale-id="${docId}">
                 <td>${fechaFormateada}</td>
                 <td>${productoConImeiHtml}</td>
                 <td class="client-cell" title="${clienteInfo}">${clienteInfo}</td>
                 <td>${vendedorInfo}</td>
                 <td>${formatearUSD(venta.precio_venta_usd)}</td>
-                <td><div class="payment-cell-clickable" data-sale-item='${ventaJSON}'>${metodoPagoDisplay}</div></td>
+                <td class="payment-cell" title="${metodoPagoDisplay}"><div class="payment-cell-clickable" data-sale-item='${ventaJSON}'>${metodoPagoDisplay}</div></td>
                 <td class="garantia-cell">${garantiaHtml}</td>
                 <td class="actions-cell">
-                    <button class="edit-btn btn-edit-sale" title="Editar Venta"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
-                    <button class="delete-btn btn-delete-sale" title="Revertir Venta"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button>
+                    <button class="action-btn-circle btn-warranty btn-send-warranty" title="Enviar Garantía por Email">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                    </button>
+                    <button class="action-btn-circle btn-edit btn-edit-sale" title="Editar Venta">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                    </button>
+                    <button class="action-btn-circle btn-delete btn-delete-sale" title="Revertir Venta">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    </button>
                 </td>
             </tr>`;
-    // ===== FIN DE LA MODIFICACIÓN =====
 }
 
-// AÑADE ESTA OTRA FUNCIÓN AL FINAL DE TU SCRIPT.JS
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
 function setupEventListenersForSales() {
     document.querySelectorAll('.garantia-icon').forEach(icon => { let tooltip = null; icon.addEventListener('mouseenter', (e) => { const text = e.currentTarget.dataset.tooltip; tooltip = document.createElement('div'); tooltip.className = 'garantia-tooltip'; tooltip.textContent = text; e.currentTarget.appendChild(tooltip); setTimeout(() => { tooltip.classList.add('visible'); }, 10); }); icon.addEventListener('mouseleave', () => { if (tooltip) { tooltip.classList.remove('visible'); tooltip.addEventListener('transitionend', () => tooltip.remove()); } }); });
-    document.querySelectorAll('.btn-edit-sale').forEach(button => button.addEventListener('click', e => { const row = e.currentTarget.closest('tr'); const saleItem = JSON.parse(row.dataset.saleItem.replace(/\\'/g, "'")); promptToEditSale(saleItem, row.dataset.saleId); }));
-    document.querySelectorAll('.btn-delete-sale').forEach(button => button.addEventListener('click', e => { const row = e.currentTarget.closest('tr'); const saleId = row.dataset.saleId; const saleItem = JSON.parse(row.dataset.saleItem.replace(/\\'/g, "'")); handleSaleDeletion(saleId, saleItem); }));
-}
-
-// AÑADE ESTA OTRA FUNCIÓN AL FINAL DE TU SCRIPT.JS
-function setupEventListenersForSales() {
-    // --- Lógica existente ---
-    document.querySelectorAll('.garantia-icon').forEach(icon => { let tooltip = null; icon.addEventListener('mouseenter', (e) => { const text = e.currentTarget.dataset.tooltip; tooltip = document.createElement('div'); tooltip.className = 'garantia-tooltip'; tooltip.textContent = text; e.currentTarget.appendChild(tooltip); setTimeout(() => { tooltip.classList.add('visible'); }, 10); }); icon.addEventListener('mouseleave', () => { if (tooltip) { tooltip.classList.remove('visible'); tooltip.addEventListener('transitionend', () => tooltip.remove()); } }); });
-    document.querySelectorAll('.btn-edit-sale').forEach(button => button.addEventListener('click', e => { const row = e.currentTarget.closest('tr'); const saleItem = JSON.parse(row.closest('tr').querySelector('.payment-cell-clickable').dataset.saleItem.replace(/\\'/g, "'")); promptToEditSale(saleItem, row.dataset.saleId); }));
+    document.querySelectorAll('.btn-edit-sale').forEach(button => button.addEventListener('click', e => { const row = e.currentTarget.closest('tr'); const saleItem = JSON.parse(row.querySelector('.payment-cell-clickable').dataset.saleItem.replace(/\\'/g, "'")); promptToEditSale(saleItem, row.dataset.saleId); }));
     document.querySelectorAll('.btn-delete-sale').forEach(button => button.addEventListener('click', e => { const row = e.currentTarget.closest('tr'); const saleId = row.dataset.saleId; const saleItem = JSON.parse(row.querySelector('.payment-cell-clickable').dataset.saleItem.replace(/\\'/g, "'")); handleSaleDeletion(saleId, saleItem); }));
-
-    // ===== INICIO DE LA MODIFICACIÓN =====
-    // Añadimos un listener para todas las celdas de pago clickeables.
-    document.querySelectorAll('.payment-cell-clickable').forEach(cell => {
-        cell.addEventListener('click', (e) => {
-            const saleItem = JSON.parse(e.currentTarget.dataset.saleItem.replace(/\\'/g, "'"));
-            showPaymentDetailModal(saleItem);
+    document.querySelectorAll('.payment-cell-clickable').forEach(cell => { cell.addEventListener('click', (e) => { const saleItem = JSON.parse(e.currentTarget.dataset.saleItem.replace(/\\'/g, "'")); showPaymentDetailModal(saleItem); }); });
+    
+    // ===== INICIO DEL CÓDIGO AÑADIDO =====
+    // Le damos funcionalidad al nuevo botón de garantía
+    document.querySelectorAll('.btn-send-warranty').forEach(button => {
+        button.addEventListener('click', e => {
+            const row = e.currentTarget.closest('tr');
+            const saleId = row.dataset.saleId;
+            const saleItem = JSON.parse(row.querySelector('.payment-cell-clickable').dataset.saleItem.replace(/\\'/g, "'"));
+            promptToSendWarrantyEmail(saleId, saleItem);
         });
     });
-    // ===== FIN DE LA MODIFICACIÓN =====
+    // ===== FIN DEL CÓDIGO AÑADIDO =====
 }
 
 // REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
@@ -9464,4 +9456,126 @@ function createCustomSelect(selectElement) {
             wrapper.classList.remove('open');
         }
     });
+}
+
+// =======================================================================
+// ===== INICIO: NUEVAS FUNCIONES PARA LA GARANTÍA =========================
+// Pega este bloque completo al final de tu archivo script.js
+// =======================================================================
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS
+function promptToSendWarrantyEmail(saleId, saleData) {
+    const producto = saleData.producto || {};
+    const cliente = saleData.nombre_cliente || 'Cliente';
+
+    // Usamos la misma clase 'financiera-modal-box' para reutilizar el estilo moderno
+    s.promptContainer.innerHTML = `
+    <div class="financiera-modal-box">
+        <h3>Enviar Garantía por Email</h3>
+        <p style="text-align:center; color: var(--text-muted); margin-top:-2rem; margin-bottom: 2.5rem;">
+            Equipo: <strong>${producto.modelo} ${producto.color}</strong>
+        </p>
+        <form id="warranty-email-form" novalidate>
+            <div class="form-group">
+                <input type="email" id="warranty-customer-email" name="email" required placeholder=" ">
+                <label for="warranty-customer-email">Email del Cliente</label>
+            </div>
+            <div class="prompt-buttons" style="flex-direction: row; gap: 1rem; margin-top: 2rem;">
+                <button type="submit" class="prompt-button confirm spinner-btn" style="background-color: var(--brand-yellow); color: #000;">
+                    <span class="btn-text">Enviar Garantía</span>
+                    <div class="spinner"></div>
+                </button>
+                <button type="button" class="prompt-button cancel">Cancelar</button>
+            </div>
+        </form>
+    </div>`;
+
+    document.getElementById('warranty-email-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        sendWarrantyEmail(saleData, e.target.querySelector('button[type="submit"]'));
+    });
+
+    // Hacemos foco en el input del email automáticamente
+    document.getElementById('warranty-customer-email').focus();
+}
+
+// REEMPLAZA ESTA FUNCIÓN COMPLETA EN TU SCRIPT.JS (VERSIÓN PANTALLA COMPLETA)
+async function sendWarrantyEmail(saleData, btn) {
+    // 1. Deshabilitamos el botón para evitar clics múltiples
+    toggleSpinner(btn, true); 
+    const form = btn.closest('form');
+    const customerEmail = form.email.value.trim();
+
+    // 2. Preparamos los datos del email (esto no cambia)
+    const fechaVenta = new Date(saleData.fecha_venta.seconds * 1000);
+    const mailRequest = {
+        to: customerEmail,
+        message: {
+            subject: `¡Garantía de tu nuevo iPhone de iPhone Twins!`,
+            html: `
+                <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: auto; border: 1px solid #ddd; padding: 20px; border-radius: 8px;">
+                    <h2>¡Hola ${saleData.nombre_cliente || 'crack'}!</h2>
+                    <p>Gracias por tu compra en <strong>iPhone Twins</strong>. Adjuntamos los detalles de la garantía de tu nuevo equipo:</p>
+                    <hr>
+                    <h3 style="color: #333;">Detalles del Equipo</h3>
+                    <ul style="list-style: none; padding: 0;">
+                        <li style="padding: 5px 0;"><strong>Modelo:</strong> ${saleData.producto.modelo}</li>
+                        <li style="padding: 5px 0;"><strong>Color:</strong> ${saleData.producto.color}</li>
+                        <li style="padding: 5px 0;"><strong>Almacenamiento:</strong> ${saleData.producto.almacenamiento}</li>
+                        <li style="padding: 5px 0;"><strong>IMEI:</strong> ${saleData.imei_vendido}</li>
+                    </ul>
+                    <h3 style="color: #333;">Detalles de la Garantía</h3>
+                    <ul style="list-style: none; padding: 0;">
+                        <li style="padding: 5px 0;"><strong>Fecha de Compra:</strong> ${fechaVenta.toLocaleDateString('es-AR', {day: '2-digit', month: 'long', year: 'numeric'})}</li>
+                        <li style="padding: 5px 0;"><strong>Duración:</strong> 30 días a partir de la fecha de compra.</li>
+                        <li style="padding: 5px 0;"><strong>Cobertura:</strong> Defectos de fábrica y fallas de funcionamiento no ocasionadas por mal uso, golpes o contacto con líquidos.</li>
+                    </ul>
+                    <hr>
+                    <p>Si tienes alguna consulta o necesitas hacer uso de tu garantía, no dudes en comunicarte con nosotros a través de nuestro <a href="https://wa.me/TU_NUMERO_DE_WHATSAPP">WhatsApp</a> o por mensaje directo en <a href="https://instagram.com/iphonetwins">nuestro Instagram</a>.</p>
+                    <p>¡Que lo disfrutes!</p>
+                    <p style="margin-top: 20px;"><strong>El equipo de iPhone Twins</strong></p>
+                </div>
+            `
+        }
+    };
+
+    // 3. Enviamos la solicitud a la base de datos
+    try {
+        await db.collection("mailQueue").add(mailRequest);
+        
+        // 4. LA MAGIA: Si el envío es exitoso, lanzamos la animación a pantalla completa
+        
+        // Ocultamos el formulario actual
+        s.promptContainer.innerHTML = '';
+
+        // Creamos el contenedor de la animación
+        const overlay = document.createElement('div');
+        overlay.className = 'airplane-animation-overlay';
+
+        // Creamos el avioncito (SVG)
+        overlay.innerHTML = `
+            <svg class="paper-airplane-fullscreen" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="var(--brand-yellow)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+        `;
+        
+        // Lo añadimos al cuerpo de la página
+        document.body.appendChild(overlay);
+
+        // Activamos la animación
+        const airplane = overlay.querySelector('.paper-airplane-fullscreen');
+        airplane.style.animation = 'fly-across-screen 2.0s ease-in-out forwards';
+
+        // 5. Después de la animación, limpiamos todo
+        setTimeout(() => {
+            document.body.removeChild(overlay); // Eliminamos el contenedor de la animación
+            showGlobalFeedback(`Email de garantía en camino a ${customerEmail}`, 'success');
+        }, 2000); // 2 segundos, lo que dura la animación
+
+    } catch (error) {
+        console.error("Error al solicitar el envío de email:", error);
+        showGlobalFeedback('No se pudo procesar la solicitud de envío.', 'error');
+        toggleSpinner(btn, false); // Restauramos el botón si hay error
+    } 
 }

@@ -4896,3 +4896,217 @@ input[type="date"] {
     border-radius: 8px !important;
     font-size: 1rem !important;
 }
+
+
+
+
+
+
+
+
+
+
+
+/* ======================================================================= */
+/* ====== INICIO: AJUSTES PARA LA TABLA DE VENTAS (PRODUCCIÓN) ====== */
+/* ======================================================================= */
+
+/* Hacemos que la tabla de ventas sea un poco más compacta en general */
+#sales-table-container th,
+#sales-table-container td {
+    padding: 10px 6px; /* Reducimos el espacio a los costados */
+    font-size: 0.82rem; /* Hacemos la letra un pelín más chica */
+}
+
+/* Le damos un ancho fijo a la columna de Garantía para que no ocupe de más */
+#sales-table-container .garantia-cell {
+    width: 80px;
+    text-align: center;
+}
+
+/* 
+  LA MAGIA PRINCIPAL:
+  Le damos un ancho fijo a la columna de Acciones. Como los 3 botones
+  siempre ocupan lo mismo, no necesita ser flexible.
+*/
+#sales-table-container .actions-cell {
+    width: 140px; /* Ancho suficiente para los 3 botones */
+    min-width: 140px; /* Evita que se encoja */
+}
+
+/* 
+  Creamos una nueva clase para truncar el texto en la columna "Pago",
+  que a veces puede ser muy largo.
+*/
+.payment-cell {
+    max-width: 150px; /* Ancho máximo antes de cortar */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis; /* Añade los "..." */
+}
+
+
+
+/* ======================================================================= */
+/* ====== INICIO: ESTILOS UNIFICADOS PARA BOTONES DE ACCIÓN EN TABLAS ====== */
+/* Reemplaza tus reglas viejas de .edit-btn y .delete-btn con esto.
+/* ======================================================================= */
+
+/* Estilo base para TODOS los botones de acción circulares */
+.actions-cell .action-btn-circle {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: none;
+    cursor: pointer;
+    transition: transform 0.2s, filter 0.2s;
+}
+
+/* Efecto hover sutil para todos */
+.actions-cell .action-btn-circle:hover {
+    transform: scale(1.1);
+    filter: brightness(1.15); /* Les da un pequeño brillo */
+}
+
+/* Estilo para TODOS los íconos SVG dentro de los botones */
+.actions-cell .action-btn-circle svg {
+    width: 16px; /* Tamaño unificado para todos los íconos */
+    height: 16px;
+    stroke: white;
+    stroke-width: 2.5; /* Un trazo un poco más grueso */
+}
+
+/* Colores específicos para cada botón */
+.actions-cell .btn-warranty { background-color: #0c5460; } /* Azul oscuro (info) */
+.actions-cell .btn-edit    { background-color: #3498db; } /* Azul claro (editar) */
+.actions-cell .btn-delete  { background-color: #b12a29; } /* Rojo (eliminar) */
+
+
+/* ======================================================================= */
+/* ====== ESTILOS PARA MODALES MODERNOS CON INPUTS FLOTANTES ====== */
+/* ======================================================================= */
+
+#prompt-container .financiera-modal-box {
+    background-color: rgba(29, 29, 29, 0.7);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--border-radius);
+    padding: 2.5rem;
+    max-width: 550px;
+    width: 100%;
+}
+
+#prompt-container .financiera-modal-box h3 {
+    color: var(--brand-yellow);
+    margin-bottom: 3rem;
+    font-size: 1.8rem;
+    text-align: center;
+}
+
+#prompt-container .financiera-modal-box .form-group {
+    position: relative;
+    margin-bottom: 3rem;
+}
+
+#prompt-container .financiera-modal-box label {
+    position: absolute;
+    top: 10px;
+    left: 0;
+    font-size: 1.1rem;
+    color: var(--text-muted);
+    transition: all 0.2s ease-in-out;
+    pointer-events: none;
+}
+
+#prompt-container .financiera-modal-box input[type="text"],
+#prompt-container .financiera-modal-box input[type="email"], /* Añadido para el email */
+#prompt-container .financiera-modal-box textarea {
+    background-color: transparent !important;
+    border: none;
+    border-bottom: 2px solid #444;
+    border-radius: 0;
+    padding: 10px 0;
+    font-size: 1.1rem;
+    color: var(--text-light) !important;
+    width: 100%;
+    transition: border-color 0.2s ease-in-out;
+}
+
+#prompt-container .financiera-modal-box input:focus,
+#prompt-container .financiera-modal-box textarea:focus {
+    outline: none;
+    border-bottom-color: var(--brand-yellow);
+}
+
+#prompt-container .financiera-modal-box input:focus + label,
+#prompt-container .financiera-modal-box input:not(:placeholder-shown) + label,
+#prompt-container .financiera-modal-box textarea:focus + label,
+#prompt-container .financiera-modal-box textarea:not(:placeholder-shown) + label {
+    top: -20px;
+    left: 0;
+    font-size: 0.8rem;
+    color: var(--brand-yellow);
+}
+
+/* ======================================================================= */
+/* ====== INICIO: ANIMACIÓN DE AVIÓN A PANTALLA COMPLETA ================ */
+/* ======================================================================= */
+
+/* Contenedor que ocupará toda la pantalla y tendrá el fondo oscuro */
+.airplane-animation-overlay {
+    position: fixed; /* Se posiciona sobre todo lo demás */
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(13, 13, 13, 0.85); /* Fondo oscuro semi-transparente */
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    z-index: 9999; /* Para que esté por encima de todo */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    opacity: 0; /* Empieza invisible */
+    animation: fadeIn 0.5s ease-out forwards; /* Animación de aparición suave */
+}
+
+/* El avioncito de papel (SVG) */
+.paper-airplane-fullscreen {
+    position: absolute;
+    width: 80px; /* Tamaño del avión */
+    height: 80px;
+    /* La animación se define en JavaScript ahora */
+}
+
+/* Animación de la trayectoria del avión */
+@keyframes fly-across-screen {
+    /* 0%: Empieza fuera, abajo a la izquierda, girado */
+    0% {
+        left: -10%;
+        bottom: 10%;
+        transform: rotate(-20deg);
+        opacity: 1;
+    }
+    /* 30%: Sube hacia el centro */
+    30% {
+        bottom: 50%;
+        transform: rotate(15deg);
+    }
+    /* 70%: Ya casi al final, sigue visible */
+    70% {
+        opacity: 1;
+    }
+    /* 100%: Desaparece por la esquina superior derecha, más pequeño */
+    100% {
+        left: 110%;
+        bottom: 80%;
+        opacity: 0;
+        transform: rotate(45deg) scale(0.5);
+    }
+}
